@@ -12,7 +12,7 @@
     "preview": "vite preview",
     "electron:start": "electron .",
     "dev:electron": "cross-env NODE_ENV=development concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
-    "build:electron": "npm run build && electron-builder"
+    "build:electron": "npm run build && electron-builder --win"
   },
   "build": {
     "appId": "com.techquest.estimator",
@@ -22,7 +22,11 @@
     },
     "win": {
       "target": "nsis",
-      "icon": "public/favicon.svg"
+      "icon": "public/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true
     },
     "files": [
       "dist/**/*",
