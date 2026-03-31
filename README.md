@@ -1,4 +1,4 @@
-# 🏗️ TechQuest Construction Estimator Pro
+# 🏗️ TechQuest Construction Estimator
 
 An advanced, offline-first desktop application designed for civil engineers and construction professionals. TechQuest Estimator bridges the gap between raw master databases, Local Market Rates (LMR), and project-specific Bill of Quantities (BOQ) with dynamic measurement books.
 
