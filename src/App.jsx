@@ -1,89 +1,88 @@
-import { useState, useMemo } from "react";
-import { ThemeProvider, createTheme, CssBaseline, IconButton, Box } from "@mui/material";
-import DarkModeIcon from '@mui/icons-material/DarkMode';
-import LightModeIcon from '@mui/icons-material/LightMode';
+import React, { useState, useEffect } from 'react';
+import { ThemeProvider, createTheme, CssBaseline, Box, AppBar, Toolbar, Typography, IconButton } from '@mui/material';
+import Brightness4Icon from '@mui/icons-material/Brightness4';
+import Brightness7Icon from '@mui/icons-material/Brightness7';
 
-// Components
-import Home from "./components/Home";
-import DatabaseEditor from "./components/DatabaseEditor";
-import ProjectWorkspace from "./components/ProjectWorkspace";
-import About from "./components/About";
+// Import all your main components
+import DatabaseEditor from './components/DatabaseEditor';
+import Home from './components/Home';
+import ProjectWorkspace from './components/ProjectWorkspace';
+import About from './components/About'; // <-- UNCOMMENTED THIS
 
 export default function App() {
-    const [view, setView] = useState("home"); 
-    const [activeProjectId, setActiveProjectId] = useState(null);
-    const [mode, setMode] = useState("light");
+    const [mode, setMode] = useState(() => {
+        return localStorage.getItem('themeMode') || 'light';
+    });
 
-    // Premium Architectural Theme
-    const theme = useMemo(() => createTheme({
-        palette: {
-            mode: mode,
-            primary: { 
-                main: mode === 'light' ? '#0F172A' : '#60A5FA', // Deep Slate / Tech Blue
-            },
-            secondary: { 
-                main: '#F59E0B', // Construction Amber
-            },
-            background: {
-                default: mode === 'light' ? '#F8FAFC' : '#0B0F19',
-                paper: mode === 'light' ? '#FFFFFF' : '#111827',
-            },
-            divider: mode === 'light' ? 'rgba(0,0,0,0.08)' : 'rgba(255,255,255,0.08)',
-        },
-        typography: { 
-            fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
-            h3: { fontWeight: 800, letterSpacing: '-0.03em' },
-            h5: { fontWeight: 700, letterSpacing: '-0.01em' },
-            button: { textTransform: 'none', fontWeight: 600 }
-        },
-        shape: { borderRadius: 12 },
-        components: {
-            MuiButton: {
-                styleOverrides: {
-                    root: { padding: '10px 24px', boxShadow: 'none' },
-                    contained: { '&:hover': { boxShadow: '0 4px 12px rgba(0,0,0,0.15)' } }
-                }
-            },
-            MuiCard: {
-                styleOverrides: {
-                    root: { backgroundImage: 'none' } // Removes default MUI dark mode gradient
-                }
-            }
-        }
-    }), [mode]);
+    useEffect(() => {
+        localStorage.setItem('themeMode', mode);
+    }, [mode]);
 
-    const toggleDarkMode = () => setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
-
-    const openProject = (id) => {
-        setActiveProjectId(id);
-        setView("project");
+    const toggleTheme = () => {
+        setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
     };
 
-    let currentView;
-    if (view === "about") currentView = <About onBack={() => setView("home")} />;
-    else if (view === "db") currentView = <DatabaseEditor onBack={() => setView("home")} />;
-    else if (view === "project" && activeProjectId) currentView = <ProjectWorkspace projectId={activeProjectId} onBack={() => setView("home")} />;
-    else currentView = <Home onOpenProject={openProject} onOpenDb={() => setView("db")} onOpenAbout={() => setView("about")} />;
+    const theme = createTheme({
+        palette: {
+            mode: mode,
+            primary: { main: mode === 'light' ? '#0a192f' : '#90caf9' },
+            secondary: { main: '#ffc107' },
+            background: {
+                default: mode === 'light' ? '#f5f5f5' : '#121212',
+                paper: mode === 'light' ? '#ffffff' : '#1e1e1e',
+            },
+        },
+    });
+
+    const [currentView, setCurrentView] = useState('home');
+    const [activeProjectId, setActiveProjectId] = useState(null);
+
+    const handleOpenWorkspace = (projectId) => {
+        setActiveProjectId(projectId);
+        setCurrentView('workspace');
+    };
 
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
-            {currentView}
 
-            <Box sx={{ position: 'fixed', bottom: 24, right: 24, zIndex: 9999 }}>
-                <IconButton
-                    onClick={toggleDarkMode}
-                    sx={{
-                        backgroundColor: 'background.paper',
-                        boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
-                        border: '1px solid',
-                        borderColor: 'divider',
-                        transition: 'all 0.3s',
-                        '&:hover': { transform: 'translateY(-2px)', backgroundColor: 'action.hover' }
-                    }}
-                >
-                    {mode === 'dark' ? <LightModeIcon color="warning" /> : <DarkModeIcon color="primary" />}
-                </IconButton>
+            <AppBar position="static" color="primary" elevation={1}>
+                <Toolbar>
+                    <Typography variant="h6" component="div" sx={{ flexGrow: 1, fontWeight: 'bold' }}>
+                        🏗️ TechQuest Estimator
+                    </Typography>
+                    <IconButton sx={{ ml: 1 }} onClick={toggleTheme} color="inherit" title="Toggle Dark/Light Mode">
+                        {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+                    </IconButton>
+                </Toolbar>
+            </AppBar>
+
+            <Box sx={{ width: '100%', minHeight: 'calc(100vh - 64px)' }}>
+
+                {currentView === 'home' && (
+                    <Home
+                        onOpenDb={() => setCurrentView('database')}
+                        onOpenProject={handleOpenWorkspace}
+                        onOpenAbout={() => setCurrentView('about')}
+                    />
+                )}
+
+                {currentView === 'database' && (
+                    <DatabaseEditor onBack={() => setCurrentView('home')} />
+                )}
+
+                {currentView === 'workspace' && (
+                    <ProjectWorkspace
+                        projectId={activeProjectId}
+                        onBack={() => setCurrentView('home')}
+                    />
+                )}
+
+                {/* <-- UNCOMMENTED THIS SECTION --> */}
+                {currentView === 'about' && (
+                    <About onBack={() => setCurrentView('home')} />
+                )}
+
             </Box>
         </ThemeProvider>
     );

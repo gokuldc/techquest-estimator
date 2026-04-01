@@ -108,19 +108,19 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
     return (
         <Container maxWidth="lg" sx={{ py: 6 }}>
             {/* Hero Header Section */}
-            <Box sx={{ 
-                display: 'flex', 
-                flexDirection: { xs: 'column', md: 'row' }, 
-                justifyContent: 'space-between', 
-                alignItems: { xs: 'flex-start', md: 'center' }, 
-                mb: 6, 
-                gap: 3 
+            <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'flex-start', md: 'center' },
+                mb: 6,
+                gap: 3
             }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Box sx={{ 
-                        p: 2, 
-                        bgcolor: 'primary.main', 
-                        color: 'primary.contrastText', 
+                    <Box sx={{
+                        p: 2,
+                        bgcolor: 'primary.main',
+                        color: 'primary.contrastText',
                         borderRadius: 3,
                         boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
                     }}>
@@ -142,16 +142,16 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                     color="inherit"
                     sx={{ borderRadius: 2, borderColor: 'divider' }}
                 >
-                    System Info
+                    About
                 </Button>
             </Box>
 
             {/* Main Action Cards */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4, mb: 8 }}>
-                <Card elevation={0} sx={{ 
-                    display: 'flex', flexDirection: 'column', border: '1px solid', borderColor: 'divider', 
-                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' } 
+                <Card elevation={0} sx={{
+                    display: 'flex', flexDirection: 'column', border: '1px solid', borderColor: 'divider',
+                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' }
                 }}>
                     <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
                         <StorageIcon sx={{ fontSize: 56, color: 'primary.main', mb: 2, opacity: 0.9 }} />
@@ -166,10 +166,10 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                     </CardActions>
                 </Card>
 
-                <Card elevation={0} sx={{ 
-                    display: 'flex', flexDirection: 'column', bgcolor: 'primary.main', color: 'primary.contrastText', 
-                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)', 
-                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' } 
+                <Card elevation={0} sx={{
+                    display: 'flex', flexDirection: 'column', bgcolor: 'primary.main', color: 'primary.contrastText',
+                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }
                 }}>
                     <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
                         <AddCircleOutlineIcon sx={{ fontSize: 56, color: 'secondary.main', mb: 2 }} />
@@ -215,15 +215,15 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                 ) : (
                     projects?.map(p => (
                         <Grid item xs={12} key={p.id}>
-                            <Paper elevation={0} sx={{ 
-                                p: 3, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center', 
+                            <Paper elevation={0} sx={{
+                                p: 3, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center',
                                 border: '1px solid', borderColor: 'divider', borderRadius: 3, transition: '0.2s',
-                                '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' } 
+                                '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
                             }}>
                                 <Box sx={{ minWidth: '200px' }}>
                                     <Typography variant="h6" sx={{ lineHeight: 1.2, mb: 0.5 }}>{p.name}</Typography>
                                     <Typography variant="body2" color="text.secondary">
-                                        {p.clientName ? `${p.clientName} • ` : ''}Region: <span style={{color: 'var(--mui-palette-primary-main)', fontWeight: 600}}>{p.region || "Standard"}</span>
+                                        {p.clientName ? `${p.clientName} • ` : ''}Region: <span style={{ color: 'var(--mui-palette-primary-main)', fontWeight: 600 }}>{p.region || "Standard"}</span>
                                     </Typography>
                                 </Box>
 
