@@ -1,94 +1,95 @@
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  --blueprint-bg: #0a1628;
+  --blueprint-bg-dark: #060e1a;
+  --blueprint-surface: #0d1f3c;
+  --blueprint-surface-hover: #132a4f;
+  --blueprint-grid: rgba(59, 130, 246, 0.08);
+  --blueprint-grid-major: rgba(59, 130, 246, 0.15);
+  --blueprint-border: #1e3a5f;
+  --blueprint-border-light: rgba(59, 130, 246, 0.3);
+  --blueprint-accent: #3b82f6;
+  --blueprint-accent-light: #60a5fa;
+  --blueprint-accent-glow: rgba(59, 130, 246, 0.4);
+  --blueprint-text: #94a3b8;
+  --blueprint-text-primary: #e2e8f0;
+  --blueprint-text-heading: #ffffff;
+  --blueprint-cyan: #22d3ee;
+  --blueprint-cyan-dim: rgba(34, 211, 238, 0.6);
+  --blueprint-amber: #f59e0b;
+  --blueprint-success: #10b981;
+  --blueprint-error: #ef4444;
+  --blueprint-code-bg: #0c1929;
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  --sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --heading: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --mono: 'JetBrains Mono', 'Fira Code', ui-monospace, Consolas, monospace;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
+  font: 16px/150% var(--sans);
+  letter-spacing: 0.2px;
+  color-scheme: dark;
+  background: var(--blueprint-bg);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 
   @media (max-width: 1024px) {
-    font-size: 16px;
-  }
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    font-size: 14px;
   }
 }
 
 body {
   margin: 0;
+  background: var(--blueprint-bg);
+  color: var(--blueprint-text);
 }
 
 #root {
-  width: 1126px;
+  width: 100%;
   max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
+  margin: 0;
+  text-align: left;
+  border: none;
+  min-height: 100vh;
   display: flex;
   flex-direction: column;
   box-sizing: border-box;
+  background:
+    linear-gradient(var(--blueprint-grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--blueprint-grid) 1px, transparent 1px),
+    linear-gradient(var(--blueprint-grid-major) 1px, transparent 1px),
+    linear-gradient(90deg, var(--blueprint-grid-major) 1px, transparent 1px),
+    var(--blueprint-bg);
+  background-size:
+    20px 20px,
+    20px 20px,
+    100px 100px,
+    100px 100px,
+    var(--blueprint-bg);
 }
 
 h1,
 h2 {
   font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
+  font-weight: 600;
+  color: var(--blueprint-text-heading);
+  letter-spacing: -0.5px;
 }
 
 h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
+  font-size: 36px;
+  margin: 24px 0;
   @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+    font-size: 28px;
+    margin: 16px 0;
   }
 }
 h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
+  font-size: 22px;
+  line-height: 130%;
   margin: 0 0 8px;
   @media (max-width: 1024px) {
-    font-size: 20px;
+    font-size: 18px;
   }
 }
 p {
@@ -100,12 +101,57 @@ code,
   font-family: var(--mono);
   display: inline-flex;
   border-radius: 4px;
-  color: var(--text-h);
+  color: var(--blueprint-cyan);
 }
 
 code {
-  font-size: 15px;
-  line-height: 135%;
+  font-size: 14px;
+  line-height: 140%;
   padding: 4px 8px;
-  background: var(--code-bg);
+  background: var(--blueprint-code-bg);
+  border: 1px solid var(--blueprint-border);
+}
+
+/* Blueprint custom scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--blueprint-bg-dark);
+  border: 1px solid var(--blueprint-border);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #1e3a5f 0%, #2563eb 100%);
+  border-radius: 6px;
+  border: 2px solid var(--blueprint-bg-dark);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #60a5fa 0%, #93c5fd 100%);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
+}
+
+::-webkit-scrollbar-corner {
+  background: var(--blueprint-bg-dark);
+  border: 1px solid var(--blueprint-border);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--blueprint-accent) var(--blueprint-bg-dark);
+}
+
+/* Blueprint selection */
+::selection {
+  background: var(--blueprint-accent-glow);
+  color: var(--blueprint-text-heading);
 }

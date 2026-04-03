@@ -16,7 +16,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
 
-// --- FIXED RESIZER COMPONENT ---
 const Resizer = ({ onMouseDown }) => (
     <div
         onMouseDown={onMouseDown}
@@ -32,12 +31,11 @@ const Resizer = ({ onMouseDown }) => (
             backgroundColor: 'transparent',
             transition: 'background-color 0.2s',
         }}
-        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(0, 0, 0, 0.1)'}
+        onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'}
         onMouseLeave={(e) => e.target.style.backgroundColor = 'transparent'}
     />
 );
 
-// --- INTEGRATED COMPONENT: Master BOQ DataGrid ---
 function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMasterBoq }) {
     const [searchCode, setSearchCode] = useState('');
     const [searchDesc, setSearchDesc] = useState('');
@@ -46,7 +44,6 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [previewRegion, setPreviewRegion] = useState('');
 
-    // Column Width State
     const [colWidths, setColWidths] = useState({
         code: 150,
         desc: 400,
@@ -55,12 +52,9 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
         actions: 150
     });
 
-    // Smarter Resize Math: Grabs the actual rendered width to prevent jumping
     const handleResizeStart = (colKey) => (e) => {
         e.preventDefault();
         const startX = e.clientX;
-
-        // Get the actual physical width of the column from the DOM
         const thElement = e.target.closest('th');
         const startWidth = thElement ? thElement.getBoundingClientRect().width : colWidths[colKey];
 
@@ -109,67 +103,74 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
         <Box sx={{ width: '100%', overflow: 'hidden' }}>
             <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
                 <TextField
-                    label="Search by Item Code"
+                    label="SEARCH_CODE"
                     variant="outlined"
                     size="small"
                     value={searchCode}
                     onChange={(e) => { setSearchCode(e.target.value); setPage(0); }}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                    InputProps={{
+                        startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                        sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
+                    }}
+                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                     sx={{ width: '200px' }}
                 />
                 <TextField
-                    label="Search by Description"
+                    label="SEARCH_DESC"
                     variant="outlined"
                     size="small"
                     fullWidth
                     value={searchDesc}
                     onChange={(e) => { setSearchDesc(e.target.value); setPage(0); }}
-                    InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment> }}
+                    InputProps={{
+                        startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                        sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
+                    }}
+                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                 />
                 <TextField
                     select
                     size="small"
-                    label="Preview Rate for Region"
+                    label="PREVIEW_REGION"
                     value={previewRegion}
                     onChange={e => setPreviewRegion(e.target.value)}
                     sx={{ minWidth: 200 }}
-                    color="primary"
-                    focused
+                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                 >
-                    <MenuItem value="">-- Select Region --</MenuItem>
-                    {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
+                    <MenuItem value="">-- SELECT_REGION --</MenuItem>
+                    {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
                 </TextField>
             </Stack>
 
-            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ overflowX: 'auto', width: '100%', borderRadius: 3 }}>
-                {/* minWidth: '100%' ensures the table never shrinks smaller than the layout container */}
+            <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ overflowX: 'auto', width: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Table size="small" sx={{ tableLayout: 'fixed', minWidth: '100%', width: Object.values(colWidths).reduce((a, b) => a + b, 0) }}>
-                    <TableHead sx={{ bgcolor: 'background.default' }}>
+                    <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                         <TableRow>
-                            <TableCell sx={{ width: colWidths.code, position: 'relative', overflow: 'visible' }}>
+                            <TableCell sx={{ width: colWidths.code, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                                 <TableSortLabel active={true} direction={sortDirection} onClick={handleSortToggle}>
-                                    <strong>Item Code</strong>
+                                    <strong>ITEM_CODE</strong>
                                 </TableSortLabel>
                                 <Resizer onMouseDown={handleResizeStart('code')} />
                             </TableCell>
 
-                            <TableCell sx={{ width: colWidths.desc, position: 'relative', overflow: 'visible' }}>
-                                <strong>Description</strong>
+                            <TableCell sx={{ width: colWidths.desc, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                                <strong>DESCRIPTION</strong>
                                 <Resizer onMouseDown={handleResizeStart('desc')} />
                             </TableCell>
 
-                            <TableCell sx={{ width: colWidths.unit, position: 'relative', overflow: 'visible' }}>
-                                <strong>Unit</strong>
+                            <TableCell sx={{ width: colWidths.unit, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                                <strong>UNIT</strong>
                                 <Resizer onMouseDown={handleResizeStart('unit')} />
                             </TableCell>
 
-                            <TableCell sx={{ width: colWidths.rate, position: 'relative', overflow: 'visible' }}>
-                                <strong>Rate Preview</strong>
+                            <TableCell sx={{ width: colWidths.rate, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                                <strong>RATE_PREVIEW</strong>
                                 <Resizer onMouseDown={handleResizeStart('rate')} />
                             </TableCell>
 
-                            <TableCell align="center" sx={{ width: colWidths.actions }}>
-                                <strong>Actions</strong>
+                            <TableCell align="center" sx={{ width: colWidths.actions, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                                <strong>ACTIONS</strong>
                             </TableCell>
                         </TableRow>
                     </TableHead>
@@ -179,20 +180,36 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                                 const rate = previewRegion ? calculateMasterBoqRate(b, resources, masterBoqs, previewRegion) : 0;
                                 return (
                                     <TableRow key={b.id} hover>
-                                        <TableCell sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
                                             {b.itemCode || '-'}
                                         </TableCell>
-                                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                        <TableCell sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
                                             {b.description}
                                         </TableCell>
-                                        <TableCell>{b.unit}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', color: previewRegion ? 'success.main' : 'text.secondary' }}>
-                                            {previewRegion ? `₹ ${rate.toFixed(2)}` : 'Select Region ↑'}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{b.unit}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: previewRegion ? 'success.main' : 'text.disabled', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                            {previewRegion ? `₹ ${rate.toFixed(2)}` : 'SELECT_REGION'}
                                         </TableCell>
                                         <TableCell align="center">
                                             <Box display="flex" gap={1} justifyContent="center">
-                                                <Button size="small" variant="outlined" color="warning" onClick={() => editMasterBoq(b)}>Edit</Button>
-                                                <Button size="small" variant="outlined" color="error" onClick={() => deleteMasterBoq(b.id)}>Delete</Button>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="warning"
+                                                    onClick={() => editMasterBoq(b)}
+                                                    sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
+                                                >
+                                                    EDIT
+                                                </Button>
+                                                <Button
+                                                    size="small"
+                                                    variant="outlined"
+                                                    color="error"
+                                                    onClick={() => deleteMasterBoq(b.id)}
+                                                    sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
+                                                >
+                                                    DELETE
+                                                </Button>
                                             </Box>
                                         </TableCell>
                                     </TableRow>
@@ -200,7 +217,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                             })
                         ) : (
                             <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ py: 3 }}>No BOQ items match your search.</TableCell>
+                                <TableCell colSpan={5} align="center" sx={{ py: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>NO_MATCHING_ITEMS</TableCell>
                             </TableRow>
                         )}
                     </TableBody>
@@ -215,6 +232,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                 page={page}
                 onPageChange={(e, newPage) => setPage(newPage)}
                 onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
+                sx={{ fontFamily: "'JetBrains Mono', monospace" }}
             />
         </Box>
     );
@@ -400,49 +418,89 @@ export default function DatabaseEditor({ onBack }) {
         return { renderedRows: rows, subTotal: sub, ohAmount: oh, profitAmount: prof, grandTotal: sub + oh + prof };
     }, [boqRows, resources, masterBoqs, previewRegion, boqOH, boqProfit]);
 
-    const tableInputStyle = { width: "100%", padding: "6px", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", color: "inherit", fontFamily: "inherit" };
+    const tableInputStyle = { width: "100%", padding: "6px", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", color: "inherit", fontFamily: "'JetBrains Mono', monospace", fontSize: "13px" };
     const tableInputActiveStyle = { ...tableInputStyle, border: "1px solid var(--mui-palette-divider)", borderRadius: "4px", background: "var(--mui-palette-background-default)" };
 
     return (
         <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={3}>
-                <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" color="inherit" sx={{ borderRadius: 2 }}>
-                    Home
+                <Button
+                    startIcon={<ArrowBackIcon />}
+                    onClick={onBack}
+                    variant="outlined"
+                    color="inherit"
+                    sx={{
+                        borderRadius: 2,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: '1px',
+                        fontSize: '12px',
+                        borderColor: 'divider',
+                        color: 'text.secondary',
+                        '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
+                    }}
+                >
+                    {'< '}HOME
                 </Button>
-                <Typography variant="h4" fontWeight="bold">Database Manager</Typography>
+                <Typography
+                    variant="h4"
+                    fontWeight="bold"
+                    sx={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        letterSpacing: '1px',
+                        fontSize: { xs: '18px', md: '22px' },
+                    }}
+                >
+                    DATABASE_MANAGER
+                </Typography>
             </Box>
 
-            <Paper elevation={0} variant="outlined" sx={{ mb: 4, borderRadius: 3 }}>
+            <Paper elevation={0} variant="outlined" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
-                    <Tab value="resources" label="1. Manage Resources" sx={{ fontWeight: 'bold' }} />
-                    <Tab value="createBoq" label={`2. ${editingBoqId ? "Edit" : "Create"} Master BOQ`} sx={{ fontWeight: 'bold' }} />
-                    <Tab value="viewBoq" label="3. View Master BOQs" sx={{ fontWeight: 'bold' }} />
-                    <Tab value="backup" label="4. Backup Master Data" sx={{ fontWeight: 'bold' }} />
+                    <Tab value="resources" label="01_RESOURCES" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="createBoq" label={`02_${editingBoqId ? "EDIT" : "CREATE"}_BOQ`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="viewBoq" label="03_VIEW_BOQS" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="backup" label="04_BACKUP" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                 </Tabs>
             </Paper>
 
             {tab === "backup" && (
                 <Box sx={{ maxWidth: 800, mx: "auto", mt: 4 }}>
-                    <Alert severity="info" sx={{ mb: 4, borderRadius: 2 }}>
-                        This section manages your <b>Master Template Data</b> (Regions, Resources, and Master BOQs).
-                        Your client projects and estimates are safely exported/imported from the main Home screen.
+                    <Alert severity="info" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                        <strong>MASTER_TEMPLATE_DATA</strong> — Regions, Resources, and Master BOQs.
+                        Client projects are exported/imported from the Home screen.
                     </Alert>
                     <Grid container spacing={4}>
                         <Grid item xs={12} md={6}>
-                            <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderRadius: 3 }}>
-                                <CloudDownloadIcon sx={{ fontSize: 60, color: 'primary.main', mb: 2 }} />
-                                <Typography variant="h6" gutterBottom>Export Master DB</Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>Download your master database (regions, rates, and master BOQ assemblies) as a template.</Typography>
-                                <Button variant="contained" disableElevation size="large" onClick={exportDatabase} sx={{ mt: 2, borderRadius: 2 }}>Download Master File</Button>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                                <CloudDownloadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
+                                <Typography variant="h6" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>EXPORT_DB</Typography>
+                                <Typography variant="body2" color="text.secondary" paragraph>Download master database as template.</Typography>
+                                <Button
+                                    variant="contained"
+                                    disableElevation
+                                    size="large"
+                                    onClick={exportDatabase}
+                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                                >
+                                    DOWNLOAD
+                                </Button>
                             </Paper>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderStyle: 'dashed', borderColor: 'error.main', borderRadius: 3 }}>
-                                <CloudUploadIcon sx={{ fontSize: 60, color: 'error.main', mb: 2 }} />
-                                <Typography variant="h6" color="error.main" gutterBottom>Restore Master DB</Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>Upload a previously saved Master DB file. <br /><b>WARNING: Overwrites Master Database.</b></Typography>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderStyle: 'dashed', borderColor: 'error.main', borderRadius: 2, bgcolor: 'rgba(239, 68, 68, 0.03)' }}>
+                                <CloudUploadIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
+                                <Typography variant="h6" color="error.main" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>RESTORE_DB</Typography>
+                                <Typography variant="body2" color="text.secondary" paragraph>Upload Master DB file. <br /><strong>WARNING: Overwrites Master Database.</strong></Typography>
                                 <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={importDatabase} />
-                                <Button variant="outlined" color="error" size="large" onClick={() => fileInputRef.current.click()} sx={{ mt: 2, borderRadius: 2 }}>Upload Master File</Button>
+                                <Button
+                                    variant="outlined"
+                                    color="error"
+                                    size="large"
+                                    onClick={() => fileInputRef.current.click()}
+                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                                >
+                                    UPLOAD
+                                </Button>
                             </Paper>
                         </Grid>
                     </Grid>
@@ -453,27 +511,58 @@ export default function DatabaseEditor({ onBack }) {
                 <Box>
                     <Grid container spacing={3} mb={3}>
                         <Grid item xs={12} md={6}>
-                            <Paper elevation={0} variant="outlined" sx={{ p: 3, height: '100%', borderRadius: 3 }}>
-                                <Typography variant="subtitle1" fontWeight="bold" mb={2}>Import Excel (LMR)</Typography>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 3, height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                                <Typography variant="subtitle1" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '13px' }}>IMPORT_EXCEL_LMR</Typography>
                                 <Box display="flex" gap={2} alignItems="center">
-                                    <TextField select size="small" label="Target Region" value={importRegion} onChange={e => setImportRegion(e.target.value)} sx={{ minWidth: 150 }}>
-                                        {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
+                                    <TextField
+                                        select
+                                        size="small"
+                                        label="TARGET_REGION"
+                                        value={importRegion}
+                                        onChange={e => setImportRegion(e.target.value)}
+                                        sx={{ minWidth: 150 }}
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    >
+                                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
                                     </TextField>
                                     <input type="file" accept=".xls,.xlsx" onChange={handleExcelUpload} style={{ color: "var(--mui-palette-text-primary)" }} />
                                 </Box>
                             </Paper>
                         </Grid>
                         <Grid item xs={12} md={6}>
-                            <Paper elevation={0} variant="outlined" sx={{ p: 3, height: '100%', borderRadius: 3 }}>
-                                <Typography variant="subtitle1" fontWeight="bold" mb={2}>Manage Regions</Typography>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 3, height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                                <Typography variant="subtitle1" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '13px' }}>MANAGE_REGIONS</Typography>
                                 <Box display="flex" gap={2}>
-                                    <TextField size="small" label="New Region Name" value={newRegion} onChange={e => setNewRegion(e.target.value)} fullWidth />
-                                    <Button variant="contained" disableElevation onClick={handleAddRegion} sx={{ borderRadius: 2 }}>Add</Button>
+                                    <TextField
+                                        size="small"
+                                        label="NEW_REGION"
+                                        value={newRegion}
+                                        onChange={e => setNewRegion(e.target.value)}
+                                        fullWidth
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
+                                    <Button
+                                        variant="contained"
+                                        disableElevation
+                                        onClick={handleAddRegion}
+                                        sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                                    >
+                                        ADD
+                                    </Button>
                                 </Box>
                                 {regions.length > 0 && (
                                     <Box display="flex" gap={1} flexWrap="wrap" mt={2} pt={2} borderTop="1px dashed" borderColor="divider">
                                         {regions.map(r => (
-                                            <Chip key={r.id} label={r.name} onDelete={() => handleDeleteRegion(r.id, r.name)} size="small" variant="outlined" sx={{ borderRadius: 1 }} />
+                                            <Chip
+                                                key={r.id}
+                                                label={r.name}
+                                                onDelete={() => handleDeleteRegion(r.id, r.name)}
+                                                size="small"
+                                                variant="outlined"
+                                                sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
+                                            />
                                         ))}
                                     </Box>
                                 )}
@@ -481,47 +570,109 @@ export default function DatabaseEditor({ onBack }) {
                         </Grid>
                     </Grid>
 
-                    <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 3, borderRadius: 3 }}>
+                    <Paper elevation={0} variant="outlined" sx={{ p: 3, mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                         <Grid container spacing={3}>
                             <Grid item xs={12} md={6}>
-                                <Typography variant="subtitle2" fontWeight="bold" mb={1}>Search Resources</Typography>
+                                <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>SEARCH_RESOURCES</Typography>
                                 <Box display="flex" gap={2}>
-                                    <TextField size="small" label="Search Code" value={searchCode} onChange={e => { setSearchCode(e.target.value); setCurrentPage(1); }} />
-                                    <TextField size="small" label="Search Description" value={searchDesc} onChange={e => { setSearchDesc(e.target.value); setCurrentPage(1); }} fullWidth />
+                                    <TextField
+                                        size="small"
+                                        label="SEARCH_CODE"
+                                        value={searchCode}
+                                        onChange={e => { setSearchCode(e.target.value); setCurrentPage(1); }}
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        label="SEARCH_DESC"
+                                        value={searchDesc}
+                                        onChange={e => { setSearchDesc(e.target.value); setCurrentPage(1); }}
+                                        fullWidth
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
                                 </Box>
                             </Grid>
                             <Grid item xs={12} md={6}>
-                                <Typography variant="subtitle2" fontWeight="bold" mb={1}>Add Manual Resource</Typography>
+                                <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>ADD_RESOURCE</Typography>
                                 <Box display="flex" gap={1}>
-                                    <TextField size="small" label="Code" value={resCode} onChange={e => setResCode(e.target.value)} sx={{ width: 100 }} />
-                                    <TextField size="small" label="Description" value={resDesc} onChange={e => setResDesc(e.target.value)} fullWidth />
-                                    <TextField size="small" label="Unit" value={resUnit} onChange={e => setResUnit(e.target.value)} sx={{ width: 80 }} />
-                                    <Button variant="contained" disableElevation onClick={addResourceManually} sx={{ borderRadius: 2 }}>Add</Button>
+                                    <TextField
+                                        size="small"
+                                        label="CODE"
+                                        value={resCode}
+                                        onChange={e => setResCode(e.target.value)}
+                                        sx={{ width: 100 }}
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        label="DESCRIPTION"
+                                        value={resDesc}
+                                        onChange={e => setResDesc(e.target.value)}
+                                        fullWidth
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
+                                    <TextField
+                                        size="small"
+                                        label="UNIT"
+                                        value={resUnit}
+                                        onChange={e => setResUnit(e.target.value)}
+                                        sx={{ width: 80 }}
+                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    />
+                                    <Button
+                                        variant="contained"
+                                        disableElevation
+                                        onClick={addResourceManually}
+                                        sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                                    >
+                                        ADD
+                                    </Button>
                                 </Box>
                             </Grid>
                         </Grid>
                     </Paper>
 
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
-                        <Typography variant="body2" color="text.secondary">
-                            Showing {paginatedResources.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} to {Math.min(currentPage * itemsPerPage, filteredResources.length)} of {filteredResources.length}
+                        <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                            SHOWING {paginatedResources.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} TO {Math.min(currentPage * itemsPerPage, filteredResources.length)} OF {filteredResources.length}
                         </Typography>
                         <Box display="flex" gap={1} alignItems="center">
-                            <Button size="small" variant="outlined" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} sx={{ borderRadius: 2 }}>Prev</Button>
-                            <Typography variant="body2" fontWeight="bold">Page {currentPage} of {totalPages || 1}</Typography>
-                            <Button size="small" variant="outlined" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)} sx={{ borderRadius: 2 }}>Next</Button>
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                disabled={currentPage === 1}
+                                onClick={() => setCurrentPage(p => p - 1)}
+                                sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
+                            >
+                                PREV
+                            </Button>
+                            <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>PAGE {currentPage} OF {totalPages || 1}</Typography>
+                            <Button
+                                size="small"
+                                variant="outlined"
+                                disabled={currentPage === totalPages || totalPages === 0}
+                                onClick={() => setCurrentPage(p => p + 1)}
+                                sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
+                            >
+                                NEXT
+                            </Button>
                         </Box>
                     </Box>
 
-                    <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ maxHeight: 600, borderRadius: 3 }}>
+                    <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ maxHeight: 600, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                         <Table stickyHeader size="small" sx={{ minWidth: '100%' }}>
                             <TableHead>
                                 <TableRow>
-                                    <TableCell sx={{ width: 60, bgcolor: 'background.default' }}>Action</TableCell>
-                                    <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', width: 120, bgcolor: 'background.default' }}>Code {sortField === 'code' ? (sortAsc ? '↑' : '↓') : ''}</TableCell>
-                                    <TableCell onClick={() => handleSort('description')} sx={{ cursor: 'pointer', bgcolor: 'background.default' }}>Description {sortField === 'description' ? (sortAsc ? '↑' : '↓') : ''}</TableCell>
-                                    <TableCell sx={{ width: 100, bgcolor: 'background.default' }}>Unit</TableCell>
-                                    {regions.map(r => <TableCell key={r.id} sx={{ color: 'primary.main', fontWeight: 'bold', width: 120, bgcolor: 'background.default' }}>{r.name}</TableCell>)}
+                                    <TableCell sx={{ width: 60, bgcolor: 'rgba(0,0,0,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
+                                    <TableCell onClick={() => handleSort('code')} sx={{ cursor: 'pointer', width: 120, bgcolor: 'rgba(0,0,0,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE {sortField === 'code' ? (sortAsc ? '↑' : '↓') : ''}</TableCell>
+                                    <TableCell onClick={() => handleSort('description')} sx={{ cursor: 'pointer', bgcolor: 'rgba(0,0,0,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESCRIPTION {sortField === 'description' ? (sortAsc ? '↑' : '↓') : ''}</TableCell>
+                                    <TableCell sx={{ width: 100, bgcolor: 'rgba(0,0,0,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+                                    {regions.map(r => <TableCell key={r.id} sx={{ color: 'primary.main', fontWeight: 'bold', width: 120, bgcolor: 'rgba(0,0,0,0.3)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>{r.name.toUpperCase()}</TableCell>)}
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -538,7 +689,7 @@ export default function DatabaseEditor({ onBack }) {
                                         ))}
                                     </TableRow>
                                 ))}
-                                {paginatedResources.length === 0 && <TableRow><TableCell colSpan={4 + regions.length} align="center" sx={{ py: 3 }}>No matching resources.</TableCell></TableRow>}
+                                {paginatedResources.length === 0 && <TableRow><TableCell colSpan={4 + regions.length} align="center" sx={{ py: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>NO_MATCHING_RESOURCES</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </TableContainer>
@@ -546,34 +697,65 @@ export default function DatabaseEditor({ onBack }) {
             )}
 
             {tab === "createBoq" && (
-                <Paper elevation={0} variant="outlined" sx={{ p: 4, borderRadius: 3 }}>
-                    <Typography variant="h6" fontWeight="bold" mb={3}>
-                        {editingBoqId ? "Edit" : "Create"} Master BOQ Item
+                <Paper elevation={0} variant="outlined" sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
+                        {editingBoqId ? "EDIT" : "CREATE"}_MASTER_BOQ
                     </Typography>
-                    <Divider sx={{ mb: 3 }} />
+                    <Divider sx={{ mb: 3, borderColor: 'divider' }} />
 
                     <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
-                        <TextField label="Unique Item Code" value={boqCode} onChange={e => setBoqCode(e.target.value)} placeholder="e.g. BOQ-001" sx={{ flex: 1, minWidth: 150 }} />
-                        <TextField label="Item Description" value={boqDesc} onChange={e => setBoqDesc(e.target.value)} placeholder="e.g. Earthwork..." sx={{ flex: 2, minWidth: 300 }} />
-                        <TextField label="Unit" value={boqUnit} onChange={e => setBoqUnit(e.target.value)} sx={{ width: 100 }} />
-                        <TextField select label="Live Preview Region" value={previewRegion} onChange={e => setPreviewRegion(e.target.value)} sx={{ flex: 1, minWidth: 200 }} color="primary" focused>
-                            <MenuItem value="">-- Default Rate --</MenuItem>
-                            {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
+                        <TextField
+                            label="ITEM_CODE"
+                            value={boqCode}
+                            onChange={e => setBoqCode(e.target.value)}
+                            placeholder="e.g. BOQ-001"
+                            sx={{ flex: 1, minWidth: 150 }}
+                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                        />
+                        <TextField
+                            label="DESCRIPTION"
+                            value={boqDesc}
+                            onChange={e => setBoqDesc(e.target.value)}
+                            placeholder="e.g. Earthwork..."
+                            sx={{ flex: 2, minWidth: 300 }}
+                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                        />
+                        <TextField
+                            label="UNIT"
+                            value={boqUnit}
+                            onChange={e => setBoqUnit(e.target.value)}
+                            sx={{ width: 100 }}
+                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                        />
+                        <TextField
+                            select
+                            label="PREVIEW_REGION"
+                            value={previewRegion}
+                            onChange={e => setPreviewRegion(e.target.value)}
+                            sx={{ flex: 1, minWidth: 200 }}
+                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                        >
+                            <MenuItem value="">-- DEFAULT_RATE --</MenuItem>
+                            {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
                         </TextField>
                     </Box>
 
                     <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3 }}>
                         <Table size="small">
-                            <TableHead sx={{ bgcolor: 'action.hover' }}>
+                            <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                                 <TableRow>
-                                    <TableCell sx={{ width: '12%' }}>Type</TableCell>
-                                    <TableCell sx={{ width: '15%' }}>Code Search</TableCell>
-                                    <TableCell sx={{ width: '30%' }}>Description Search</TableCell>
-                                    <TableCell sx={{ width: '8%' }}>Unit</TableCell>
-                                    <TableCell sx={{ width: '10%' }}>Quantity</TableCell>
-                                    <TableCell sx={{ width: '10%' }}>Rate</TableCell>
-                                    <TableCell sx={{ width: '10%' }}>Amount</TableCell>
-                                    <TableCell align="center" sx={{ width: '5%' }}>Action</TableCell>
+                                    <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TYPE</TableCell>
+                                    <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE_SEARCH</TableCell>
+                                    <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESC_SEARCH</TableCell>
+                                    <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT</TableCell>
+                                    <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
@@ -583,25 +765,25 @@ export default function DatabaseEditor({ onBack }) {
                                         <TableRow key={row.id}>
                                             <TableCell>
                                                 <select value={row.itemType} onChange={e => updateSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="resource">Resource</option><option value="boq">Master BOQ</option>
+                                                    <option value="resource">RESOURCE</option><option value="boq">MASTER_BOQ</option>
                                                 </select>
                                             </TableCell>
                                             <TableCell>
                                                 <select value={row.itemId} onChange={e => updateSpreadsheetRow(row.id, 'itemId', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="">-- Code --</option>
+                                                    <option value="">-- CODE --</option>
                                                     {sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.id}>{s.code || s.itemCode}</option>)}
                                                 </select>
                                             </TableCell>
                                             <TableCell>
                                                 <select value={row.itemId} onChange={e => updateSpreadsheetRow(row.id, 'itemId', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="">-- Description --</option>
+                                                    <option value="">-- DESCRIPTION --</option>
                                                     {sourceList.map(s => <option key={s.id} value={s.id}>{s.description}</option>)}
                                                 </select>
                                             </TableCell>
-                                            <TableCell color="text.secondary">{row.unit}</TableCell>
+                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
                                             <TableCell><input type="number" value={row.qty} onChange={e => updateSpreadsheetRow(row.id, 'qty', e.target.value)} style={tableInputActiveStyle} /></TableCell>
-                                            <TableCell color="text.secondary">₹ {row.rate.toFixed(2)}</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold' }}>₹ {row.amount.toFixed(2)}</TableCell>
+                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {row.rate.toFixed(2)}</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {row.amount.toFixed(2)}</TableCell>
                                             <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
                                         </TableRow>
                                     )
@@ -610,25 +792,50 @@ export default function DatabaseEditor({ onBack }) {
                         </Table>
                     </TableContainer>
 
-                    <Button variant="outlined" disableElevation onClick={addSpreadsheetRow} sx={{ mb: 4, borderRadius: 2 }}>+ Add Component Row</Button>
+                    <Button
+                        variant="outlined"
+                        disableElevation
+                        onClick={addSpreadsheetRow}
+                        sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                    >
+                        + ADD_COMPONENT
+                    </Button>
 
                     <Box display="flex" justifyContent="flex-end">
-                        <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'action.hover', borderRadius: 3 }}>
-                            <Box display="flex" justifyContent="space-between" mb={2}><Typography>Subtotal:</Typography><Typography fontWeight="bold">₹ {subTotal.toFixed(2)}</Typography></Box>
+                        <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                            <Box display="flex" justifyContent="space-between" mb={2}>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
+                                <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {subTotal.toFixed(2)}</Typography>
+                            </Box>
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Box display="flex" alignItems="center" gap={1}><Typography>Overhead (%):</Typography><input type="number" value={boqOH} onChange={e => setBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} /></Box>
-                                <Typography>₹ {ohAmount.toFixed(2)}</Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>OVERHEAD (%):</Typography>
+                                    <input type="number" value={boqOH} onChange={e => setBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {ohAmount.toFixed(2)}</Typography>
                             </Box>
                             <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="2px solid" borderColor="divider">
-                                <Box display="flex" alignItems="center" gap={1}><Typography>Profit (%):</Typography><input type="number" value={boqProfit} onChange={e => setBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} /></Box>
-                                <Typography>₹ {profitAmount.toFixed(2)}</Typography>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>PROFIT (%):</Typography>
+                                    <input type="number" value={boqProfit} onChange={e => setBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {profitAmount.toFixed(2)}</Typography>
                             </Box>
                             <Box display="flex" justifyContent="space-between" mb={3} color="success.main">
-                                <Typography variant="h6" fontWeight="bold">Final Rate per {boqUnit}:</Typography>
-                                <Typography variant="h6" fontWeight="bold">₹ {grandTotal.toFixed(2)}</Typography>
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{boqUnit}:</Typography>
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {grandTotal.toFixed(2)}</Typography>
                             </Box>
-                            <Button variant="contained" color="success" fullWidth size="large" onClick={saveMasterBoq} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2 }}>
-                                {editingBoqId ? "Update Item" : "Save Item"}
+                            <Button
+                                variant="contained"
+                                color="success"
+                                fullWidth
+                                size="large"
+                                onClick={saveMasterBoq}
+                                startIcon={<SaveIcon />}
+                                disableElevation
+                                sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}
+                            >
+                                {editingBoqId ? "UPDATE_ITEM" : "SAVE_ITEM"}
                             </Button>
                         </Paper>
                     </Box>
@@ -637,7 +844,9 @@ export default function DatabaseEditor({ onBack }) {
 
             {tab === "viewBoq" && (
                 <Box>
-                    <Typography variant="h6" fontWeight="bold" mb={3}>Existing Master BOQ Items</Typography>
+                    <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
+                        EXISTING_MASTER_BOQ_ITEMS
+                    </Typography>
                     <MasterBOQTab
                         masterBoqs={masterBoqs}
                         regions={regions}
