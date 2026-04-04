@@ -13,7 +13,6 @@ import InfoIcon from '@mui/icons-material/Info';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 
-// Custom Geometric Brand Logo
 const TechQuestLogo = (props) => (
     <SvgIcon viewBox="0 0 48 48" {...props}>
         <path d="M4 44H44" stroke="currentColor" strokeWidth="4" strokeLinecap="round" />
@@ -107,31 +106,52 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
 
     return (
         <Container maxWidth="lg" sx={{ py: 6 }}>
-            {/* Hero Header Section */}
             <Box sx={{
                 display: 'flex',
                 flexDirection: { xs: 'column', md: 'row' },
                 justifyContent: 'space-between',
                 alignItems: { xs: 'flex-start', md: 'center' },
                 mb: 6,
-                gap: 3
+                gap: 3,
+                pb: 4,
+                borderBottom: '1px solid',
+                borderColor: 'divider',
             }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                     <Box sx={{
                         p: 2,
-                        bgcolor: 'primary.main',
-                        color: 'primary.contrastText',
-                        borderRadius: 3,
-                        boxShadow: '0 8px 20px rgba(0,0,0,0.1)'
+                        border: '2px solid',
+                        borderColor: 'primary.main',
+                        borderRadius: 2,
+                        color: 'primary.main',
+                        boxShadow: '0 0 20px rgba(59, 130, 246, 0.2)',
                     }}>
                         <TechQuestLogo sx={{ fontSize: 48 }} />
                     </Box>
                     <Box>
-                        <Typography variant="h3" component="h1" color="text.primary">
-                            TechQuest
+                        <Typography
+                            variant="h3"
+                            component="h1"
+                            color="text.primary"
+                            sx={{
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: { xs: '28px', md: '36px' },
+                                letterSpacing: '2px',
+                            }}
+                        >
+                            TECHQUEST
                         </Typography>
-                        <Typography variant="subtitle1" color="secondary.main" fontWeight="bold" sx={{ letterSpacing: 1.5 }}>
-                            CONSTRUCTION ESTIMATOR
+                        <Typography
+                            variant="subtitle1"
+                            color="secondary.main"
+                            fontWeight="bold"
+                            sx={{
+                                letterSpacing: 3,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                fontSize: '12px',
+                            }}
+                        >
+                            {/* CONSTRUCTION ESTIMATOR v1.0 */}
                         </Typography>
                     </Box>
                 </Box>
@@ -140,76 +160,175 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                     onClick={onOpenAbout}
                     variant="outlined"
                     color="inherit"
-                    sx={{ borderRadius: 2, borderColor: 'divider' }}
+                    sx={{
+                        borderRadius: 2,
+                        borderColor: 'divider',
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        fontSize: '12px',
+                        letterSpacing: '1px',
+                    }}
                 >
-                    About
+                    ABOUT
                 </Button>
             </Box>
 
-            {/* Main Action Cards */}
             <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4, mb: 8 }}>
                 <Card elevation={0} sx={{
-                    display: 'flex', flexDirection: 'column', border: '1px solid', borderColor: 'divider',
-                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': { borderColor: 'primary.main', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(0,0,0,0.05)' }
+                    display: 'flex', flexDirection: 'column',
+                    border: '1px solid', borderColor: 'divider',
+                    borderRadius: 2,
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    background: 'linear-gradient(135deg, rgba(13, 31, 60, 0.8) 0%, rgba(10, 22, 40, 0.9) 100%)',
+                    backdropFilter: 'blur(10px)',
+                    '&:hover': {
+                        borderColor: 'primary.main',
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 12px 32px rgba(59, 130, 246, 0.15), 0 0 0 1px rgba(59, 130, 246, 0.1)',
+                    }
                 }}>
                     <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
-                        <StorageIcon sx={{ fontSize: 56, color: 'primary.main', mb: 2, opacity: 0.9 }} />
-                        <Typography variant="h5" gutterBottom>Master Database</Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ px: 2, lineHeight: 1.6 }}>
+                        <Box sx={{
+                            width: 64, height: 64, mx: 'auto', mb: 3,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: '1px solid', borderColor: 'primary.main',
+                            borderRadius: 2, color: 'primary.main',
+                            boxShadow: '0 0 16px rgba(59, 130, 246, 0.15)',
+                        }}>
+                            <StorageIcon sx={{ fontSize: 32 }} />
+                        </Box>
+                        <Typography
+                            variant="h5"
+                            gutterBottom
+                            sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px' }}
+                        >
+                            MASTER_DATABASE
+                        </Typography>
+                        <Typography variant="body2" color="text.secondary" sx={{ px: 2, lineHeight: 1.8 }}>
                             Configure regional market rates, upload supplier Excel sheets, and construct recursive BOQ assemblies.
                         </Typography>
                     </CardContent>
-                    <Divider />
-                    <CardActions sx={{ p: 2, bgcolor: 'background.default' }}>
-                        <Button fullWidth size="large" onClick={onOpenDb}>Open Manager</Button>
+                    <Divider sx={{ borderColor: 'divider' }} />
+                    <CardActions sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.15)' }}>
+                        <Button
+                            fullWidth
+                            size="large"
+                            onClick={onOpenDb}
+                            variant="outlined"
+                            sx={{
+                                borderRadius: 2,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                letterSpacing: '1px',
+                                fontSize: '13px',
+                            }}
+                        >
+                            {'> '}OPEN_MANAGER
+                        </Button>
                     </CardActions>
                 </Card>
 
                 <Card elevation={0} sx={{
-                    display: 'flex', flexDirection: 'column', bgcolor: 'primary.main', color: 'primary.contrastText',
-                    borderRadius: 4, transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': { bgcolor: 'primary.dark', transform: 'translateY(-4px)', boxShadow: '0 12px 24px rgba(15, 23, 42, 0.2)' }
+                    display: 'flex', flexDirection: 'column',
+                    border: '1px solid', borderColor: 'primary.main',
+                    borderRadius: 2,
+                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(13, 31, 60, 0.9) 100%)',
+                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                    '&:hover': {
+                        borderColor: 'primary.light',
+                        transform: 'translateY(-4px)',
+                        boxShadow: '0 12px 32px rgba(59, 130, 246, 0.25)',
+                    }
                 }}>
                     <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
-                        <AddCircleOutlineIcon sx={{ fontSize: 56, color: 'secondary.main', mb: 2 }} />
-                        <Typography variant="h5" gutterBottom>New Project</Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.85, px: 2, lineHeight: 1.6 }}>
+                        <Box sx={{
+                            width: 64, height: 64, mx: 'auto', mb: 3,
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            border: '1px solid', borderColor: 'secondary.main',
+                            borderRadius: 2, color: 'secondary.main',
+                            boxShadow: '0 0 16px rgba(34, 211, 238, 0.15)',
+                        }}>
+                            <AddCircleOutlineIcon sx={{ fontSize: 32 }} />
+                        </Box>
+                        <Typography
+                            variant="h5"
+                            gutterBottom
+                            sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px' }}
+                        >
+                            NEW_PROJECT
+                        </Typography>
+                        <Typography variant="body2" sx={{ opacity: 0.75, px: 2, lineHeight: 1.8 }}>
                             Initialize a new client workspace to generate estimates and track measurement books based on live data.
                         </Typography>
                     </CardContent>
-                    <Divider sx={{ bgcolor: 'rgba(255,255,255,0.1)' }} />
-                    <CardActions sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.1)' }}>
-                        <Button fullWidth variant="contained" color="secondary" size="large" onClick={createProject}>
-                            Create Workspace
+                    <Divider sx={{ borderColor: 'rgba(59, 130, 246, 0.2)' }} />
+                    <CardActions sx={{ p: 2, bgcolor: 'rgba(59, 130, 246, 0.05)' }}>
+                        <Button
+                            fullWidth
+                            variant="contained"
+                            color="primary"
+                            size="large"
+                            onClick={createProject}
+                            sx={{
+                                borderRadius: 2,
+                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                letterSpacing: '1px',
+                                fontSize: '13px',
+                                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
+                            }}
+                        >
+                            {'+ '}CREATE_WORKSPACE
                         </Button>
                     </CardActions>
                 </Card>
             </Box>
 
-            {/* Project Archive Toolbar */}
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                <Typography variant="h5" fontWeight="700">Project Archive</Typography>
+                <Typography
+                    variant="h5"
+                    fontWeight="700"
+                    sx={{
+                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                        letterSpacing: '1px',
+                        fontSize: '16px',
+                    }}
+                >
+                    PROJECT_ARCHIVE
+                </Typography>
                 <Box sx={{ display: 'flex', gap: 2 }}>
-                    <Button size="small" variant="text" startIcon={<DownloadIcon />} onClick={exportProjects}>
-                        Export Projects
+                    <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<DownloadIcon />}
+                        onClick={exportProjects}
+                        sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
+                    >
+                        EXPORT
                     </Button>
                     <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={importProjects} />
-                    <Button size="small" variant="text" startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()}>
-                        Import Projects
+                    <Button
+                        size="small"
+                        variant="text"
+                        startIcon={<UploadIcon />}
+                        onClick={() => fileInputRef.current.click()}
+                        sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
+                    >
+                        IMPORT
                     </Button>
                 </Box>
             </Box>
-            <Divider sx={{ mb: 4 }} />
+            <Divider sx={{ mb: 4, borderColor: 'divider' }} />
 
-            {/* Project List */}
             <Grid container spacing={3}>
                 {projects?.length === 0 ? (
                     <Grid item xs={12}>
-                        <Box sx={{ py: 10, textAlign: 'center', border: '2px dashed', borderColor: 'divider', borderRadius: 4, bgcolor: 'background.default' }}>
+                        <Box sx={{
+                            py: 10, textAlign: 'center',
+                            border: '2px dashed', borderColor: 'divider',
+                            borderRadius: 2,
+                            bgcolor: 'rgba(0,0,0,0.15)',
+                        }}>
                             <FolderOpenIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-                            <Typography color="text.secondary" variant="h6">No active projects found.</Typography>
-                            <Typography color="text.disabled" variant="body2">Click 'Create Workspace' to begin.</Typography>
+                            <Typography color="text.secondary" variant="h6" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px', fontSize: '14px' }}>NO_ACTIVE_PROJECTS</Typography>
+                            <Typography color="text.disabled" variant="body2" sx={{ mt: 1 }}>Click 'Create Workspace' to begin.</Typography>
                         </Box>
                     </Grid>
                 ) : (
@@ -217,24 +336,57 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                         <Grid item xs={12} key={p.id}>
                             <Paper elevation={0} sx={{
                                 p: 3, display: 'flex', flexWrap: 'wrap', gap: 2, justifyContent: 'space-between', alignItems: 'center',
-                                border: '1px solid', borderColor: 'divider', borderRadius: 3, transition: '0.2s',
-                                '&:hover': { borderColor: 'primary.main', bgcolor: 'action.hover' }
+                                border: '1px solid', borderColor: 'divider', borderRadius: 2,
+                                transition: '0.2s',
+                                background: 'rgba(13, 31, 60, 0.5)',
+                                '&:hover': {
+                                    borderColor: 'primary.main',
+                                    bgcolor: 'rgba(59, 130, 246, 0.05)',
+                                    boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.1)',
+                                }
                             }}>
                                 <Box sx={{ minWidth: '200px' }}>
-                                    <Typography variant="h6" sx={{ lineHeight: 1.2, mb: 0.5 }}>{p.name}</Typography>
-                                    <Typography variant="body2" color="text.secondary">
-                                        {p.clientName ? `${p.clientName} • ` : ''}Region: <span style={{ color: 'var(--mui-palette-primary-main)', fontWeight: 600 }}>{p.region || "Standard"}</span>
+                                    <Typography
+                                        variant="h6"
+                                        sx={{
+                                            lineHeight: 1.2, mb: 0.5,
+                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                            fontSize: '15px',
+                                            letterSpacing: '0.5px',
+                                        }}
+                                    >
+                                        {p.name}
+                                    </Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px' }}>
+                                        {p.clientName ? `CLIENT: ${p.clientName} | ` : ''}REGION: <span style={{ color: '#3b82f6', fontWeight: 600 }}>{p.region || "STANDARD"}</span>
                                     </Typography>
                                 </Box>
 
                                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                                     <Tooltip title="Permanently Delete">
-                                        <IconButton color="error" onClick={(e) => deleteProject(p.id, e)} size="small" sx={{ '&:hover': { bgcolor: 'error.lighter' } }}>
+                                        <IconButton
+                                            color="error"
+                                            onClick={(e) => deleteProject(p.id, e)}
+                                            size="small"
+                                            sx={{
+                                                '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' }
+                                            }}
+                                        >
                                             <DeleteIcon />
                                         </IconButton>
                                     </Tooltip>
-                                    <Button variant="contained" disableElevation onClick={() => onOpenProject(p.id)} sx={{ borderRadius: 2 }}>
-                                        Open
+                                    <Button
+                                        variant="contained"
+                                        disableElevation
+                                        onClick={() => onOpenProject(p.id)}
+                                        sx={{
+                                            borderRadius: 2,
+                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
+                                            letterSpacing: '1px',
+                                            fontSize: '12px',
+                                        }}
+                                    >
+                                        OPEN
                                     </Button>
                                 </Box>
                             </Paper>
