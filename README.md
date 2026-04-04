@@ -68,32 +68,7 @@ Bash
 npm run build:electron
 
 Once the build process completes, navigate to the newly created release/ folder to find your executable file (e.g., TechQuest Estimator Setup 1.0.0.exe).
-📂 Project Structure
-Plaintext
 
-construction-estimator/
-├── electron/
-│   └── main.js                 # Electron process and window management
-├── public/
-│   ├── favicon.svg             # Application brand logo
-│   └── icon.ico                # Windows executable icon
-├── src/
-│   ├── components/
-│   │   ├── Home.jsx            # Project archive and main navigation
-│   │   ├── DatabaseEditor.jsx  # Master DB, LMR imports, and region management
-│   │   ├── ProjectWorkspace.jsx# Active BOQ builder and Measurement Books
-│   │   └── About.jsx           # System information
-│   ├── engines/
-│   │   ├── calculationEngine.js# Recursive rate analysis logic
-│   │   └── measurementEngine.js# Volume/Area L*B*D math logic
-│   ├── utils/
-│   │   └── exportExcel.js      # SheetJS formatting and multi-sheet export
-│   ├── App.jsx                 # Global MUI Theme and routing logic
-│   ├── db.js                   # Dexie IndexedDB schema definition
-│   └── main.jsx                # React DOM entry point
-├── index.html                  # HTML template
-├── package.json                # Dependencies and build scripts
-└── vite.config.js              # Vite configuration (handles absolute/relative paths)
 
 🔒 Data Architecture & Privacy
 
