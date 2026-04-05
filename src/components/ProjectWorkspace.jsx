@@ -1,19 +1,25 @@
 import { useState, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
-import { calculateMasterBoqRate } from "../engines/calculationEngine";
+import { getResourceRate, calculateMasterBoqRate } from "../engines/calculationEngine";
 import { calcRowQty, calcTotalQty } from "../engines/measurementEngine";
 import { exportProjectExcel } from "../utils/exportExcel";
 import {
     Box, Typography, Button, Paper, Tabs, Tab, TextField, MenuItem,
-    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
+    Alert, Dialog, DialogTitle, DialogContent, DialogActions, Divider
 } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
+import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
+import EditIcon from '@mui/icons-material/Edit';
+import SaveIcon from '@mui/icons-material/Save';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 export default function ProjectWorkspace({ projectId, onBack }) {
+    // --- ALL REACT HOOKS MUST BE DECLARED BEFORE ANY EARLY RETURNS ---
     const [tab, setTab] = useState("details");
     const [addMode, setAddMode] = useState("master");
 
@@ -34,25 +40,205 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [customQty, setCustomQty] = useState("");
     const [mbInputs, setMbInputs] = useState({});
 
+    const [draggedId, setDraggedId] = useState(null);
+    const [focusedQtyId, setFocusedQtyId] = useState(null);
+    const [focusedMbCell, setFocusedMbCell] = useState(null);
+
+    // Help Dialog State
+    const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
+
+    // --- ON-THE-FLY EDITING STATE ---
+    const [isMasterEditorOpen, setIsMasterEditorOpen] = useState(false);
+    const [editingProjectBoqId, setEditingProjectBoqId] = useState(null);
+    const [editingMasterBoqId, setEditingMasterBoqId] = useState(null);
+
+    const [editBoqCode, setEditBoqCode] = useState("");
+    const [editBoqDesc, setEditBoqDesc] = useState("");
+    const [editBoqUnit, setEditBoqUnit] = useState("cum");
+    const [editBoqOH, setEditBoqOH] = useState(15);
+    const [editBoqProfit, setEditBoqProfit] = useState(15);
+    const [editPreviewRegion, setEditPreviewRegion] = useState("");
+    const [editBoqRows, setEditBoqRows] = useState([]);
+
+    // --- ENGINE 1: WORKSPACE 3-TIER FORMULA ENGINE ---
+    const computeQty = (formulaStr, currentItems, currentItemSlNo = null, currentMeasurements = []) => {
+        if (formulaStr === undefined || formulaStr === null) return 0;
+        const str = String(formulaStr).trim().toLowerCase();
+        if (str === "") return 0;
+
+        if (!str.startsWith('=')) {
+            const num = Number(str);
+            return isNaN(num) ? 0 : num;
+        }
+
+        let expr = str.substring(1);
+
+        // 1. Math Helpers
+        expr = expr.replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
+
+        // 2. Syntax Parser: #SlNo.RowIndex.Property (e.g. #1.1.l) or #SlNo.Property (e.g. #1.l) or #SlNo
+        expr = expr.replace(/#(\d+)(?:\.(\d+))?(?:\.([a-z]+))?/g, (match, slNoStr, rowStr, prop) => {
+            const slNo = parseInt(slNoStr, 10);
+            const rowIndex = rowStr ? parseInt(rowStr, 10) - 1 : 0;
+            const property = prop || 'qty';
+
+            let targetItem;
+            let targetMeasurements;
+
+            if (slNo === currentItemSlNo) {
+                targetMeasurements = currentMeasurements;
+                if (property === 'qty' && !rowStr) {
+                    return currentMeasurements.reduce((sum, m) => sum + (m.computedQty || 0), 0);
+                }
+            } else {
+                targetItem = currentItems.find(i => i.slNo === slNo);
+                if (!targetItem) return 0;
+                targetMeasurements = targetItem.computedMeasurements || [];
+                if (property === 'qty' && !rowStr) return targetItem.computedQty || 0;
+            }
+
+            const m = targetMeasurements[rowIndex];
+            if (!m) return 0;
+
+            if (property === 'l') return m.computedL || 0;
+            if (property === 'b') return m.computedB || 0;
+            if (property === 'd' || property === 'h') return m.computedD || 0;
+            if (property === 'no') return m.computedNo || 0;
+            if (property === 'qty') return m.computedQty || 0;
+
+            return 0;
+        });
+
+        try {
+            if (/[^0-9+\-*/().\seE]/.test(expr)) return 0;
+            const res = new Function(`return ${expr}`)();
+            return isFinite(res) ? res : 0;
+        } catch {
+            return 0;
+        }
+    };
+
+    // --- ENGINE 2: MASTER DATABOOK FORMULA ENGINE (Row Index Based) ---
+    const computeMasterQty = (formulaStr, currentRows) => {
+        if (formulaStr === undefined || formulaStr === null) return 0;
+        const str = String(formulaStr).trim().toLowerCase();
+        if (str === "") return 0;
+
+        if (!str.startsWith('=')) {
+            const num = Number(str);
+            return isNaN(num) ? 0 : num;
+        }
+
+        let expr = str.substring(1);
+        expr = expr.replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
+
+        // Map #1 to row index 0
+        expr = expr.replace(/#(\d+)/g, (match, slNoStr) => {
+            const idx = parseInt(slNoStr, 10) - 1;
+            const refItem = currentRows[idx];
+            return refItem ? (refItem.computedQty || 0) : 0;
+        });
+
+        try {
+            if (/[^0-9+\-*/().\seE]/.test(expr)) return 0;
+            const res = new Function(`return ${expr}`)();
+            return isFinite(res) ? res : 0;
+        } catch {
+            return 0;
+        }
+    };
+
     const { renderedProjectBoq, totalAmount } = useMemo(() => {
         let total = 0;
-        const items = [...projectBoqItems].sort((a, b) => a.slNo - b.slNo).map(item => {
-            if (item.isCustom) {
-                const amount = item.qty * item.rate;
-                total += amount;
-                return { ...item, amount, displayCode: item.itemCode, displayDesc: item.description, displayUnit: item.unit };
+        const sortedItems = [...projectBoqItems].sort((a, b) => a.slNo - b.slNo);
+        const computedItems = [];
+
+        for (const item of sortedItems) {
+            const hasMBook = item.measurements && item.measurements.length > 0;
+            let computedQty = 0;
+            let computedMeasurements = [];
+
+            if (hasMBook) {
+                let mbookTotal = 0;
+                const u = (item.unit || "").toLowerCase();
+
+                for (let i = 0; i < item.measurements.length; i++) {
+                    const m = item.measurements[i];
+
+                    const cNo = (m.no === "" || m.no === undefined) ? 1 : computeQty(m.no, computedItems, item.slNo, computedMeasurements);
+                    const cL = (m.l === "" || m.l === undefined) ? 1 : computeQty(m.l, computedItems, item.slNo, computedMeasurements);
+                    const cB = (m.b === "" || m.b === undefined) ? 1 : computeQty(m.b, computedItems, item.slNo, computedMeasurements);
+                    const cD = (m.d === "" || m.d === undefined) ? 1 : computeQty(m.d, computedItems, item.slNo, computedMeasurements);
+
+                    let rowQty = 0;
+                    if (u.includes("cum") || u === "m3" || u === "m³") rowQty = cNo * cL * cB * cD;
+                    else if (u.includes("sqm") || u === "m2" || u === "m²") rowQty = cNo * cL * cB;
+                    else if (u.includes("rm") || u === "m" || u === "r.m") rowQty = cNo * cL;
+                    else if (u.includes("nos") || u === "each") rowQty = cNo;
+                    else rowQty = cNo * cL * cB * cD;
+
+                    mbookTotal += rowQty;
+                    computedMeasurements.push({ ...m, computedNo: cNo, computedL: cL, computedB: cB, computedD: cD, computedQty: rowQty });
+                }
+                computedQty = mbookTotal;
             } else {
-                const masterBoq = masterBoqs.find(m => m.id === item.masterBoqId);
-                if (!masterBoq) return null;
-                const rate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project?.region);
-                const amount = item.qty * rate;
-                total += amount;
-                return { ...item, masterBoq, rate, amount, displayCode: masterBoq.itemCode, displayDesc: masterBoq.description, displayUnit: masterBoq.unit };
+                computedQty = computeQty(item.formulaStr !== undefined ? item.formulaStr : item.qty, computedItems, item.slNo, []);
             }
-        }).filter(Boolean);
-        return { renderedProjectBoq: items, totalAmount: total };
+
+            let rate = 0, amount = 0, displayCode = "", displayDesc = "", displayUnit = "";
+            let masterBoq = null;
+
+            if (item.isCustom) {
+                rate = item.rate || 0;
+                displayCode = item.itemCode || "";
+                displayDesc = item.description || "";
+                displayUnit = item.unit || "";
+            } else {
+                masterBoq = masterBoqs.find(m => m.id === item.masterBoqId);
+                if (masterBoq) {
+                    rate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project?.region);
+                    displayCode = masterBoq.itemCode || "";
+                    displayDesc = masterBoq.description || "";
+                    displayUnit = masterBoq.unit || "";
+                }
+            }
+
+            amount = computedQty * rate;
+            total += amount;
+
+            computedItems.push({ ...item, computedQty, computedMeasurements, rate, amount, displayCode, displayDesc, displayUnit, masterBoq, hasMBook });
+        }
+
+        return { renderedProjectBoq: computedItems, totalAmount: total };
     }, [projectBoqItems, masterBoqs, resources, project?.region]);
 
+    const { editRenderedRows, editSubTotal, editGrandTotal, editOhAmount, editProfitAmount } = useMemo(() => {
+        let sub = 0;
+        const computedRows = [];
+
+        for (let i = 0; i < editBoqRows.length; i++) {
+            const row = editBoqRows[i];
+            let rate = 0; let unit = "-";
+            if (row.itemType === 'resource') {
+                const resource = resources.find(r => r.id === row.itemId);
+                if (resource) { rate = getResourceRate(resource, editPreviewRegion); unit = resource.unit; }
+            } else if (row.itemType === 'boq') {
+                const nestedBoq = masterBoqs.find(b => b.id === row.itemId);
+                if (nestedBoq) { rate = calculateMasterBoqRate(nestedBoq, resources, masterBoqs, editPreviewRegion); unit = nestedBoq.unit; }
+            }
+
+            const computedQty = computeMasterQty(row.formulaStr !== undefined ? row.formulaStr : row.qty, computedRows);
+            const amount = rate * computedQty;
+            sub += amount;
+
+            computedRows.push({ ...row, rate, unit, amount, computedQty });
+        }
+
+        const oh = sub * (Number(editBoqOH) / 100), prof = sub * (Number(editBoqProfit) / 100);
+        return { editRenderedRows: computedRows, editSubTotal: sub, editOhAmount: oh, editProfitAmount: prof, editGrandTotal: sub + oh + prof };
+    }, [editBoqRows, resources, masterBoqs, editPreviewRegion, editBoqOH, editBoqProfit]);
+
+    // --- EARLY RETURN MUST BE AFTER ALL HOOKS ---
     if (!project) return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
 
     const updateProject = (field, value) => db.projects.update(projectId, { [field]: value });
@@ -60,107 +246,164 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const addBoqItemToProject = async () => {
         const nextSlNo = projectBoqItems.length + 1;
         if (addMode === "master") {
-            if (!addBoqId || !addBoqQty) return alert("Select an item and enter quantity.");
-            await db.projectBoq.add({ id: crypto.randomUUID(), projectId, masterBoqId: addBoqId, slNo: nextSlNo, qty: Number(addBoqQty), measurements: [] });
+            if (!addBoqId || !addBoqQty) return alert("Select an item and enter quantity or formula.");
+            await db.projectBoq.add({ id: crypto.randomUUID(), projectId, masterBoqId: addBoqId, slNo: nextSlNo, formulaStr: String(addBoqQty), qty: 0, measurements: [] });
             setAddBoqId(""); setAddBoqQty("");
         } else {
-            if (!customDesc || !customRate || !customQty) return alert("Description, Rate, and Quantity required.");
-            await db.projectBoq.add({
-                id: crypto.randomUUID(), projectId, slNo: nextSlNo, isCustom: true, measurements: [],
-                itemCode: customCode, description: customDesc, unit: customUnit, rate: Number(customRate), qty: Number(customQty)
-            });
+            if (!customDesc || !customRate || !customQty) return alert("Description, Rate, and Quantity/Formula required.");
+            await db.projectBoq.add({ id: crypto.randomUUID(), projectId, slNo: nextSlNo, isCustom: true, measurements: [], itemCode: customCode, description: customDesc, unit: customUnit, rate: Number(customRate), formulaStr: String(customQty), qty: 0 });
             setCustomCode(""); setCustomDesc(""); setCustomRate(""); setCustomQty("");
         }
     };
 
-    const updateBoqQtyManual = async (id, newQty) => await db.projectBoq.update(id, { qty: Number(newQty) });
+    const updateBoqQtyManual = async (id, val) => await db.projectBoq.update(id, { formulaStr: val });
     const deleteProjectBoq = async (id) => await db.projectBoq.delete(id);
-    const triggerExport = () => exportProjectExcel(project, projectBoqItems, masterBoqs, resources);
 
-    const filteredMasterBoqs = masterBoqs.filter(b =>
-        (b.itemCode || "").toLowerCase().includes(searchCode.toLowerCase()) &&
-        (b.description || "").toLowerCase().includes(searchDesc.toLowerCase())
-    );
+    const triggerExport = () => {
+        const exportItems = renderedProjectBoq.map(i => ({
+            ...i,
+            qty: i.computedQty,
+            measurements: (i.computedMeasurements || []).map(m => ({
+                ...m,
+                no: m.no && String(m.no).startsWith("=") ? m.computedNo.toFixed(2) : m.no,
+                l: m.l && String(m.l).startsWith("=") ? m.computedL.toFixed(2) : m.l,
+                b: m.b && String(m.b).startsWith("=") ? m.computedB.toFixed(2) : m.b,
+                d: m.d && String(m.d).startsWith("=") ? m.computedD.toFixed(2) : m.d,
+                qty: m.computedQty
+            }))
+        }));
+        exportProjectExcel(project, exportItems, masterBoqs, resources);
+    };
+
+    const filteredMasterBoqs = masterBoqs.filter(b => (b.itemCode || "").toLowerCase().includes(searchCode.toLowerCase()) && (b.description || "").toLowerCase().includes(searchDesc.toLowerCase()));
 
     const handleMbInputChange = (itemId, field, value) => setMbInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
 
     const addMeasurementRow = async (item) => {
         const inputs = mbInputs[item.id] || {};
         if (!inputs.details) return alert("Please enter a location/detail description.");
-        const newRow = { id: crypto.randomUUID(), details: inputs.details, no: inputs.no || 1, l: inputs.l || "", b: inputs.b || "", d: inputs.d || "", qty: calcRowQty(inputs, item.displayUnit) };
+        const newRow = { id: crypto.randomUUID(), details: inputs.details, no: String(inputs.no || 1), l: String(inputs.l || ""), b: String(inputs.b || ""), d: String(inputs.d || "") };
         const updatedMeasurements = [...(item.measurements || []), newRow];
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements, qty: calcTotalQty(updatedMeasurements) });
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
         setMbInputs(prev => ({ ...prev, [item.id]: { details: "", no: "", l: "", b: "", d: "" } }));
     };
 
     const deleteMeasurementRow = async (item, measurementId) => {
         const updatedMeasurements = (item.measurements || []).filter(m => m.id !== measurementId);
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements, qty: calcTotalQty(updatedMeasurements) });
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
     };
 
     const updateMeasurementInline = async (item, measurementId, field, value) => {
         const updatedMeasurements = (item.measurements || []).map(m => {
-            if (m.id === measurementId) {
-                const updatedRow = { ...m, [field]: value };
-                updatedRow.qty = calcRowQty(updatedRow, item.displayUnit);
-                return updatedRow;
-            }
+            if (m.id === measurementId) return { ...m, [field]: value };
             return m;
         });
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements, qty: calcTotalQty(updatedMeasurements) });
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+    };
+
+    const handleDragStart = (e, id) => { setDraggedId(id); e.dataTransfer.effectAllowed = "move"; };
+    const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; };
+    const handleDrop = async (e, targetId) => {
+        e.preventDefault();
+        if (!draggedId || draggedId === targetId) return;
+        const items = [...projectBoqItems].sort((a, b) => a.slNo - b.slNo);
+        const draggedIdx = items.findIndex(i => i.id === draggedId);
+        const targetIdx = items.findIndex(i => i.id === targetId);
+        if (draggedIdx === -1 || targetIdx === -1) return;
+        const [draggedItem] = items.splice(draggedIdx, 1);
+        items.splice(targetIdx, 0, draggedItem);
+        const updates = items.map((item, idx) => ({ ...item, slNo: idx + 1 }));
+        await db.projectBoq.bulkPut(updates);
+        setDraggedId(null);
+    };
+
+    // --- ON-THE-FLY EDITING LOGIC ---
+    const openEditDialog = (item) => {
+        setEditingProjectBoqId(item.id);
+
+        if (item.isCustom) {
+            setEditingMasterBoqId(null); // Signals we are converting a custom item
+            setEditBoqCode(item.itemCode || "");
+            setEditBoqDesc(item.description || "");
+            setEditBoqUnit(item.unit || "cum");
+            setEditBoqOH(15);
+            setEditBoqProfit(15);
+            setEditPreviewRegion(project?.region || "");
+            setEditBoqRows([]); // Start with empty components so they can build it
+        } else {
+            const master = masterBoqs.find(m => m.id === item.masterBoqId);
+            if (!master) return alert("Master Databook Item not found.");
+            setEditingMasterBoqId(master.id);
+            setEditBoqCode(master.itemCode || "");
+            setEditBoqDesc(master.description || "");
+            setEditBoqUnit(master.unit || "cum");
+            setEditBoqOH(master.overhead || 0);
+            setEditBoqProfit(master.profit || 0);
+            setEditPreviewRegion(project?.region || "");
+
+            setEditBoqRows((master.components || []).map(c => ({
+                id: crypto.randomUUID(), itemType: c.itemType || 'resource', itemId: c.itemId, qty: c.qty, formulaStr: c.formulaStr || String(c.qty)
+            })));
+        }
+
+        setIsMasterEditorOpen(true);
+    };
+
+    const addEditSpreadsheetRow = () => setEditBoqRows([...editBoqRows, { id: crypto.randomUUID(), itemType: "resource", itemId: "", formulaStr: "1", qty: 1 }]);
+    const updateEditSpreadsheetRow = (id, field, value) => setEditBoqRows(editBoqRows.map(row => row.id === id ? { ...row, [field]: value, ...(field === 'itemType' ? { itemId: "", tempCode: undefined, tempDesc: undefined } : {}) } : row));
+    const removeEditSpreadsheetRow = (id) => setEditBoqRows(editBoqRows.filter(row => row.id !== id));
+
+    const saveEditedMasterBoq = async (isSaveAsNew = false) => {
+        if (!editBoqCode || !editBoqDesc) return alert("Please enter a Code and Description.");
+
+        const validComponents = editRenderedRows.filter(r => r.itemId && r.computedQty > 0).map(r => ({
+            itemType: r.itemType,
+            itemId: r.itemId,
+            qty: Number(r.computedQty),
+            formulaStr: r.formulaStr || String(r.computedQty)
+        }));
+
+        if (validComponents.length === 0) return alert("Add at least one valid component to generate a valid rate.");
+
+        const payload = { itemCode: editBoqCode, description: editBoqDesc, unit: editBoqUnit, overhead: Number(editBoqOH), profit: Number(editBoqProfit), components: validComponents };
+
+        // If 'isSaveAsNew' is true OR if we are converting a Custom Item (!editingMasterBoqId)
+        if (isSaveAsNew || !editingMasterBoqId) {
+            const newId = crypto.randomUUID();
+            await db.masterBoq.add({ id: newId, ...payload });
+
+            // Link the project BOQ item to this newly minted Master Item
+            if (editingProjectBoqId) {
+                await db.projectBoq.update(editingProjectBoqId, {
+                    masterBoqId: newId,
+                    isCustom: false
+                });
+            }
+            alert(editingMasterBoqId ? "Saved as a New Databook Item and applied to project!" : "Custom Item successfully converted into Master Databook Item!");
+        } else {
+            await db.masterBoq.update(editingMasterBoqId, payload);
+            alert("Master Databook Item Updated globally!");
+        }
+
+        setIsMasterEditorOpen(false);
+        setEditingMasterBoqId(null);
+        setEditingProjectBoqId(null);
     };
 
     const tableInputStyle = { width: "100%", padding: "8px", boxSizing: "border-box", border: "1px solid var(--mui-palette-divider)", borderRadius: "4px", background: "var(--mui-palette-background-default)", color: "var(--mui-palette-text-primary)", fontFamily: "'JetBrains Mono', monospace", fontSize: "13px" };
+    const tableInputActiveStyle = { ...tableInputStyle, padding: "6px", border: "1px solid var(--mui-palette-divider)" };
 
     return (
         <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
-            <Button
-                startIcon={<ArrowBackIcon />}
-                onClick={onBack}
-                variant="outlined"
-                sx={{
-                    mb: 3,
-                    borderRadius: 2,
-                    fontFamily: "'JetBrains Mono', monospace",
-                    letterSpacing: '1px',
-                    fontSize: '12px',
-                    borderColor: 'divider',
-                    color: 'text.secondary',
-                    '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
-                }}
-            >
+            <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ mb: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>
                 {'< '}BACK_TO_HOME
             </Button>
 
-            <Box sx={{
-                display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4,
-                flexWrap: 'wrap', gap: 2,
-                pb: 3, borderBottom: '1px solid', borderColor: 'divider',
-            }}>
-                <Typography
-                    variant="h4"
-                    fontWeight="bold"
-                    sx={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: { xs: '18px', md: '22px' },
-                    }}
-                >
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, flexWrap: 'wrap', gap: 2, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '22px' } }}>
                     WORKSPACE: <span style={{ color: '#3b82f6' }}>{project.name}</span>
                 </Typography>
-                <Button
-                    variant="contained"
-                    color="success"
-                    startIcon={<DownloadIcon />}
-                    onClick={triggerExport}
-                    disableElevation
-                    sx={{
-                        borderRadius: 2,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: '12px',
-                    }}
-                >
+                <Button variant="contained" color="success" startIcon={<DownloadIcon />} onClick={triggerExport} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                     EXPORT_ESTIMATE
                 </Button>
             </Box>
@@ -176,33 +419,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             {tab === "details" && (
                 <Paper sx={{ p: 4, maxWidth: 600, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <Box display="flex" flexDirection="column" gap={3}>
-                        <TextField
-                            label="PROJECT_NAME"
-                            value={project.name}
-                            onChange={e => updateProject("name", e.target.value)}
-                            fullWidth
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}
-                        />
-                        <TextField
-                            label="CLIENT_NAME"
-                            value={project.clientName}
-                            onChange={e => updateProject("clientName", e.target.value)}
-                            fullWidth
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}
-                        />
-                        <TextField
-                            select
-                            label="RATES_REGION"
-                            value={project.region}
-                            onChange={e => updateProject("region", e.target.value)}
-                            fullWidth
-                            helperText="Leave empty to use default rates"
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}
-                            FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                        >
+                        <TextField label="PROJECT_NAME" value={project.name} onChange={e => updateProject("name", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                        <TextField label="CLIENT_NAME" value={project.clientName} onChange={e => updateProject("clientName", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                        <TextField select label="RATES_REGION" value={project.region} onChange={e => updateProject("region", e.target.value)} fullWidth helperText="Leave empty to use default rates" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', letterSpacing: '0.5px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}>
                             <MenuItem value="">-- AUTO_DETECT_FIRST_RATE --</MenuItem>
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{r.name}</MenuItem>)}
                         </TextField>
@@ -213,29 +432,10 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             {tab === "boq" && (
                 <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <Box sx={{ display: "flex", gap: 2, mb: 3 }}>
-                        <Button
-                            variant={addMode === "master" ? "contained" : "outlined"}
-                            onClick={() => setAddMode("master")}
-                            sx={{
-                                borderRadius: 2,
-                                fontFamily: "'JetBrains Mono', monospace",
-                                letterSpacing: '0.5px',
-                                fontSize: '12px',
-                            }}
-                        >
+                        <Button variant={addMode === "master" ? "contained" : "outlined"} onClick={() => setAddMode("master")} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>
                             MASTER_DATABASE
                         </Button>
-                        <Button
-                            variant={addMode === "custom" ? "contained" : "outlined"}
-                            onClick={() => setAddMode("custom")}
-                            color="secondary"
-                            sx={{
-                                borderRadius: 2,
-                                fontFamily: "'JetBrains Mono', monospace",
-                                letterSpacing: '0.5px',
-                                fontSize: '12px',
-                            }}
-                        >
+                        <Button variant={addMode === "custom" ? "contained" : "outlined"} onClick={() => setAddMode("custom")} color="secondary" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>
                             CUSTOM_AD_HOC
                         </Button>
                     </Box>
@@ -243,126 +443,43 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     <Box sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 3 }}>
                         {addMode === "master" ? (
                             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                                <TextField
-                                    size="small"
-                                    label="SEARCH_CODE"
-                                    value={searchCode}
-                                    onChange={e => setSearchCode(e.target.value)}
-                                    sx={{ flex: 1, minWidth: 120 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    size="small"
-                                    label="SEARCH_DESC"
-                                    value={searchDesc}
-                                    onChange={e => setSearchDesc(e.target.value)}
-                                    sx={{ flex: 1.5, minWidth: 150 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    select
-                                    size="small"
-                                    label="SELECT_ITEM"
-                                    value={addBoqId}
-                                    onChange={e => setAddBoqId(e.target.value)}
-                                    sx={{ flex: 2, minWidth: 250 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                >
+                                <TextField size="small" label="SEARCH_CODE" value={searchCode} onChange={e => setSearchCode(e.target.value)} sx={{ flex: 1, minWidth: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField size="small" label="SEARCH_DESC" value={searchDesc} onChange={e => setSearchDesc(e.target.value)} sx={{ flex: 1.5, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField select size="small" label="SELECT_ITEM" value={addBoqId} onChange={e => setAddBoqId(e.target.value)} sx={{ flex: 2, minWidth: 250 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                                     <MenuItem value="">-- CHOOSE_MASTER_BOQ --</MenuItem>
                                     {filteredMasterBoqs.map(b => <MenuItem key={b.id} value={b.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{b.itemCode ? `[${b.itemCode}] ` : ''}{b.description}</MenuItem>)}
                                 </TextField>
-                                <TextField
-                                    size="small"
-                                    type="number"
-                                    label="QTY"
-                                    value={addBoqQty}
-                                    onChange={e => setAddBoqQty(e.target.value)}
-                                    sx={{ width: 100 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    onClick={addBoqItemToProject}
-                                    startIcon={<AddIcon />}
-                                    sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                >
-                                    ADD
-                                </Button>
+                                <TextField size="small" type="text" label="QTY OR FORMULA" value={addBoqQty} onChange={e => setAddBoqQty(e.target.value)} placeholder="e.g. 50 or =#1*10" sx={{ width: 140 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <Button variant="contained" onClick={addBoqItemToProject} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD</Button>
                             </Box>
                         ) : (
                             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                                <TextField
-                                    size="small"
-                                    label="CODE"
-                                    value={customCode}
-                                    onChange={e => setCustomCode(e.target.value)}
-                                    sx={{ width: 120 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    size="small"
-                                    label="DESCRIPTION"
-                                    value={customDesc}
-                                    onChange={e => setCustomDesc(e.target.value)}
-                                    sx={{ flex: 2, minWidth: 200 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    size="small"
-                                    label="UNIT"
-                                    value={customUnit}
-                                    onChange={e => setCustomUnit(e.target.value)}
-                                    sx={{ width: 100 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    size="small"
-                                    type="number"
-                                    label="RATE"
-                                    value={customRate}
-                                    onChange={e => setCustomRate(e.target.value)}
-                                    sx={{ width: 120 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <TextField
-                                    size="small"
-                                    type="number"
-                                    label="QTY"
-                                    value={customQty}
-                                    onChange={e => setCustomQty(e.target.value)}
-                                    sx={{ width: 100 }}
-                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                />
-                                <Button
-                                    variant="contained"
-                                    color="secondary"
-                                    onClick={addBoqItemToProject}
-                                    startIcon={<AddIcon />}
-                                    sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                >
-                                    ADD_CUSTOM
-                                </Button>
+                                <TextField size="small" label="CODE" value={customCode} onChange={e => setCustomCode(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField size="small" label="DESCRIPTION" value={customDesc} onChange={e => setCustomDesc(e.target.value)} sx={{ flex: 2, minWidth: 200 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField size="small" label="UNIT" value={customUnit} onChange={e => setCustomUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField size="small" type="number" label="RATE" value={customRate} onChange={e => setCustomRate(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField size="small" type="text" label="QTY OR FORMULA" value={customQty} onChange={e => setCustomQty(e.target.value)} placeholder="e.g. 50 or =#1*10" sx={{ width: 140 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <Button variant="contained" color="secondary" onClick={addBoqItemToProject} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD_CUSTOM</Button>
                             </Box>
                         )}
                     </Box>
+
+                    <Alert severity="info" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                        💡 <strong>TIPS:</strong> Drag the grip icon (⋮⋮) to reorder items. Start with <code>=</code> for formulas. Use <code>ceil()</code>, <code>floor()</code>, <code>round()</code>.
+                        <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ ml: 2, py: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                            FORMULA GUIDE
+                        </Button>
+                    </Alert>
 
                     <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                         <Table size="small">
                             <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                                 <TableRow>
+                                    <TableCell sx={{ width: 40 }}></TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>SL.NO</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CODE</TableCell>
                                     <TableCell sx={{ width: '35%', fontFamily: "'JetBrains Mono', monospace" }}>DESCRIPTION</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>QUANTITY</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>QUANTITY/FORMULA</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>UNIT</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>UNIT_RATE</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_AMOUNT</TableCell>
@@ -371,34 +488,53 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                             </TableHead>
                             <TableBody>
                                 {renderedProjectBoq.map(item => {
-                                    const hasMBook = item.measurements && item.measurements.length > 0;
+                                    const isFormula = String(item.formulaStr || "").trim().startsWith("=");
+                                    const isFocused = focusedQtyId === item.id;
+
                                     return (
-                                        <TableRow key={item.id} sx={{ bgcolor: item.isCustom ? 'rgba(34, 211, 238, 0.03)' : 'inherit' }}>
+                                        <TableRow
+                                            key={item.id} draggable onDragStart={(e) => handleDragStart(e, item.id)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, item.id)}
+                                            sx={{ bgcolor: item.isCustom ? 'rgba(34, 211, 238, 0.03)' : 'inherit', opacity: draggedId === item.id ? 0.4 : 1, transition: 'opacity 0.2s' }}
+                                        >
+                                            <TableCell sx={{ cursor: 'grab', py: 0 }}><DragIndicatorIcon color="action" fontSize="small" sx={{ verticalAlign: 'middle' }} /></TableCell>
                                             <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.slNo}</TableCell>
                                             <TableCell sx={{ fontWeight: 'bold', color: item.isCustom ? 'secondary.main' : 'inherit', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayCode || "-"}</TableCell>
                                             <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayDesc}</TableCell>
                                             <TableCell>
                                                 <input
-                                                    type="number"
-                                                    value={item.qty}
+                                                    type="text"
+                                                    value={item.hasMBook
+                                                        ? Number(item.computedQty || 0).toFixed(2)
+                                                        : (isFocused ? (item.formulaStr !== undefined ? item.formulaStr : item.qty) : Number(item.computedQty || 0).toFixed(2))
+                                                    }
+                                                    onFocus={() => setFocusedQtyId(item.id)} onBlur={() => setFocusedQtyId(null)}
                                                     onChange={e => updateBoqQtyManual(item.id, e.target.value)}
-                                                    disabled={hasMBook}
-                                                    style={{ ...tableInputStyle, background: hasMBook ? "var(--mui-palette-action-disabledBackground)" : tableInputStyle.background }}
+                                                    disabled={item.hasMBook} placeholder="e.g. =#1 * 125"
+                                                    style={{ ...tableInputStyle, background: item.hasMBook ? "var(--mui-palette-action-disabledBackground)" : tableInputStyle.background }}
                                                 />
-                                                {hasMBook && <Typography variant="caption" color="success.main" display="block" mt={0.5} fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>AUTO_FROM_MBOOK</Typography>}
+                                                {item.hasMBook ? (
+                                                    <Typography variant="caption" color="success.main" display="block" mt={0.5} fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>AUTO_FROM_MBOOK</Typography>
+                                                ) : (isFormula && isFocused) ? (
+                                                    <Typography variant="caption" color="info.main" display="block" mt={0.5} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                                                        Computed: <strong>{Number(item.computedQty || 0).toFixed(2)}</strong>
+                                                    </Typography>
+                                                ) : null}
                                             </TableCell>
                                             <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayUnit}</TableCell>
                                             <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {item.rate.toFixed(2)}</TableCell>
                                             <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {item.amount.toFixed(2)}</TableCell>
                                             <TableCell align="center">
-                                                <IconButton color="error" onClick={() => deleteProjectBoq(item.id)} size="small"><DeleteIcon fontSize="small"/></IconButton>
+                                                <Box display="flex" gap={1} justifyContent="center">
+                                                    <IconButton color="warning" onClick={() => openEditDialog(item)} size="small"><EditIcon fontSize="small" /></IconButton>
+                                                    <IconButton color="error" onClick={() => deleteProjectBoq(item.id)} size="small"><DeleteIcon fontSize="small" /></IconButton>
+                                                </Box>
                                             </TableCell>
                                         </TableRow>
                                     )
                                 })}
-                                {renderedProjectBoq.length === 0 && <TableRow><TableCell colSpan={8} align="center" sx={{ py: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>NO_ITEMS_IN_BOQ</TableCell></TableRow>}
+                                {renderedProjectBoq.length === 0 && <TableRow><TableCell colSpan={9} align="center" sx={{ py: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>NO_ITEMS_IN_BOQ</TableCell></TableRow>}
                                 <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
-                                    <TableCell colSpan={6} align="right" sx={{ fontWeight: 'bold', fontSize: '1rem', fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_ESTIMATE:</TableCell>
+                                    <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', fontSize: '1rem', fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_ESTIMATE:</TableCell>
                                     <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>₹ {totalAmount.toFixed(2)}</TableCell>
                                     <TableCell></TableCell>
                                 </TableRow>
@@ -417,8 +553,11 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                             <Box sx={{ bgcolor: "rgba(0,0,0,0.2)", p: 2, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                                 <Box>
                                     <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>{item.slNo}. {item.displayCode ? `[${item.displayCode}]` : ''} {item.displayDesc}</Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>TOTAL_QTY: <Box component="span" color="success.main" fontWeight="bold" fontSize="1rem">{item.qty.toFixed(2)} {item.displayUnit}</Box></Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>TOTAL_QTY: <Box component="span" color="success.main" fontWeight="bold" fontSize="1rem">{Number(item.computedQty || 0).toFixed(2)} {item.displayUnit}</Box></Typography>
                                 </Box>
+                                <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ py: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                                    FORMULA GUIDE
+                                </Button>
                             </Box>
 
                             <TableContainer>
@@ -435,23 +574,65 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                                         </TableRow>
                                     </TableHead>
                                     <TableBody>
-                                        {(item.measurements || []).map(m => (
-                                            <TableRow key={m.id}>
-                                                <TableCell><input value={m.details} onChange={e => updateMeasurementInline(item, m.id, 'details', e.target.value)} style={tableInputStyle} /></TableCell>
-                                                <TableCell><input type="number" value={m.no} onChange={e => updateMeasurementInline(item, m.id, 'no', e.target.value)} style={tableInputStyle} /></TableCell>
-                                                <TableCell><input type="number" value={m.l} onChange={e => updateMeasurementInline(item, m.id, 'l', e.target.value)} style={tableInputStyle} /></TableCell>
-                                                <TableCell><input type="number" value={m.b} onChange={e => updateMeasurementInline(item, m.id, 'b', e.target.value)} style={tableInputStyle} /></TableCell>
-                                                <TableCell><input type="number" value={m.d} onChange={e => updateMeasurementInline(item, m.id, 'd', e.target.value)} style={tableInputStyle} /></TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{m.qty.toFixed(2)}</TableCell>
-                                                <TableCell align="center"><Button color="error" size="small" onClick={() => deleteMeasurementRow(item, m.id)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DELETE</Button></TableCell>
-                                            </TableRow>
-                                        ))}
+                                        {(item.computedMeasurements || []).map((m, idx) => {
+                                            const isNoFocused = focusedMbCell === `${m.id}-no`;
+                                            const isLFocused = focusedMbCell === `${m.id}-l`;
+                                            const isBFocused = focusedMbCell === `${m.id}-b`;
+                                            const isDFocused = focusedMbCell === `${m.id}-d`;
+
+                                            return (
+                                                <TableRow key={m.id}>
+                                                    <TableCell>
+                                                        <input value={m.details} onChange={e => updateMeasurementInline(item, m.id, 'details', e.target.value)} style={tableInputStyle} />
+                                                        <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>Row Index: {idx + 1}</Typography>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <input
+                                                            type="text"
+                                                            value={isNoFocused ? (m.no !== undefined ? m.no : "") : ((m.no === "" || m.no === undefined) ? "" : Number(m.computedNo || 0).toFixed(2))}
+                                                            onFocus={() => setFocusedMbCell(`${m.id}-no`)} onBlur={() => setFocusedMbCell(null)}
+                                                            onChange={e => updateMeasurementInline(item, m.id, 'no', e.target.value)} style={tableInputStyle}
+                                                        />
+                                                        {isNoFocused && String(m.no || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedNo || 0).toFixed(2)}</Typography>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <input
+                                                            type="text"
+                                                            value={isLFocused ? (m.l !== undefined ? m.l : "") : ((m.l === "" || m.l === undefined) ? "" : Number(m.computedL || 0).toFixed(2))}
+                                                            onFocus={() => setFocusedMbCell(`${m.id}-l`)} onBlur={() => setFocusedMbCell(null)}
+                                                            onChange={e => updateMeasurementInline(item, m.id, 'l', e.target.value)} style={tableInputStyle}
+                                                        />
+                                                        {isLFocused && String(m.l || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedL || 0).toFixed(2)}</Typography>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <input
+                                                            type="text"
+                                                            value={isBFocused ? (m.b !== undefined ? m.b : "") : ((m.b === "" || m.b === undefined) ? "" : Number(m.computedB || 0).toFixed(2))}
+                                                            onFocus={() => setFocusedMbCell(`${m.id}-b`)} onBlur={() => setFocusedMbCell(null)}
+                                                            onChange={e => updateMeasurementInline(item, m.id, 'b', e.target.value)} style={tableInputStyle}
+                                                        />
+                                                        {isBFocused && String(m.b || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedB || 0).toFixed(2)}</Typography>}
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <input
+                                                            type="text"
+                                                            value={isDFocused ? (m.d !== undefined ? m.d : "") : ((m.d === "" || m.d === undefined) ? "" : Number(m.computedD || 0).toFixed(2))}
+                                                            onFocus={() => setFocusedMbCell(`${m.id}-d`)} onBlur={() => setFocusedMbCell(null)}
+                                                            onChange={e => updateMeasurementInline(item, m.id, 'd', e.target.value)} style={tableInputStyle}
+                                                        />
+                                                        {isDFocused && String(m.d || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedD || 0).toFixed(2)}</Typography>}
+                                                    </TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{Number(m.computedQty || 0).toFixed(2)}</TableCell>
+                                                    <TableCell align="center"><Button color="error" size="small" onClick={() => deleteMeasurementRow(item, m.id)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DELETE</Button></TableCell>
+                                                </TableRow>
+                                            );
+                                        })}
                                         <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.15)' }}>
                                             <TableCell><input placeholder="e.g. Ground Floor Room 1" value={mbInputs[item.id]?.details || ""} onChange={e => handleMbInputChange(item.id, 'details', e.target.value)} style={tableInputStyle} /></TableCell>
-                                            <TableCell><input type="number" placeholder="No." value={mbInputs[item.id]?.no || ""} onChange={e => handleMbInputChange(item.id, 'no', e.target.value)} style={tableInputStyle} /></TableCell>
-                                            <TableCell><input type="number" placeholder="L" value={mbInputs[item.id]?.l || ""} onChange={e => handleMbInputChange(item.id, 'l', e.target.value)} style={tableInputStyle} /></TableCell>
-                                            <TableCell><input type="number" placeholder="B" value={mbInputs[item.id]?.b || ""} onChange={e => handleMbInputChange(item.id, 'b', e.target.value)} style={tableInputStyle} /></TableCell>
-                                            <TableCell><input type="number" placeholder="D/H" value={mbInputs[item.id]?.d || ""} onChange={e => handleMbInputChange(item.id, 'd', e.target.value)} style={tableInputStyle} /></TableCell>
+                                            <TableCell><input type="text" placeholder="No. or =" value={mbInputs[item.id]?.no || ""} onChange={e => handleMbInputChange(item.id, 'no', e.target.value)} style={tableInputStyle} /></TableCell>
+                                            <TableCell><input type="text" placeholder="L or =" value={mbInputs[item.id]?.l || ""} onChange={e => handleMbInputChange(item.id, 'l', e.target.value)} style={tableInputStyle} /></TableCell>
+                                            <TableCell><input type="text" placeholder="B or =" value={mbInputs[item.id]?.b || ""} onChange={e => handleMbInputChange(item.id, 'b', e.target.value)} style={tableInputStyle} /></TableCell>
+                                            <TableCell><input type="text" placeholder="D/H or =" value={mbInputs[item.id]?.d || ""} onChange={e => handleMbInputChange(item.id, 'd', e.target.value)} style={tableInputStyle} /></TableCell>
                                             <TableCell color="text.secondary">-</TableCell>
                                             <TableCell align="center"><Button variant="contained" size="small" onClick={() => addMeasurementRow(item)} fullWidth sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}>ADD</Button></TableCell>
                                         </TableRow>
@@ -462,6 +643,238 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     ))}
                 </Box>
             )}
+
+            {/* --- MASTER BOQ EDITOR DIALOG --- */}
+            <Dialog open={isMasterEditorOpen} onClose={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); }} maxWidth="lg" fullWidth>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
+                    {editingMasterBoqId ? "EDIT_DATABOOK_ITEM" : "CONVERT_TO_MASTER_ITEM"}
+                </DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    {!editingMasterBoqId && (
+                        <Alert severity="warning" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                            You are converting a Custom Ad-Hoc item into a Master Databook Item. You must define its components below to generate its rate.
+                        </Alert>
+                    )}
+                    <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
+                        <TextField label="ITEM_CODE" value={editBoqCode} onChange={e => setEditBoqCode(e.target.value)} sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="DESCRIPTION" value={editBoqDesc} onChange={e => setEditBoqDesc(e.target.value)} sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="UNIT" value={editBoqUnit} onChange={e => setEditBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    </Box>
+
+                    <Alert severity="info" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', display: 'flex', alignItems: 'center' }}>
+                        💡 <strong>TIPS:</strong> Start with <code>=</code> for formulas. Use <code>ceil()</code>, <code>floor()</code>, <code>round()</code>. Reference components by row index using <code>#</code> (e.g. <code>=#1 * 1.5</code>).
+                    </Alert>
+
+                    <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3 }}>
+                        <Table size="small">
+                            <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
+                                <TableRow>
+                                    <TableCell sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SL.NO</TableCell>
+                                    <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TYPE</TableCell>
+                                    <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE_SEARCH</TableCell>
+                                    <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESC_SEARCH</TableCell>
+                                    <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY/FORMULA</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE</TableCell>
+                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT</TableCell>
+                                    <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {editRenderedRows.map((row, idx) => {
+                                    const sourceList = row.itemType === 'boq' ? masterBoqs : resources;
+                                    const isFormula = String(row.formulaStr || "").trim().startsWith("=");
+                                    const isFocused = focusedQtyId === row.id;
+
+                                    return (
+                                        <TableRow key={row.id}>
+                                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
+                                            <TableCell>
+                                                <select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}>
+                                                    <option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option>
+                                                </select>
+                                            </TableCell>
+                                            <TableCell>
+                                                <input
+                                                    list={`edit-codes-${row.id}`}
+                                                    value={row.tempCode !== undefined ? row.tempCode : (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const matched = sourceList.find(s => (s.code || s.itemCode) === val);
+                                                        setEditBoqRows(prev => prev.map(r => {
+                                                            if (r.id === row.id) {
+                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
+                                                                return { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc };
+                                                            }
+                                                            return r;
+                                                        }));
+                                                    }}
+                                                    placeholder="Type code..." style={tableInputActiveStyle}
+                                                />
+                                                <datalist id={`edit-codes-${row.id}`}>
+                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}
+                                                </datalist>
+                                            </TableCell>
+                                            <TableCell>
+                                                <input
+                                                    list={`edit-descs-${row.id}`}
+                                                    value={row.tempDesc !== undefined ? row.tempDesc : (sourceList.find(s => s.id === row.itemId)?.description || "")}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const matched = sourceList.find(s => s.description === val);
+                                                        setEditBoqRows(prev => prev.map(r => {
+                                                            if (r.id === row.id) {
+                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
+                                                                return { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val };
+                                                            }
+                                                            return r;
+                                                        }));
+                                                    }}
+                                                    placeholder="Type description..." style={tableInputActiveStyle}
+                                                />
+                                                <datalist id={`edit-descs-${row.id}`}>
+                                                    {sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}
+                                                </datalist>
+                                            </TableCell>
+                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
+                                            <TableCell>
+                                                <input
+                                                    type="text"
+                                                    value={isFocused ? (row.formulaStr !== undefined ? row.formulaStr : row.qty) : Number(row.computedQty || 0).toFixed(4)}
+                                                    onFocus={() => setFocusedQtyId(row.id)}
+                                                    onBlur={() => setFocusedQtyId(null)}
+                                                    onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)}
+                                                    placeholder="e.g. =#1 * 0.05"
+                                                    style={tableInputActiveStyle}
+                                                />
+                                                {(isFormula && isFocused) && (
+                                                    <Typography variant="caption" color="info.main" display="block" mt={0.5} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                                                        Computed: <strong>{Number(row.computedQty || 0).toFixed(4)}</strong>
+                                                    </Typography>
+                                                )}
+                                            </TableCell>
+                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
+                                            <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>
+                                            <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
+                                        </TableRow>
+                                    )
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
+
+                    <Button variant="outlined" disableElevation onClick={addEditSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
+                        + ADD_COMPONENT
+                    </Button>
+
+                    <Box display="flex" justifyContent="flex-end">
+                        <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                            <Box display="flex" justifyContent="space-between" mb={2}>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
+                                <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editSubTotal || 0).toFixed(2)}</Typography>
+                            </Box>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>OVERHEAD (%):</Typography>
+                                    <input type="number" value={editBoqOH} onChange={e => setEditBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editOhAmount || 0).toFixed(2)}</Typography>
+                            </Box>
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="2px solid" borderColor="divider">
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>PROFIT (%):</Typography>
+                                    <input type="number" value={editBoqProfit} onChange={e => setEditBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editProfitAmount || 0).toFixed(2)}</Typography>
+                            </Box>
+                            <Box display="flex" justifyContent="space-between" mb={3} color="success.main">
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{editBoqUnit}:</Typography>
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {Number(editGrandTotal || 0).toFixed(2)}</Typography>
+                            </Box>
+                        </Paper>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', gap: 2 }}>
+                    <Button onClick={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
+                    <Box display="flex" gap={2}>
+                        {editingMasterBoqId ? (
+                            <>
+                                <Button variant="outlined" color="info" onClick={() => saveEditedMasterBoq(true)} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                                    SAVE_AS_NEW
+                                </Button>
+                                <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(false)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                                    UPDATE_ORIGINAL
+                                </Button>
+                            </>
+                        ) : (
+                            <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(true)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                                SAVE_TO_MASTER_DB
+                            </Button>
+                        )}
+                    </Box>
+                </DialogActions>
+            </Dialog>
+
+            {/* --- FORMULA HELP DIALOG --- */}
+            <Dialog open={formulaHelpOpen} onClose={() => setFormulaHelpOpen(false)} maxWidth="md" fullWidth>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.main' }}>
+                    FORMULA_ENGINE_GUIDE
+                </DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', lineHeight: 1.7, p: 4 }}>
+                    <Typography variant="body1" paragraph>
+                        The Formula Engine allows you to calculate quantities dynamically by referencing other items in your BOQ.
+                        To trigger the engine, start your input with the equals sign (<code>=</code>).
+                    </Typography>
+
+                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
+                        1. Basic Math & Functions
+                    </Typography>
+                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
+                        • <code>= 10 * 5</code> ➔ 50<br />
+                        • <code>= ceil(10.2)</code> ➔ 11<br />
+                        • <code>= round(10.5)</code> ➔ 11<br />
+                        • Supported: <code>+ - * / ( ) ceil() floor() round() min() max()</code>
+                    </Box>
+
+                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
+                        2. Referencing Total Item Quantities
+                    </Typography>
+                    <Typography variant="body2" paragraph>
+                        Use <code>#</code> followed by the <strong>Sl.No</strong> to get the total calculated quantity of an item located <em>above</em> the current item.
+                    </Typography>
+                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
+                        • <code>= #1 * 125</code> ➔ Multiplies the total quantity of Sl.No 1 by 125.<br />
+                        • <code>= #1 + #2</code> ➔ Adds the quantities of Sl.No 1 and Sl.No 2.
+                    </Box>
+
+                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
+                        3. Cross-Dimensional Referencing (Measurement Book)
+                    </Typography>
+                    <Typography variant="body2" paragraph>
+                        You can fetch specific dimensions (Length, Breadth, Depth) from a specific row inside the Measurement Book of any item.
+                        <br /><strong>Syntax:</strong> <code>#SlNo.RowIndex.Property</code>
+                    </Typography>
+                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
+                        • <code>#1.1.l</code> ➔ Fetches the <strong>L</strong>ength from Row 1 of Sl.No 1.<br />
+                        • <code>#2.3.b</code> ➔ Fetches the <strong>B</strong>readth from Row 3 of Sl.No 2.<br />
+                        • <code>#1.1.no</code> ➔ Fetches the <strong>No.</strong> multiplier from Row 1 of Sl.No 1.
+                    </Box>
+
+                    <Typography variant="subtitle1" fontWeight="bold" color="success.main" mt={3} mb={1}>
+                        Example Use Case: Stirrups
+                    </Typography>
+                    <Typography variant="body2" sx={{ bgcolor: 'rgba(16, 185, 129, 0.1)', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
+                        To calculate the number of stirrups needed for a beam, where the beam is <strong>Sl.No 1, Row 1</strong> and the stirrup spacing is 150mm (0.15m):<br /><br />
+                        In the <strong>No.</strong> column of the stirrups MBook, type:<br />
+                        <code>= ceil(#1.1.l / 0.15) + 1</code>
+                    </Typography>
+                </DialogContent>
+                <DialogActions sx={{ p: 2, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Button onClick={() => setFormulaHelpOpen(false)} variant="contained" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                        UNDERSTOOD
+                    </Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }
