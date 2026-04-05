@@ -6,15 +6,15 @@ import { getResourceRate, calculateMasterBoqRate } from "../engines/calculationE
 import {
     Box, Button, Typography, Paper, Grid, Alert, Tabs, Tab, TextField, MenuItem,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip,
-    TablePagination, TableSortLabel, InputAdornment, Stack, Divider
+    TablePagination, TableSortLabel, InputAdornment, Divider
 } from "@mui/material";
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
-import EditIcon from '@mui/icons-material/Edit';
 import SaveIcon from '@mui/icons-material/Save';
 import SearchIcon from '@mui/icons-material/Search';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
 const Resizer = ({ onMouseDown }) => (
     <div
@@ -101,27 +101,27 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
 
     return (
         <Box sx={{ width: '100%', overflow: 'hidden' }}>
-            <Stack direction="row" spacing={2} sx={{ mb: 3 }}>
+            <Box display="flex" gap={2} mb={3} flexWrap="wrap">
                 <TextField
                     label="SEARCH_CODE"
                     variant="outlined"
                     size="small"
                     value={searchCode}
                     onChange={(e) => { setSearchCode(e.target.value); setPage(0); }}
+                    sx={{ flex: 1, minWidth: 150 }}
                     InputProps={{
                         startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
                         sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
                     }}
                     InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                    sx={{ width: '200px' }}
                 />
                 <TextField
                     label="SEARCH_DESC"
                     variant="outlined"
                     size="small"
-                    fullWidth
                     value={searchDesc}
                     onChange={(e) => { setSearchDesc(e.target.value); setPage(0); }}
+                    sx={{ flex: 2, minWidth: 250 }}
                     InputProps={{
                         startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
                         sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
@@ -134,14 +134,14 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                     label="PREVIEW_REGION"
                     value={previewRegion}
                     onChange={e => setPreviewRegion(e.target.value)}
-                    sx={{ minWidth: 200 }}
+                    sx={{ flex: 1, minWidth: 200 }}
                     InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                     InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                 >
                     <MenuItem value="">-- SELECT_REGION --</MenuItem>
                     {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
                 </TextField>
-            </Stack>
+            </Box>
 
             <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ overflowX: 'auto', width: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Table size="small" sx={{ tableLayout: 'fixed', minWidth: '100%', width: Object.values(colWidths).reduce((a, b) => a + b, 0) }}>
@@ -237,7 +237,6 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
         </Box>
     );
 }
-
 
 export default function DatabaseEditor({ onBack }) {
     const [tab, setTab] = useState("resources");
@@ -346,17 +345,22 @@ export default function DatabaseEditor({ onBack }) {
     };
 
     const addSpreadsheetRow = () => setBoqRows([...boqRows, { id: crypto.randomUUID(), itemType: "resource", itemId: "", qty: 1 }]);
-    const updateSpreadsheetRow = (id, field, value) => setBoqRows(boqRows.map(row => row.id === id ? { ...row, [field]: value, ...(field === 'itemType' ? { itemId: "" } : {}) } : row));
+    const updateSpreadsheetRow = (id, field, value) => setBoqRows(boqRows.map(row => row.id === id ? { ...row, [field]: value, ...(field === 'itemType' ? { itemId: "", tempCode: undefined, tempDesc: undefined } : {}) } : row));
     const removeSpreadsheetRow = (id) => setBoqRows(boqRows.filter(row => row.id !== id));
 
-    const saveMasterBoq = async () => {
+    const saveMasterBoq = async (isSaveAsNew = false) => {
         if (!boqCode || !boqDesc) return alert("Please enter a Code and Description.");
         const validComponents = boqRows.filter(r => r.itemId && r.qty > 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.qty) }));
-        if (validComponents.length === 0) return alert("Add at least one component.");
+        if (validComponents.length === 0) return alert("Add at least one valid component.");
         const payload = { itemCode: boqCode, description: boqDesc, unit: boqUnit, overhead: Number(boqOH), profit: Number(boqProfit), components: validComponents };
 
-        if (editingBoqId) { await db.masterBoq.update(editingBoqId, payload); alert("Master BOQ Item Updated!"); }
-        else { await db.masterBoq.add({ id: crypto.randomUUID(), ...payload }); alert("Master BOQ Item Created!"); }
+        if (editingBoqId && !isSaveAsNew) {
+            await db.masterBoq.update(editingBoqId, payload);
+            alert("Databook Item Updated!");
+        } else {
+            await db.masterBoq.add({ id: crypto.randomUUID(), ...payload });
+            alert(isSaveAsNew ? "Saved as a New Databook Item!" : "Databook Item Created!");
+        }
         setEditingBoqId(null); setBoqCode(""); setBoqDesc(""); setBoqRows([]);
     };
 
@@ -365,7 +369,8 @@ export default function DatabaseEditor({ onBack }) {
         setBoqRows(b.components.map(c => ({ id: crypto.randomUUID(), itemType: c.itemType || 'resource', itemId: c.itemId, qty: c.qty })));
         setTab("createBoq");
     };
-    const deleteMasterBoq = async (id) => { if (window.confirm("Delete this Master BOQ item?")) await db.masterBoq.delete(id); };
+
+    const deleteMasterBoq = async (id) => { if (window.confirm("Delete this Databook item?")) await db.masterBoq.delete(id); };
 
     const exportDatabase = () => {
         const data = { regions, resources, masterBoq: masterBoqs, exportDate: new Date().toISOString(), type: "MasterDatabase" };
@@ -394,6 +399,21 @@ export default function DatabaseEditor({ onBack }) {
             e.target.value = null;
         };
         reader.readAsText(file);
+    };
+
+    const purgeMasterDatabase = async () => {
+        const confirm1 = window.confirm("CRITICAL WARNING: This will permanently delete ALL Regions, Resources, and Databook items.");
+        if (confirm1) {
+            const confirm2 = window.confirm("Are you absolutely sure? Active projects may lose their master reference data. Type 'OK' to proceed:");
+            if (confirm2) {
+                await db.transaction('rw', db.regions, db.resources, db.masterBoq, async () => {
+                    await db.regions.clear();
+                    await db.resources.clear();
+                    await db.masterBoq.clear();
+                });
+                alert("Master Database has been completely purged.");
+            }
+        }
     };
 
     const filteredResources = useMemo(() => {
@@ -456,17 +476,17 @@ export default function DatabaseEditor({ onBack }) {
 
             <Paper elevation={0} variant="outlined" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
-                    <Tab value="resources" label="01_RESOURCES" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="createBoq" label={`02_${editingBoqId ? "EDIT" : "CREATE"}_BOQ`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="viewBoq" label="03_VIEW_BOQS" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="backup" label="04_BACKUP" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="resources" label="01_LOCAL_MARKET_RATES" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="createBoq" label={`02_${editingBoqId ? "EDIT_DATABOOK_ITEM" : "DATABOOK_BUILDER"}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="viewBoq" label="03_DATABOOK" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    <Tab value="backup" label="04_BACKUP_&_RESTORE" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                 </Tabs>
             </Paper>
 
             {tab === "backup" && (
                 <Box sx={{ maxWidth: 800, mx: "auto", mt: 4 }}>
                     <Alert severity="info" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                        <strong>MASTER_TEMPLATE_DATA</strong> — Regions, Resources, and Master BOQs.
+                        <strong>MASTER_TEMPLATE_DATA</strong> — Regions, Resources, and Databook Items.
                         Client projects are exported/imported from the Home screen.
                     </Alert>
                     <Grid container spacing={4}>
@@ -500,6 +520,24 @@ export default function DatabaseEditor({ onBack }) {
                                     sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
                                 >
                                     UPLOAD
+                                </Button>
+                            </Paper>
+                        </Grid>
+                        <Grid item xs={12}>
+                            <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', borderStyle: 'solid', borderColor: 'error.main', borderRadius: 2, bgcolor: 'rgba(239, 68, 68, 0.05)' }}>
+                                <DeleteForeverIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
+                                <Typography variant="h6" color="error.main" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>PURGE_MASTER_DATABASE</Typography>
+                                <Typography variant="body2" color="error.light" paragraph>
+                                    <strong>DANGER:</strong> Erase all Databook items, LMR Rates, and Resources. This cannot be undone.
+                                </Typography>
+                                <Button
+                                    variant="contained"
+                                    color="error"
+                                    size="large"
+                                    onClick={purgeMasterDatabase}
+                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', fontWeight: 'bold' }}
+                                >
+                                    NUKE DATABASE
                                 </Button>
                             </Paper>
                         </Grid>
@@ -699,7 +737,7 @@ export default function DatabaseEditor({ onBack }) {
             {tab === "createBoq" && (
                 <Paper elevation={0} variant="outlined" sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
-                        {editingBoqId ? "EDIT" : "CREATE"}_MASTER_BOQ
+                        {editingBoqId ? "EDIT" : "CREATE"}_DATABOOK_ITEM
                     </Typography>
                     <Divider sx={{ mb: 3, borderColor: 'divider' }} />
 
@@ -764,21 +802,63 @@ export default function DatabaseEditor({ onBack }) {
                                     return (
                                         <TableRow key={row.id}>
                                             <TableCell>
-                                                <select value={row.itemType} onChange={e => updateSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="resource">RESOURCE</option><option value="boq">MASTER_BOQ</option>
+                                                <select
+                                                    value={row.itemType}
+                                                    onChange={e => {
+                                                        setBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemType: e.target.value, itemId: "", tempCode: undefined, tempDesc: undefined } : r));
+                                                    }}
+                                                    style={tableInputActiveStyle}
+                                                >
+                                                    <option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option>
                                                 </select>
                                             </TableCell>
                                             <TableCell>
-                                                <select value={row.itemId} onChange={e => updateSpreadsheetRow(row.id, 'itemId', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="">-- CODE --</option>
-                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.id}>{s.code || s.itemCode}</option>)}
-                                                </select>
+                                                <input
+                                                    list={`codes-${row.id}`}
+                                                    value={row.tempCode !== undefined ? row.tempCode : (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const matched = sourceList.find(s => (s.code || s.itemCode) === val);
+                                                        setBoqRows(prev => prev.map(r => {
+                                                            if (r.id === row.id) {
+                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
+                                                                return { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc };
+                                                            }
+                                                            return r;
+                                                        }));
+                                                    }}
+                                                    placeholder="Type code..."
+                                                    style={tableInputActiveStyle}
+                                                />
+                                                <datalist id={`codes-${row.id}`}>
+                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => (
+                                                        <option key={s.id} value={s.code || s.itemCode} />
+                                                    ))}
+                                                </datalist>
                                             </TableCell>
                                             <TableCell>
-                                                <select value={row.itemId} onChange={e => updateSpreadsheetRow(row.id, 'itemId', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="">-- DESCRIPTION --</option>
-                                                    {sourceList.map(s => <option key={s.id} value={s.id}>{s.description}</option>)}
-                                                </select>
+                                                <input
+                                                    list={`descs-${row.id}`}
+                                                    value={row.tempDesc !== undefined ? row.tempDesc : (sourceList.find(s => s.id === row.itemId)?.description || "")}
+                                                    onChange={e => {
+                                                        const val = e.target.value;
+                                                        const matched = sourceList.find(s => s.description === val);
+                                                        setBoqRows(prev => prev.map(r => {
+                                                            if (r.id === row.id) {
+                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
+                                                                return { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val };
+                                                            }
+                                                            return r;
+                                                        }));
+                                                    }}
+                                                    placeholder="Type description..."
+                                                    style={tableInputActiveStyle}
+                                                />
+                                                <datalist id={`descs-${row.id}`}>
+                                                    {sourceList.filter(s => s.description).map(s => (
+                                                        <option key={s.id} value={s.description} />
+                                                    ))}
+                                                </datalist>
                                             </TableCell>
                                             <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
                                             <TableCell><input type="number" value={row.qty} onChange={e => updateSpreadsheetRow(row.id, 'qty', e.target.value)} style={tableInputActiveStyle} /></TableCell>
@@ -825,18 +905,34 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{boqUnit}:</Typography>
                                 <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {grandTotal.toFixed(2)}</Typography>
                             </Box>
-                            <Button
-                                variant="contained"
-                                color="success"
-                                fullWidth
-                                size="large"
-                                onClick={saveMasterBoq}
-                                startIcon={<SaveIcon />}
-                                disableElevation
-                                sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}
-                            >
-                                {editingBoqId ? "UPDATE_ITEM" : "SAVE_ITEM"}
-                            </Button>
+
+                            <Box display="flex" gap={2} mb={1}>
+                                {editingBoqId && (
+                                    <Button
+                                        variant="outlined"
+                                        color="info"
+                                        fullWidth
+                                        size="large"
+                                        onClick={() => saveMasterBoq(true)}
+                                        disableElevation
+                                        sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
+                                    >
+                                        SAVE_AS_NEW
+                                    </Button>
+                                )}
+                                <Button
+                                    variant="contained"
+                                    color="success"
+                                    fullWidth
+                                    size="large"
+                                    onClick={() => saveMasterBoq(false)}
+                                    startIcon={<SaveIcon />}
+                                    disableElevation
+                                    sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}
+                                >
+                                    {editingBoqId ? "UPDATE_ITEM" : "SAVE_ITEM"}
+                                </Button>
+                            </Box>
                         </Paper>
                     </Box>
                 </Paper>
@@ -845,7 +941,7 @@ export default function DatabaseEditor({ onBack }) {
             {tab === "viewBoq" && (
                 <Box>
                     <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
-                        EXISTING_MASTER_BOQ_ITEMS
+                        DATABOOK_ITEMS
                     </Typography>
                     <MasterBOQTab
                         masterBoqs={masterBoqs}
