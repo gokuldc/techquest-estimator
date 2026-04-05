@@ -30,7 +30,8 @@
     },
     "files": [
       "dist/**/*",
-      "electron/**/*"
+      "electron/**/*",
+      "MASTER_DB_SAMPLE.json"
     ]
   },
   "dependencies": {

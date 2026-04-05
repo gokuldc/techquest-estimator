@@ -2,10 +2,10 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('ConstructionAppDB');
 
-db.version(3).stores({
-    projects: 'id, name, clientName, region, createdAt',
+db.version(4).stores({
+    projects: 'id, name, code, clientName, region, createdAt',
     regions: 'id, name',
     resources: 'id, code, description',
-    masterBoq: 'id, itemCode, description', // Added itemCode for unique identification
+    masterBoq: 'id, itemCode, description',
     projectBoq: 'id, projectId, masterBoqId, slNo'
 });

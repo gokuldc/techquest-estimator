@@ -33,6 +33,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
         const query = searchQuery.toLowerCase();
         return projects.filter(p =>
             (p.name && p.name.toLowerCase().includes(query)) ||
+            (p.code && p.code.toLowerCase().includes(query)) ||
             (p.clientName && p.clientName.toLowerCase().includes(query)) ||
             (p.region && p.region.toLowerCase().includes(query))
         );
@@ -53,12 +54,13 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
         const newProject = {
             id: crypto.randomUUID(),
             name: "New Project",
+            code: "",
             clientName: "",
             region: "",
             createdAt: Date.now()
         };
         await db.projects.add(newProject);
-        setSearchQuery(""); // Clear search to ensure new project is visible
+        setSearchQuery("");
         setPage(1);
         onOpenProject(newProject.id);
     };
@@ -399,6 +401,11 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                                     >
                                         {p.name}
                                     </Typography>
+                                    {p.code && (
+                                        <Typography variant="body2" color="secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px', fontWeight: 600, mb: 0.5 }}>
+                                            CODE: {p.code}
+                                        </Typography>
+                                    )}
                                     <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px' }}>
                                         {p.clientName ? `CLIENT: ${p.clientName}` : 'CLIENT: Unassigned'}
                                     </Typography>

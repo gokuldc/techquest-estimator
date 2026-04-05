@@ -11,6 +11,13 @@ export default function ProjectDetailsTab({ project, regions, updateProject }) {
           fullWidth 
         />
         <TextField 
+          label="PROJECT_CODE" 
+          value={project.code || ""} 
+          onChange={e => updateProject("code", e.target.value)} 
+          fullWidth 
+          helperText="Unique code for this project (e.g., TQ-2026-001)"
+        />
+        <TextField 
           label="CLIENT_NAME" 
           value={project.clientName} 
           onChange={e => updateProject("clientName", e.target.value)} 
