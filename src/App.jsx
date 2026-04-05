@@ -7,6 +7,7 @@ import DatabaseEditor from './components/DatabaseEditor';
 import Home from './components/Home';
 import ProjectWorkspace from './components/ProjectWorkspace';
 import About from './components/About';
+import ErrorBoundary from './components/ErrorBoundary';
 
 export default function App() {
     const [mode, setMode] = useState(() => {
@@ -77,6 +78,38 @@ export default function App() {
             borderRadius: 8,
         },
         components: {
+            // INJECT RAW CSS TO HIT THE MAIN ROOT SCROLLBAR
+            MuiCssBaseline: {
+                styleOverrides: `
+                    /* Firefox Support */
+                    * {
+                        scrollbar-width: thin;
+                        scrollbar-color: rgba(59, 130, 246, 0.4) transparent;
+                    }
+
+                    /* Chrome, Edge, and Electron Main Window */
+                    ::-webkit-scrollbar {
+                        width: 10px;
+                        height: 10px;
+                    }
+                    ::-webkit-scrollbar-track {
+                        background: rgba(13, 31, 60, 0.2);
+                        border-radius: 4px;
+                    }
+                    ::-webkit-scrollbar-thumb {
+                        background-color: rgba(59, 130, 246, 0.4);
+                        border-radius: 10px;
+                        /* The border color MUST match your background default color to create the floating pill effect */
+                        border: 2px solid ${mode === 'dark' ? '#0a1628' : '#f0f4f8'}; 
+                    }
+                    ::-webkit-scrollbar-thumb:hover {
+                        background-color: rgba(59, 130, 246, 0.8);
+                    }
+                    ::-webkit-scrollbar-corner {
+                        background: transparent;
+                    }
+                `,
+            },
             MuiAppBar: {
                 styleOverrides: {
                     root: {
@@ -137,6 +170,41 @@ export default function App() {
                 defaultProps: {
                     variant: 'outlined',
                 },
+                styleOverrides: {
+                    root: {
+                        '& .MuiInputLabel-root': {
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '11px',
+                        },
+                        '& .MuiOutlinedInput-input': {
+                            fontFamily: "'JetBrains Mono', monospace",
+                            fontSize: '13px',
+                        },
+                        '& .MuiOutlinedInput-input::placeholder': {
+                            color: 'inherit',
+                            opacity: 0.6,
+                            textAlign: 'left',
+                        },
+                    },
+                },
+            },
+            MuiSelect: {
+                styleOverrides: {
+                    root: {
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '13px',
+                        textAlign: 'left',
+                    },
+                },
+            },
+            MuiMenuItem: {
+                styleOverrides: {
+                    root: {
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '12px',
+                        textAlign: 'left',
+                    },
+                },
             },
             MuiOutlinedInput: {
                 styleOverrides: {
@@ -193,30 +261,30 @@ export default function App() {
             </AppBar>
 
             <Box sx={{ width: '100%', minHeight: 'calc(100vh - 64px)' }}>
+                <ErrorBoundary>
+                    {currentView === 'home' && (
+                        <Home
+                            onOpenDb={() => setCurrentView('database')}
+                            onOpenProject={handleOpenWorkspace}
+                            onOpenAbout={() => setCurrentView('about')}
+                        />
+                    )}
 
-                {currentView === 'home' && (
-                    <Home
-                        onOpenDb={() => setCurrentView('database')}
-                        onOpenProject={handleOpenWorkspace}
-                        onOpenAbout={() => setCurrentView('about')}
-                    />
-                )}
+                    {currentView === 'database' && (
+                        <DatabaseEditor onBack={() => setCurrentView('home')} />
+                    )}
 
-                {currentView === 'database' && (
-                    <DatabaseEditor onBack={() => setCurrentView('home')} />
-                )}
+                    {currentView === 'workspace' && (
+                        <ProjectWorkspace
+                            projectId={activeProjectId}
+                            onBack={() => setCurrentView('home')}
+                        />
+                    )}
 
-                {currentView === 'workspace' && (
-                    <ProjectWorkspace
-                        projectId={activeProjectId}
-                        onBack={() => setCurrentView('home')}
-                    />
-                )}
-
-                {currentView === 'about' && (
-                    <About onBack={() => setCurrentView('home')} />
-                )}
-
+                    {currentView === 'about' && (
+                        <About onBack={() => setCurrentView('home')} />
+                    )}
+                </ErrorBoundary>
             </Box>
         </ThemeProvider>
     );

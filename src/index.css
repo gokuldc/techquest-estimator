@@ -79,19 +79,23 @@ h2 {
 h1 {
   font-size: 36px;
   margin: 24px 0;
+
   @media (max-width: 1024px) {
     font-size: 28px;
     margin: 16px 0;
   }
 }
+
 h2 {
   font-size: 22px;
   line-height: 130%;
   margin: 0 0 8px;
+
   @media (max-width: 1024px) {
     font-size: 18px;
   }
 }
+
 p {
   margin: 0;
 }
@@ -154,4 +158,57 @@ code {
 ::selection {
   background: var(--blueprint-accent-glow);
   color: var(--blueprint-text-heading);
+}
+
+/* ==========================================================================
+   GLOBAL CUSTOM SCROLLBARS (Dark Theme)
+   ========================================================================== */
+
+/* Webkit (Chrome, Edge, Safari, Electron) */
+::-webkit-scrollbar {
+  width: 10px;
+  /* Width for vertical scrollbars */
+  height: 10px;
+  /* Height for horizontal scrollbars */
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(13, 31, 60, 0.3);
+  /* Matches the dark panel backgrounds */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(59, 130, 246, 0.4);
+  /* Subtle blue matching the primary theme */
+  border-radius: 4px;
+  border: 2px solid rgba(13, 31, 60, 0.8);
+  /* Creates a padded effect inside the track */
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(59, 130, 246, 0.8);
+  /* Brightens when hovered */
+}
+
+::-webkit-scrollbar-corner {
+  background: transparent;
+  /* Hides the ugly square where horizontal and vertical meet */
+}
+
+/* Firefox Support */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(59, 130, 246, 0.4) rgba(13, 31, 60, 0.3);
+}
+
+/* Placeholder alignment for all inputs */
+::placeholder,
+::-webkit-input-placeholder,
+::-moz-placeholder {
+  text-align: left;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 13px;
+  color: inherit;
+  opacity: 0.6;
 }

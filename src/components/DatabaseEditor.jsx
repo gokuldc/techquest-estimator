@@ -3,6 +3,7 @@ import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import * as XLSX from "xlsx";
 import { getResourceRate, calculateMasterBoqRate } from "../engines/calculationEngine";
+import { tableInputStyle, tableInputActiveStyle } from "../styles";
 import {
     Box, Button, Typography, Paper, Grid, Alert, Tabs, Tab, TextField, MenuItem,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip,
@@ -110,7 +111,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
             <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3} flexWrap="wrap" gap={2}>
                 <Box display="flex" gap={2} flexWrap="wrap" flex={1} alignItems="flex-start">
                     <TextField
-                        label="SEARCH_CODE"
+                        placeholder="Search Code..."
                         variant="outlined"
                         size="small"
                         value={searchCode}
@@ -120,10 +121,9 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                             startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
                             sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
                         }}
-                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                     />
                     <TextField
-                        label="SEARCH_DESC"
+                        placeholder="Search Description..."
                         variant="outlined"
                         size="small"
                         value={searchDesc}
@@ -133,7 +133,6 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                             startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
                             sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
                         }}
-                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                     />
                     <TextField
                         select
@@ -146,7 +145,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                     >
                         <MenuItem value="">-- SELECT_REGION --</MenuItem>
-                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
+                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                     </TextField>
                 </Box>
 
@@ -701,9 +700,6 @@ export default function DatabaseEditor({ onBack }) {
         return { renderedRows: computedRows, subTotal: sub, ohAmount: oh, profitAmount: prof, grandTotal: sub + oh + prof };
     }, [boqRows, resources, masterBoqs, previewRegion, boqOH, boqProfit]);
 
-    const tableInputStyle = { width: "100%", padding: "6px", boxSizing: "border-box", border: "1px solid transparent", background: "transparent", color: "inherit", fontFamily: "'JetBrains Mono', monospace", fontSize: "13px" };
-    const tableInputActiveStyle = { ...tableInputStyle, border: "1px solid var(--mui-palette-divider)", borderRadius: "4px", background: "var(--mui-palette-background-default)" };
-
     return (
         <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -843,7 +839,7 @@ export default function DatabaseEditor({ onBack }) {
                                         InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     >
-                                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
+                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                                     </TextField>
 
                                     <input type="file" accept=".xls,.xlsx" ref={lmrExcelInputRef} style={{ display: 'none' }} onChange={handleExcelUpload} />
@@ -907,21 +903,25 @@ export default function DatabaseEditor({ onBack }) {
                                 <Box display="flex" gap={2} alignItems="flex-start">
                                     <TextField
                                         size="small"
-                                        label="SEARCH_CODE"
+                                        placeholder="Search Code..."
                                         value={searchCode}
                                         onChange={e => { setSearchCode(e.target.value); setCurrentPage(1); }}
                                         fullWidth
-                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
+                                        }}
                                     />
                                     <TextField
                                         size="small"
-                                        label="SEARCH_DESC"
+                                        placeholder="Search Description..."
                                         value={searchDesc}
                                         onChange={e => { setSearchDesc(e.target.value); setCurrentPage(1); }}
                                         fullWidth
-                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        InputProps={{
+                                            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
+                                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
+                                        }}
                                     />
                                 </Box>
                             </Grid>
@@ -1071,7 +1071,7 @@ export default function DatabaseEditor({ onBack }) {
                             InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                         >
                             <MenuItem value="">-- DEFAULT_RATE --</MenuItem>
-                            {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{r.name}</MenuItem>)}
+                            {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                         </TextField>
                     </Box>
 
