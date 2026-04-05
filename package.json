@@ -1,7 +1,7 @@
 {
   "name": "construction-estimator-pro",
   "private": true,
-  "version": "1.3.0",
+  "version": "1.2.0",
   "description": "Professional estimation solution for civil engineers.",
   "author": "Gokul DC",
   "type": "module",
