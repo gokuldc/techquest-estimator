@@ -529,7 +529,7 @@ export default function DatabaseEditor({ onBack }) {
 
     const saveMasterBoq = async (isSaveAsNew = false) => {
         if (!boqCode || !boqDesc) return alert("Please enter a Code and Description.");
-        const validComponents = boqRows.filter(r => r.itemId && r.computedQty > 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
+        const validComponents = renderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
         if (validComponents.length === 0) return alert("Add at least one valid component.");
         const payload = { itemCode: boqCode, description: boqDesc, unit: boqUnit, overhead: Number(boqOH), profit: Number(boqProfit), components: validComponents };
 
@@ -833,13 +833,16 @@ export default function DatabaseEditor({ onBack }) {
                                         select
                                         size="small"
                                         label="TARGET_REGION"
-                                        value={importRegion}
+                                        // Apply the same safety check we used in the workspace
+                                        value={regions.some(r => r.name === importRegion) ? importRegion : ""}
                                         onChange={e => setImportRegion(e.target.value)}
                                         sx={{ minWidth: 150, flex: 1 }}
                                         InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     >
-                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
+                                        {/* Add the missing fallback menu item */}
+                                        <MenuItem value="">-- SELECT_REGION --</MenuItem>
+                                        {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                                     </TextField>
 
                                     <input type="file" accept=".xls,.xlsx" ref={lmrExcelInputRef} style={{ display: 'none' }} onChange={handleExcelUpload} />

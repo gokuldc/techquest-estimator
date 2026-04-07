@@ -1,7 +1,7 @@
 {
   "name": "techquest-estimator",
   "private": true,
-  "version": "1.2.1",
+  "version": "1.2.3",
   "description": "Professional estimation solution for civil engineers.",
   "author": "Gokul DC",
   "type": "module",

@@ -351,7 +351,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     const saveEditedMasterBoq = async (isSaveAsNew = false) => {
         if (!editBoqCode || !editBoqDesc) return alert("Please enter a Code and Description.");
-        const validComponents = editRenderedRows.filter(r => r.itemId && r.computedQty > 0).map(r => ({
+        const validComponents = editRenderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({
             itemType: r.itemType,
             itemId: r.itemId,
             qty: Number(r.computedQty),
@@ -406,7 +406,17 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                         <TextField label="PROJECT_NAME" value={project.name} onChange={e => updateProject("name", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                         <TextField label="PROJECT_CODE" value={project.code || ""} onChange={e => updateProject("code", e.target.value)} fullWidth helperText="Unique code for this project (e.g., TQ-2026-001)" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
                         <TextField label="CLIENT_NAME" value={project.clientName} onChange={e => updateProject("clientName", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <TextField select label="RATES_REGION" value={project.region} onChange={e => updateProject("region", e.target.value)} fullWidth helperText="Leave empty to use default rates" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}>
+                        <TextField
+                            select
+                            label="RATES_REGION"
+                            value={regions.some(r => r.name === project.region) ? project.region : ""}
+                            onChange={e => updateProject("region", e.target.value)}
+                            fullWidth
+                            helperText="Leave empty to use default rates"
+                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                        >
                             <MenuItem value="">-- AUTO_DETECT_FIRST_RATE --</MenuItem>
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                         </TextField>
