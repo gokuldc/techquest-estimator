@@ -82,7 +82,7 @@ export default function About({ onBack }) {
                             letterSpacing: '1px',
                         }}
                     >
-                        VERSION 1.0.0 // PROFESSIONAL CIVIL ENGINEERING SOLUTION
+                        VERSION 1.2.3 // PROFESSIONAL CIVIL ENGINEERING SOLUTION
                     </Typography>
 
                     <IconButton
