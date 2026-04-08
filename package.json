@@ -1,5 +1,5 @@
 {
-  "name": "techquest-estimator",
+  "name": "openprix",
   "private": true,
   "version": "1.2.3",
   "description": "Professional estimation solution for civil engineers.",
@@ -15,8 +15,8 @@
     "build:electron": "npm run build && electron-builder"
   },
   "build": {
-    "appId": "com.techquest.estimator",
-    "productName": "TechQuest Estimator",
+    "appId": "com.openprix.estimator",
+    "productName": "OPENPRIX",
     "directories": {
       "output": "release"
     },

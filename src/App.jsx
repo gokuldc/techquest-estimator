@@ -243,7 +243,7 @@ export default function App() {
                             letterSpacing: '1px',
                         }}
                     >
-                        {'// '}TECHQUEST_ESTIMATOR
+                        {'// '}OPENPRIX
                     </Typography>
                     <IconButton
                         sx={{

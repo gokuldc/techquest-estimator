@@ -169,7 +169,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                                 letterSpacing: '1px',
                             }}
                         >
-                            {'// '}TECHQUEST_ESTIMATOR
+                            {'// '}OPENPRIX
                         </Typography>
                     </Box>
                 </Box>

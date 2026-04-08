@@ -71,7 +71,7 @@ export default function About({ onBack }) {
                             color: 'primary.main',
                         }}
                     >
-                        TECHQUEST_ESTIMATOR
+                        OPENPRIX
                     </Typography>
                     <Typography
                         variant="subtitle1"

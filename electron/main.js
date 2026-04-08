@@ -24,7 +24,7 @@ function createWindow() {
         height: 800,
         minWidth: 900,
         minHeight: 600,
-        title: "TechQuest Estimator Pro",
+        title: "//OPENPRIX",
         autoHideMenuBar: true,
         webPreferences: {
             nodeIntegration: false,
