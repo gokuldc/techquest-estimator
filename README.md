@@ -1,6 +1,6 @@
-# 🏗️ TechQuest Construction Estimator
+# 🏗️ OPENPRIX
 
-An advanced, offline-first desktop application designed for civil engineers and construction professionals. TechQuest Estimator bridges the gap between raw master databases, Local Market Rates (LMR), and project-specific Bill of Quantities (BOQ) with dynamic measurement books.
+An advanced, offline-first desktop application designed for civil engineers and construction professionals. OPENPRIX bridges the gap between Rate Analysis, Estimation with Project Management.
 
 ![Tech Stack](https://img.shields.io/badge/React-19-blue?logo=react)
 ![Tech Stack](https://img.shields.io/badge/Vite-6-purple?logo=vite)
@@ -18,6 +18,8 @@ An advanced, offline-first desktop application designed for civil engineers and 
 * **One-Click Excel Export:** Generate production-ready Excel files containing the BOQ, Measurement Books, and detailed Rate Analysis (using SheetJS).
 * **100% Offline & Secure:** All data is stored locally on the user's machine using IndexedDB (via Dexie.js).
 * **Data Portability:** Export and import Master Templates or Client Projects as JSON files to share between machines or backup data safely.
+* **Project Management Tools like Gantt Chart and KanBan Board
+* **Integrated Human Resource Management Tools
 * **Modern UI:** Built with Material UI (MUI) featuring a responsive Navy & Amber color scheme and native Dark/Light mode toggling.
 
 ---
@@ -67,7 +69,7 @@ Bash
 
 npm run build:electron
 
-Once the build process completes, navigate to the newly created release/ folder to find your executable file (e.g., TechQuest Estimator Setup 1.0.0.exe).
+Once the build process completes, navigate to the newly created release/ folder to find your executable file (e.g., OPENPRIX 2.0.0.exe).
 
 
 🔒 Data Architecture & Privacy
@@ -80,4 +82,4 @@ This application operates entirely offline.
 
     Users must manually back up their data using the built-in JSON export tools.
 
-Developed by Gokul DC for TechQuest Innovations Pvt. Ltd.
+

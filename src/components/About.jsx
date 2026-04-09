@@ -11,7 +11,7 @@ export default function About({ isPopup }) {
                     SYSTEM_INFO: v2.0.0
                 </Typography>
                 <Link 
-                    href="https://github.com/TechQuest-Engineering/OpenPrix" 
+                    href="https://github.com/gokuldc/OpenPrix" 
                     target="_blank" 
                     rel="noopener"
                     sx={{ 
