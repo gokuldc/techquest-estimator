@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import {
-    Box, Paper, Typography, Grid, TextField, MenuItem, Switch, Divider, Avatar
+    Box, Paper, Typography, Grid, TextField, MenuItem, Switch, Divider, Avatar, Autocomplete, Chip
 } from '@mui/material';
 import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
 import EventIcon from '@mui/icons-material/Event';
@@ -15,9 +15,29 @@ import FoundationIcon from '@mui/icons-material/Foundation';
 import BusinessIcon from '@mui/icons-material/Business';
 
 export default function ProjectDetailsTab({
-    project, updateProject, regions, totalAmount, projectBoqItems, togglePriceLock
+    project, updateProject, regions, totalAmount, projectBoqItems, togglePriceLock, crmContacts = []
 }) {
-    // --- DASHBOARD CALCULATIONS ---
+    // --- 1. CRM DATA ROUTING ---
+    const clientOptions = useMemo(() => {
+        return crmContacts
+            .filter(c => {
+                const type = c.type ? c.type.toLowerCase() : "";
+                return type === 'client' || type === 'lead';
+            })
+            .map(c => c.company ? `${c.company} (${c.name})` : c.name);
+    }, [crmContacts]);
+
+    const consultantOptions = useMemo(() => {
+        return crmContacts.map(c => c.company ? `${c.name} - ${c.company}` : c.name);
+    }, [crmContacts]);
+
+    const crmSubcontractors = useMemo(() => {
+        return crmContacts.filter(c => {
+            const type = c.type ? c.type.toLowerCase() : "";
+            return type === 'subcontractor' || type === 'supplier';
+        });
+    }, [crmContacts]);
+
     // --- DASHBOARD CALCULATIONS ---
     const tasks = project.ganttTasks || [];
 
@@ -55,6 +75,7 @@ export default function ProjectDetailsTab({
 
         return { minDate: min, maxDate: max, currentPhase: active };
     }, [tasks]);
+
     // --- PHASE & SUBCONTRACTOR MAPPING ---
     const availablePhases = useMemo(() => {
         const phases = new Set((projectBoqItems || []).map(item => item.phase).filter(Boolean));
@@ -63,7 +84,6 @@ export default function ProjectDetailsTab({
         return Array.from(phases);
     }, [projectBoqItems, tasks]);
 
-    const subcontractors = project.subcontractors || [];
     const phaseAssignments = project.phaseAssignments || {};
 
     const handlePhaseAssignment = async (phase, subId) => {
@@ -90,7 +110,7 @@ export default function ProjectDetailsTab({
                 <Grid item xs={12} sm={6} md={3}>
                     <MetricCard
                         title="ESTIMATED COST"
-                        value={`₹ ${totalAmount.toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
+                        value={`₹ ${(totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`}
                         icon={<AttachMoneyIcon />} color="success"
                     />
                 </Grid>
@@ -133,9 +153,23 @@ export default function ProjectDetailsTab({
                             <Grid item xs={12} md={6}>
                                 <TextField label="PROJECT_CODE" value={project.code || ""} onChange={e => updateProject("code", e.target.value)} fullWidth helperText="Unique code for this project (e.g., OP-2026-001)" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
                             </Grid>
+
+                            {/* CRM LINKED CLIENT AUTOCOMPLETE */}
                             <Grid item xs={12} md={6}>
-                                <TextField label="CLIENT_NAME" value={project.clientName || ""} onChange={e => updateProject("clientName", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <Autocomplete 
+                                    freeSolo 
+                                    openOnFocus 
+                                    disablePortal
+                                    options={clientOptions} 
+                                    value={project.clientName || ""} 
+                                    onInputChange={(e, newVal) => updateProject("clientName", newVal)} 
+                                    sx={{ '& .MuiInputBase-input': { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    renderInput={(params) => (
+                                        <TextField {...params} label="CLIENT_NAME (CRM)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
+                                    )} 
+                                />
                             </Grid>
+
                             <Grid item xs={12} md={6}>
                                 <TextField select label="RATES_REGION" value={regions.some(r => r.name === project.region) ? project.region : ""} onChange={e => updateProject("region", e.target.value)} fullWidth helperText="Leave empty to use default rates" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}>
                                     <MenuItem value="">-- AUTO_DETECT_FIRST_RATE --</MenuItem>
@@ -168,23 +202,38 @@ export default function ProjectDetailsTab({
                                 </Box>
                             </Grid>
 
-                            {/* EXTERNAL CONSULTANTS ROW */}
+                            {/* EXTERNAL CONSULTANTS ROW (CRM LINKED) */}
                             <Grid item xs={12} md={4}>
                                 <Box display="flex" alignItems="center" gap={1}>
                                     <BusinessIcon color="action" />
-                                    <TextField label="PMC (CONSULTANT)" value={project.pmc || ""} onChange={e => updateProject("pmc", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <Autocomplete 
+                                        freeSolo openOnFocus disablePortal options={consultantOptions} value={project.pmc || ""} 
+                                        onInputChange={(e, newVal) => updateProject("pmc", newVal)} fullWidth
+                                        sx={{ '& .MuiInputBase-input': { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        renderInput={(params) => <TextField {...params} label="PMC (CRM)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} 
+                                    />
                                 </Box>
                             </Grid>
                             <Grid item xs={12} md={4}>
                                 <Box display="flex" alignItems="center" gap={1}>
                                     <ArchitectureIcon color="action" />
-                                    <TextField label="ARCHITECT" value={project.architect || ""} onChange={e => updateProject("architect", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <Autocomplete 
+                                        freeSolo openOnFocus disablePortal options={consultantOptions} value={project.architect || ""} 
+                                        onInputChange={(e, newVal) => updateProject("architect", newVal)} fullWidth
+                                        sx={{ '& .MuiInputBase-input': { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        renderInput={(params) => <TextField {...params} label="ARCHITECT (CRM)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} 
+                                    />
                                 </Box>
                             </Grid>
                             <Grid item xs={12} md={4}>
                                 <Box display="flex" alignItems="center" gap={1}>
                                     <FoundationIcon color="action" />
-                                    <TextField label="STRUCTURAL_ENGINEER" value={project.structuralEngineer || ""} onChange={e => updateProject("structuralEngineer", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <Autocomplete 
+                                        freeSolo openOnFocus disablePortal options={consultantOptions} value={project.structuralEngineer || ""} 
+                                        onInputChange={(e, newVal) => updateProject("structuralEngineer", newVal)} fullWidth
+                                        sx={{ '& .MuiInputBase-input': { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        renderInput={(params) => <TextField {...params} label="STRUCTURAL (CRM)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} 
+                                    />
                                 </Box>
                             </Grid>
                         </Grid>
@@ -213,7 +262,7 @@ export default function ProjectDetailsTab({
                             </Box>
                         </Paper>
 
-                        {/* SUBCONTRACTOR ASSIGNMENTS */}
+                        {/* SUBCONTRACTOR ASSIGNMENTS (CRM LINKED) */}
                         <Paper sx={{ p: 3, flex: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                             <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px' }}>
                                 PHASE_AWARDS
@@ -236,9 +285,11 @@ export default function ProjectDetailsTab({
                                             InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 30 } }}
                                         >
                                             <MenuItem value="" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontStyle: 'italic' }}>In-House (Self-Execute)</MenuItem>
-                                            {subcontractors.map(sub => (
+                                            
+                                            {/* ITERATING OVER CRM SUBCONTRACTORS */}
+                                            {crmSubcontractors.map(sub => (
                                                 <MenuItem key={sub.id} value={sub.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
-                                                    {sub.name}
+                                                    {sub.company ? `${sub.company} (${sub.name})` : sub.name}
                                                 </MenuItem>
                                             ))}
                                         </TextField>
