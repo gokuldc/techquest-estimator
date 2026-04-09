@@ -1,37 +1,71 @@
+import React, { useState } from 'react';
 import {
-    Box, Button, Paper, Typography, Table, TableBody, TableCell,
+    Box, Paper, Typography, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow
-} from "@mui/material";
+} from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { tableInputStyle } from "../../styles";
+import { db } from '../../db';
+import { tableInputStyle } from '../../styles';
 
-export default function MeasurementBookTab({
-    renderedProjectBoq,
-    mbInputs,
-    handleMbInputChange,
-    addMeasurementRow,
-    deleteMeasurementRow,
-    focusedMbCell,
-    setFocusedMbCell,
-    updateMeasurementInline,
-    setFormulaHelpOpen
-}) {
-    if (renderedProjectBoq.length === 0) {
-        return (
-            <Paper sx={{ p: 4, textAlign: "center", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>ADD_ITEMS_TO_BOQ_FIRST</Typography>
-            </Paper>
-        );
-    }
+export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpOpen }) {
+    // Local state moved out of the main workspace!
+    const [mbInputs, setMbInputs] = useState({});
+    const [focusedMbCell, setFocusedMbCell] = useState(null);
+
+    // --- MBOOK HANDLERS ---
+    const handleMbInputChange = (itemId, field, value) => {
+        setMbInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
+    };
+
+    const addMeasurementRow = async (item) => {
+        const inputs = mbInputs[item.id] || {};
+        if (!inputs.details) return alert("Please enter a location/detail description.");
+        const newRow = {
+            id: crypto.randomUUID(),
+            details: inputs.details,
+            no: String(inputs.no || 1),
+            l: String(inputs.l || ""),
+            b: String(inputs.b || ""),
+            d: String(inputs.d || "")
+        };
+        const updatedMeasurements = [...(item.measurements || []), newRow];
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+        setMbInputs(prev => ({ ...prev, [item.id]: { details: "", no: "", l: "", b: "", d: "" } }));
+    };
+
+    const deleteMeasurementRow = async (item, measurementId) => {
+        const updatedMeasurements = (item.measurements || []).filter(m => m.id !== measurementId);
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+    };
+
+    const updateMeasurementInline = async (item, measurementId, field, value) => {
+        const updatedMeasurements = (item.measurements || []).map(m => {
+            if (m.id === measurementId) return { ...m, [field]: value };
+            return m;
+        });
+        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+    };
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
+            {renderedProjectBoq.length === 0 && (
+                <Paper sx={{ p: 4, textAlign: "center", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>
+                        ADD_ITEMS_TO_BOQ_FIRST
+                    </Typography>
+                </Paper>
+            )}
+
             {renderedProjectBoq.map(item => (
                 <Paper key={item.id} elevation={0} sx={{ overflow: "hidden", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <Box sx={{ bgcolor: "rgba(0,0,0,0.2)", p: 2, borderBottom: "1px solid", borderColor: "divider", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
                         <Box>
-                            <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>{item.slNo}. {item.displayCode ? `[${item.displayCode}]` : ''} {item.displayDesc}</Typography>
-                            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>TOTAL_QTY: <Box component="span" color="success.main" fontWeight="bold" fontSize="1rem">{Number(item.computedQty || 0).toFixed(2)} {item.displayUnit}</Box></Typography>
+                            <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
+                                {item.slNo}. {item.displayCode ? `[${item.displayCode}]` : ''} {item.displayDesc}
+                            </Typography>
+                            <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                                TOTAL_QTY: <Box component="span" color="success.main" fontWeight="bold" fontSize="1rem">{Number(item.computedQty || 0).toFixed(2)} {item.displayUnit}</Box>
+                            </Typography>
                         </Box>
                         <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ py: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
                             FORMULA GUIDE

@@ -48,7 +48,7 @@ export default function About({ onBack }) {
                         fontSize: { xs: '18px', md: '22px' },
                     }}
                 >
-                    SYSTEM_INFO
+                    ABOUT_OPENPRIX
                 </Typography>
             </Box>
 
@@ -86,7 +86,7 @@ export default function About({ onBack }) {
                     </Typography>
 
                     <IconButton
-                        onClick={() => openExternalLink('https://github.com/gokuldc/techquest-estimator')}
+                        onClick={() => openExternalLink('https://github.com/gokuldc/openprix')}
                         sx={{
                             position: 'absolute', top: 24, right: 24,
                             color: 'primary.main',
@@ -132,14 +132,14 @@ export default function About({ onBack }) {
                                     DEVELOPED_BY: GOKUL_DC
                                 </Typography>
                                 <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', mt: 0.5 }}>
-                                    TECHQUEST_INNOVATIONS_PVT_LTD
+                                    [gokuldc@proton.me]
                                 </Typography>
                             </Box>
                             <Button
                                 variant="outlined"
                                 startIcon={<GitHubIcon />}
                                 endIcon={<OpenInNewIcon fontSize="small" />}
-                                onClick={() => openExternalLink('https://github.com/gokuldc/techquest-estimator')}
+                                onClick={() => openExternalLink('https://github.com/gokuldc/openprix')}
                                 sx={{
                                     borderRadius: 2,
                                     fontFamily: "'JetBrains Mono', monospace",
