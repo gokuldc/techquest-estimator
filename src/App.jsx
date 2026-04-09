@@ -8,6 +8,7 @@ import Home from './components/Home';
 import ProjectWorkspace from './components/ProjectWorkspace';
 import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
+import CrmDashboard from './components/CrmDashboard'; // <-- IMPORT ADDED HERE
 
 export default function App() {
     const [mode, setMode] = useState(() => {
@@ -267,6 +268,7 @@ export default function App() {
                             onOpenDb={() => setCurrentView('database')}
                             onOpenProject={handleOpenWorkspace}
                             onOpenAbout={() => setCurrentView('about')}
+                            onOpenCrm={() => setCurrentView('crm')} // <-- ROUTING PROP ADDED HERE
                         />
                     )}
 
@@ -283,6 +285,11 @@ export default function App() {
 
                     {currentView === 'about' && (
                         <About onBack={() => setCurrentView('home')} />
+                    )}
+
+                    {/* <-- NEW CRM ROUTE ADDED HERE --> */}
+                    {currentView === 'crm' && (
+                        <CrmDashboard onBack={() => setCurrentView('home')} />
                     )}
                 </ErrorBoundary>
             </Box>

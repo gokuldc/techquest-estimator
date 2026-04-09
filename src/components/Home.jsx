@@ -23,7 +23,7 @@ import AutoStoriesIcon from '@mui/icons-material/AutoStories';
 import HandymanIcon from '@mui/icons-material/Handyman';
 import BusinessIcon from '@mui/icons-material/Business';
 
-export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
+export default function Home({ onOpenProject, onOpenDb, onOpenAbout, onOpenCrm }) {
     const fileInputRef = useRef(null);
 
     // --- LIVE DATABASE QUERIES ---
@@ -207,6 +207,9 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                 <Box display="flex" gap={2} flexWrap="wrap">
                     <Button startIcon={<StorageIcon />} onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                         DATABASE MANAGER
+                    </Button>
+                    <Button startIcon={<BusinessIcon />} onClick={onOpenCrm} variant="outlined" color="success" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                        CRM DIRECTORY
                     </Button>
                     <Button startIcon={<InfoIcon />} onClick={onOpenAbout} variant="outlined" color="inherit" sx={{ borderRadius: 2, borderColor: 'divider', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                         ABOUT
