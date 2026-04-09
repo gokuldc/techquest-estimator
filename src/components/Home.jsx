@@ -2,10 +2,12 @@ import { useRef, useState, useEffect, useMemo } from "react";
 import { useLiveQuery } from "dexie-react-hooks";
 import { db } from "../db";
 import {
-    Box, Typography, Button, Card, CardContent, CardActions,
-    Grid, IconButton, Tooltip, Paper, Divider, Container, Pagination,
-    TextField, InputAdornment
+    Box, Typography, Button, Paper,
+    Grid, IconButton, Tooltip, Divider, Container, Pagination,
+    TextField, InputAdornment, Avatar, Chip
 } from "@mui/material";
+
+// Icons
 import DeleteIcon from '@mui/icons-material/Delete';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import StorageIcon from '@mui/icons-material/Storage';
@@ -15,17 +17,39 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import SearchIcon from '@mui/icons-material/Search';
+import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
+import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
+import AutoStoriesIcon from '@mui/icons-material/AutoStories';
+import HandymanIcon from '@mui/icons-material/Handyman';
+import BusinessIcon from '@mui/icons-material/Business';
 
 export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
-    const projects = useLiveQuery(() => db.projects.orderBy('createdAt').reverse().toArray());
     const fileInputRef = useRef(null);
+
+    // --- LIVE DATABASE QUERIES ---
+    const projects = useLiveQuery(() => db.projects.orderBy('createdAt').reverse().toArray()) || [];
+    const resources = useLiveQuery(() => db.resources.toArray()) || [];
+    const masterBoqs = useLiveQuery(() => db.masterBoq.toArray()) || [];
+    const regions = useLiveQuery(() => db.regions.toArray()) || [];
 
     // --- SEARCH & PAGINATION STATE ---
     const [searchQuery, setSearchQuery] = useState("");
     const [page, setPage] = useState(1);
     const itemsPerPage = 6;
 
-    // Filter projects based on the search query
+    // --- DASHBOARD METRICS ---
+    const { activeCount, completedCount, draftCount, holdCount } = useMemo(() => {
+        let active = 0, completed = 0, draft = 0, hold = 0;
+        projects.forEach(p => {
+            if (p.status === 'In Progress') active++;
+            else if (p.status === 'Completed') completed++;
+            else if (p.status === 'On Hold') hold++;
+            else draft++;
+        });
+        return { activeCount: active, completedCount: completed, draftCount: draft, holdCount: hold };
+    }, [projects]);
+
+    // --- FILTER & PAGINATION LOGIC ---
     const filteredProjects = useMemo(() => {
         if (!projects) return [];
         if (!searchQuery.trim()) return projects;
@@ -41,7 +65,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
 
     const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
 
-    // Ensure page doesn't go out of bounds if items are deleted or filtered out
     useEffect(() => {
         if (page > totalPages && totalPages > 0) {
             setPage(totalPages);
@@ -50,6 +73,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
 
     const paginatedProjects = filteredProjects.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
+    // --- ACTIONS ---
     const createProject = async () => {
         const newProject = {
             id: crypto.randomUUID(),
@@ -57,6 +81,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
             code: "",
             clientName: "",
             region: "",
+            status: "Draft",
             createdAt: Date.now()
         };
         await db.projects.add(newProject);
@@ -74,14 +99,13 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
     };
 
     const purgeAllProjects = async () => {
-        if (window.confirm("CRITICAL WARNING: This will permanently delete ALL Projects, Measurement Books, and custom BOQs. This action CANNOT be undone. Proceed?")) {
+        if (window.confirm("CRITICAL WARNING: This will permanently delete ALL Projects, Measurement Books, and custom BOQs. Proceed?")) {
             await db.transaction('rw', db.projects, db.projectBoq, async () => {
                 await db.projects.clear();
                 await db.projectBoq.clear();
             });
             setSearchQuery("");
             setPage(1);
-            alert("All project data has been purged.");
         }
     };
 
@@ -100,7 +124,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = `My_Projects_Backup_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
+        a.download = `OpenPrix_Backup_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`;
         a.click();
         URL.revokeObjectURL(url);
     };
@@ -109,7 +133,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
         const file = e.target.files[0];
         if (!file) return;
 
-        if (!window.confirm("This will merge the uploaded projects with your current ones. Conflicting IDs will be skipped. Proceed?")) {
+        if (!window.confirm("This will merge uploaded projects with your current ones. Proceed?")) {
             e.target.value = null;
             return;
         }
@@ -118,7 +142,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
         reader.onload = async (event) => {
             try {
                 const data = JSON.parse(event.target.result);
-                if (data.type !== "ProjectData" && !data.projects) throw new Error("Invalid file format");
+                if (data.type !== "ProjectData" && !data.projects) throw new Error("Invalid format");
 
                 let addedProjects = 0;
                 await db.transaction('rw', db.projects, db.projectBoq, async () => {
@@ -133,183 +157,86 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                         addedProjects = newProjects.length;
                     }
                 });
-                alert(`Successfully imported ${addedProjects} new projects!`);
+                alert(`Imported ${addedProjects} new projects.`);
             } catch (err) {
-                console.error("Import failed", err);
-                alert("Failed to import. Please ensure this is a Project Backup file.");
+                alert("Failed to import. Invalid backup file.");
             }
             e.target.value = null;
         };
         reader.readAsText(file);
     };
 
+    const getStatusColor = (status) => {
+        switch(status) {
+            case 'In Progress': return 'info';
+            case 'Completed': return 'success';
+            case 'On Hold': return 'warning';
+            default: return 'default';
+        }
+    };
+
+    const MetricCard = ({ title, value, subtitle, icon, color }) => (
+        <Paper sx={{ p: 2.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
+            <Avatar sx={{ bgcolor: `rgba(${color === 'success' ? '16, 185, 129' : color === 'info' ? '59, 130, 246' : color === 'warning' ? '245, 158, 11' : '139, 92, 246'}, 0.1)`, color: `${color}.main`, width: 48, height: 48 }}>
+                {icon}
+            </Avatar>
+            <Box>
+                <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 }}>{value}</Typography>
+                <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', display: 'block' }}>{title}</Typography>
+                {subtitle && <Typography variant="caption" color={`${color}.main`} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>{subtitle}</Typography>}
+            </Box>
+        </Paper>
+    );
+
     return (
         <Container maxWidth="lg" sx={{ py: 6 }}>
+            {/* --- HEADER --- */}
             <Box sx={{
-                display: 'flex',
-                flexDirection: { xs: 'column', md: 'row' },
-                justifyContent: 'space-between',
-                alignItems: { xs: 'flex-start', md: 'center' },
-                mb: 6,
-                gap: 3,
-                pb: 4,
-                borderBottom: '1px solid',
-                borderColor: 'divider',
+                display: 'flex', flexDirection: { xs: 'column', md: 'row' },
+                justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' },
+                mb: 4, gap: 3, pb: 4, borderBottom: '1px solid', borderColor: 'divider',
             }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Box>
-                        <Typography
-                            variant="h3"
-                            component="h1"
-                            color="primary.main"
-                            sx={{
-                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                fontSize: { xs: '24px', md: '32px' },
-                                fontWeight: 'bold',
-                                letterSpacing: '1px',
-                            }}
-                        >
-                            {'// '}OPENPRIX
-                        </Typography>
-                    </Box>
+                <Box>
+                    <Typography variant="h3" component="h1" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '24px', md: '32px' }, fontWeight: 'bold', letterSpacing: '1px' }}>
+                        {'// '}OPENPRIX
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1 }}>
+                        System Nexus: Projects, Resources, and Databook Management.
+                    </Typography>
                 </Box>
-                <Button
-                    startIcon={<InfoIcon />}
-                    onClick={onOpenAbout}
-                    variant="outlined"
-                    color="inherit"
-                    sx={{
-                        borderRadius: 2,
-                        borderColor: 'divider',
-                        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                        fontSize: '12px',
-                        letterSpacing: '1px',
-                    }}
-                >
-                    ABOUT
-                </Button>
+                <Box display="flex" gap={2} flexWrap="wrap">
+                    <Button startIcon={<StorageIcon />} onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                        DATABASE MANAGER
+                    </Button>
+                    <Button startIcon={<InfoIcon />} onClick={onOpenAbout} variant="outlined" color="inherit" sx={{ borderRadius: 2, borderColor: 'divider', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                        ABOUT
+                    </Button>
+                    <Button startIcon={<AddCircleOutlineIcon />} onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                        NEW WORKSPACE
+                    </Button>
+                </Box>
             </Box>
 
-            <Box sx={{ display: 'grid', gridTemplateColumns: { xs: '1fr', md: '1fr 1fr' }, gap: 4, mb: 8 }}>
-                <Card elevation={0} sx={{
-                    display: 'flex', flexDirection: 'column',
-                    border: '1px solid', borderColor: 'divider',
-                    borderRadius: 2,
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    background: 'linear-gradient(135deg, rgba(13, 31, 60, 0.8) 0%, rgba(10, 22, 40, 0.9) 100%)',
-                    backdropFilter: 'blur(10px)',
-                    '&:hover': {
-                        borderColor: 'primary.main',
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px rgba(59, 130, 246, 0.15), 0 0 0 1px rgba(59, 130, 246, 0.1)',
-                    }
-                }}>
-                    <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
-                        <Box sx={{
-                            width: 64, height: 64, mx: 'auto', mb: 3,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            border: '1px solid', borderColor: 'primary.main',
-                            borderRadius: 2, color: 'primary.main',
-                            boxShadow: '0 0 16px rgba(59, 130, 246, 0.15)',
-                        }}>
-                            <StorageIcon sx={{ fontSize: 32 }} />
-                        </Box>
-                        <Typography
-                            variant="h5"
-                            gutterBottom
-                            sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px' }}
-                        >
-                            DATABASE_MANAGER
-                        </Typography>
-                        <Typography variant="body2" color="text.secondary" sx={{ px: 2, lineHeight: 1.8 }}>
-                            Configure regional market rates, upload supplier Excel sheets, and construct recursive databook assemblies.
-                        </Typography>
-                    </CardContent>
-                    <Divider sx={{ borderColor: 'divider' }} />
-                    <CardActions sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.15)' }}>
-                        <Button
-                            fullWidth
-                            size="large"
-                            onClick={onOpenDb}
-                            variant="outlined"
-                            sx={{
-                                borderRadius: 2,
-                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                letterSpacing: '1px',
-                                fontSize: '13px',
-                            }}
-                        >
-                            {'> '}OPEN_MANAGER
-                        </Button>
-                    </CardActions>
-                </Card>
+            {/* --- TOP KPI DASHBOARD --- */}
+            <Grid container spacing={3} sx={{ mb: 6 }}>
+                <Grid item xs={12} sm={6} md={3}>
+                    <MetricCard title="TOTAL PROJECTS" value={projects.length} subtitle={`${activeCount} Active / ${draftCount} Draft`} icon={<FolderSpecialIcon />} color="info" />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <MetricCard title="MASTER DATABOOK" value={masterBoqs.length} subtitle="Standardized Assemblies" icon={<AutoStoriesIcon />} color="success" />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <MetricCard title="GLOBAL RESOURCES" value={resources.length} subtitle="Materials & Labor" icon={<HandymanIcon />} color="warning" />
+                </Grid>
+                <Grid item xs={12} sm={6} md={3}>
+                    <MetricCard title="REGIONAL RATES" value={regions.length} subtitle="Geographic Pricing" icon={<BusinessIcon />} color="secondary" />
+                </Grid>
+            </Grid>
 
-                <Card elevation={0} sx={{
-                    display: 'flex', flexDirection: 'column',
-                    border: '1px solid', borderColor: 'primary.main',
-                    borderRadius: 2,
-                    background: 'linear-gradient(135deg, rgba(59, 130, 246, 0.1) 0%, rgba(13, 31, 60, 0.9) 100%)',
-                    transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                    '&:hover': {
-                        borderColor: 'primary.light',
-                        transform: 'translateY(-4px)',
-                        boxShadow: '0 12px 32px rgba(59, 130, 246, 0.25)',
-                    }
-                }}>
-                    <CardContent sx={{ flexGrow: 1, textAlign: 'center', p: 5 }}>
-                        <Box sx={{
-                            width: 64, height: 64, mx: 'auto', mb: 3,
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            border: '1px solid', borderColor: 'secondary.main',
-                            borderRadius: 2, color: 'secondary.main',
-                            boxShadow: '0 0 16px rgba(34, 211, 238, 0.15)',
-                        }}>
-                            <AddCircleOutlineIcon sx={{ fontSize: 32 }} />
-                        </Box>
-                        <Typography
-                            variant="h5"
-                            gutterBottom
-                            sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px' }}
-                        >
-                            NEW_PROJECT
-                        </Typography>
-                        <Typography variant="body2" sx={{ opacity: 0.75, px: 2, lineHeight: 1.8 }}>
-                            Initialize a new client workspace to generate estimates and track measurement books based on live data.
-                        </Typography>
-                    </CardContent>
-                    <Divider sx={{ borderColor: 'rgba(59, 130, 246, 0.2)' }} />
-                    <CardActions sx={{ p: 2, bgcolor: 'rgba(59, 130, 246, 0.05)' }}>
-                        <Button
-                            fullWidth
-                            variant="contained"
-                            color="primary"
-                            size="large"
-                            onClick={createProject}
-                            sx={{
-                                borderRadius: 2,
-                                fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                letterSpacing: '1px',
-                                fontSize: '13px',
-                                boxShadow: '0 4px 16px rgba(59, 130, 246, 0.3)',
-                            }}
-                        >
-                            {'+ '}CREATE_WORKSPACE
-                        </Button>
-                    </CardActions>
-                </Card>
-            </Box>
-
+            {/* --- PROJECT ARCHIVE TOOLBAR --- */}
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3, flexWrap: 'wrap' }}>
-                    <Typography
-                        variant="h5"
-                        fontWeight="700"
-                        sx={{
-                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                            letterSpacing: '1px',
-                            fontSize: '16px',
-                        }}
-                    >
+                    <Typography variant="h5" fontWeight="700" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
                         PROJECT_ARCHIVE
                     </Typography>
                     <TextField
@@ -319,60 +246,30 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                         onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
                         InputProps={{
                             startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRadius: 2, height: 36 }
+                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRadius: 2, height: 36, bgcolor: 'rgba(0,0,0,0.2)' }
                         }}
                         sx={{ width: { xs: '100%', sm: '250px' } }}
                     />
                 </Box>
 
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
-                    <Button
-                        size="small"
-                        variant="text"
-                        startIcon={<DownloadIcon />}
-                        onClick={exportProjects}
-                        sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                    >
-                        EXPORT
-                    </Button>
+                    <Button size="small" variant="text" startIcon={<DownloadIcon />} onClick={exportProjects} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>EXPORT</Button>
                     <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={importProjects} />
-                    <Button
-                        size="small"
-                        variant="text"
-                        startIcon={<UploadIcon />}
-                        onClick={() => fileInputRef.current.click()}
-                        sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                    >
-                        IMPORT
-                    </Button>
-                    <Button
-                        size="small"
-                        variant="outlined"
-                        color="error"
-                        startIcon={<DeleteForeverIcon />}
-                        onClick={purgeAllProjects}
-                        sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                    >
-                        PURGE ALL
-                    </Button>
+                    <Button size="small" variant="text" startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>IMPORT</Button>
+                    <Button size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={purgeAllProjects} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>PURGE ALL</Button>
                 </Box>
             </Box>
             <Divider sx={{ mb: 4, borderColor: 'divider' }} />
 
+            {/* --- PROJECT CARDS GRID --- */}
             <Grid container spacing={3}>
                 {filteredProjects.length === 0 ? (
                     <Grid item xs={12}>
-                        <Box sx={{
-                            py: 10, textAlign: 'center',
-                            border: '2px dashed', borderColor: 'divider',
-                            borderRadius: 2,
-                            bgcolor: 'rgba(0,0,0,0.15)',
-                        }}>
+                        <Box sx={{ py: 10, textAlign: 'center', border: '2px dashed', borderColor: 'divider', borderRadius: 2, bgcolor: 'rgba(0,0,0,0.15)' }}>
                             <FolderOpenIcon sx={{ fontSize: 48, color: 'text.disabled', mb: 2 }} />
-                            <Typography color="text.secondary" variant="h6" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", letterSpacing: '1px', fontSize: '14px' }}>
+                            <Typography color="text.secondary" variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>
                                 {searchQuery ? "NO_PROJECTS_MATCH_SEARCH" : "NO_ACTIVE_PROJECTS"}
                             </Typography>
-                            {!searchQuery && <Typography color="text.disabled" variant="body2" sx={{ mt: 1 }}>Click 'Create Workspace' to begin.</Typography>}
                         </Box>
                     </Grid>
                 ) : (
@@ -380,64 +277,24 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                         <Grid item xs={12} md={6} lg={4} key={p.id}>
                             <Paper elevation={0} sx={{
                                 p: 3, display: 'flex', flexDirection: 'column', gap: 2, justifyContent: 'space-between',
-                                border: '1px solid', borderColor: 'divider', borderRadius: 2,
-                                transition: '0.2s', height: '100%',
-                                background: 'rgba(13, 31, 60, 0.5)',
-                                '&:hover': {
-                                    borderColor: 'primary.main',
-                                    bgcolor: 'rgba(59, 130, 246, 0.05)',
-                                    boxShadow: '0 0 0 1px rgba(59, 130, 246, 0.1)',
-                                }
+                                border: '1px solid', borderColor: 'divider', borderRadius: 2, height: '100%', background: 'rgba(13, 31, 60, 0.5)',
+                                '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.05)' }
                             }}>
                                 <Box>
-                                    <Typography
-                                        variant="h6"
-                                        sx={{
-                                            lineHeight: 1.2, mb: 1,
-                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                            fontSize: '16px',
-                                            letterSpacing: '0.5px',
-                                        }}
-                                    >
-                                        {p.name}
-                                    </Typography>
-                                    {p.code && (
-                                        <Typography variant="body2" color="secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px', fontWeight: 600, mb: 0.5 }}>
-                                            CODE: {p.code}
-                                        </Typography>
-                                    )}
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px' }}>
-                                        {p.clientName ? `CLIENT: ${p.clientName}` : 'CLIENT: Unassigned'}
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', 'Fira Code', monospace", fontSize: '12px', mt: 0.5 }}>
-                                        REGION: <span style={{ color: '#3b82f6', fontWeight: 600 }}>{p.region || "STANDARD"}</span>
-                                    </Typography>
+                                    <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                                        <Typography variant="h6" sx={{ lineHeight: 1.2, fontFamily: "'JetBrains Mono', monospace", fontSize: '16px' }}>{p.name}</Typography>
+                                        <Chip label={p.status || 'Draft'} color={getStatusColor(p.status)} size="small" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '9px', height: 20 }} />
+                                    </Box>
+                                    {p.code && <Typography variant="body2" color="secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', mb: 0.5 }}>CODE: {p.code}</Typography>}
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{p.clientName ? `CLIENT: ${p.clientName}` : 'CLIENT: Unassigned'}</Typography>
+                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', mt: 0.5 }}>REGION: <span style={{ color: '#3b82f6' }}>{p.region || "STANDARD"}</span></Typography>
                                 </Box>
 
-                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2 }}>
-                                    <Tooltip title="Permanently Delete">
-                                        <IconButton
-                                            color="error"
-                                            onClick={(e) => deleteProject(p.id, e)}
-                                            size="small"
-                                            sx={{
-                                                '&:hover': { bgcolor: 'rgba(239, 68, 68, 0.1)' }
-                                            }}
-                                        >
-                                            <DeleteIcon />
-                                        </IconButton>
+                                <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mt: 2, pt: 2, borderTop: '1px solid', borderColor: 'rgba(255,255,255,0.05)' }}>
+                                    <Tooltip title="Delete">
+                                        <IconButton color="error" onClick={(e) => deleteProject(p.id, e)} size="small"><DeleteIcon fontSize="small" /></IconButton>
                                     </Tooltip>
-                                    <Button
-                                        variant="contained"
-                                        disableElevation
-                                        onClick={() => onOpenProject(p.id)}
-                                        sx={{
-                                            borderRadius: 2,
-                                            fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-                                            letterSpacing: '1px',
-                                            fontSize: '12px',
-                                        }}
-                                    >
+                                    <Button variant="contained" disableElevation onClick={() => onOpenProject(p.id)} endIcon={<ArrowForwardIosIcon sx={{ fontSize: '10px !important' }}/>} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                                         OPEN
                                     </Button>
                                 </Box>
@@ -447,20 +304,10 @@ export default function Home({ onOpenProject, onOpenDb, onOpenAbout }) {
                 )}
             </Grid>
 
+            {/* --- PAGINATION --- */}
             {totalPages > 1 && (
                 <Box display="flex" justifyContent="center" mt={6}>
-                    <Pagination
-                        count={totalPages}
-                        page={page}
-                        onChange={(e, v) => setPage(v)}
-                        color="primary"
-                        shape="rounded"
-                        sx={{
-                            '& .MuiPaginationItem-root': {
-                                fontFamily: "'JetBrains Mono', monospace",
-                            }
-                        }}
-                    />
+                    <Pagination count={totalPages} page={page} onChange={(e, v) => setPage(v)} color="primary" shape="rounded" sx={{ '& .MuiPaginationItem-root': { fontFamily: "'JetBrains Mono', monospace" } }} />
                 </Box>
             )}
         </Container>
