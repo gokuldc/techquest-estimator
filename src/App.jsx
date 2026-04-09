@@ -27,26 +27,92 @@ export default function App() {
     const toggleTheme = () => setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
 
     const theme = createTheme({
-        palette: {
-            mode: mode,
-            primary: { main: mode === 'dark' ? '#3b82f6' : '#1e40af' },
-            secondary: { main: '#22d3ee' },
-            background: { default: mode === 'dark' ? '#0a1628' : '#f0f4f8', paper: mode === 'dark' ? '#0d1f3c' : '#ffffff' },
-            divider: mode === 'dark' ? '#1e3a5f' : '#cbd5e1',
-        },
-        typography: { fontFamily: "'Inter', sans-serif" },
-        components: {
-            MuiAppBar: {
-                styleOverrides: {
-                    root: {
-                        backgroundColor: mode === 'dark' ? '#060e1a' : '#ffffff',
-                        borderBottom: `1px solid ${mode === 'dark' ? '#1e3a5f' : '#cbd5e1'}`,
-                    }
+    palette: {
+        mode: mode,
+        primary: { main: mode === 'dark' ? '#3b82f6' : '#1e40af' },
+        secondary: { main: '#22d3ee' },
+        background: { default: mode === 'dark' ? '#0a1628' : '#f0f4f8', paper: mode === 'dark' ? '#0d1f3c' : '#ffffff' },
+        divider: mode === 'dark' ? '#1e3a5f' : '#cbd5e1',
+    },
+    typography: { fontFamily: "'Inter', sans-serif" },
+
+    components: {
+        MuiAppBar: {
+            styleOverrides: {
+                root: {
+                    backgroundColor: mode === 'dark' ? '#060e1a' : '#ffffff',
+                    borderBottom: `1px solid ${mode === 'dark' ? '#1e3a5f' : '#cbd5e1'}`,
                 }
             }
-        }
-    });
+        },
+        MuiCssBaseline: {
+    styleOverrides: {
+        html: {
+            scrollbarWidth: "thin",
+            scrollbarColor: mode === 'dark'
+                ? "#3b82f6 rgba(0,0,0,0.3)"
+                : "#1e40af rgba(0,0,0,0.1)",
+        },
 
+        body: {
+            margin: 0,
+        },
+
+        "*::-webkit-scrollbar": {
+            width: "10px",
+            height: "10px",
+        },
+        "*::-webkit-scrollbar-track": {
+            background: mode === 'dark'
+                ? "rgba(0,0,0,0.25)"
+                : "rgba(0,0,0,0.05)",
+        },
+        "*::-webkit-scrollbar-thumb": {
+            background: mode === 'dark'
+                ? "linear-gradient(180deg, #3b82f6, #22d3ee)"
+                : "linear-gradient(180deg, #1e40af, #3b82f6)",
+            borderRadius: "8px",
+        },
+        "*::-webkit-scrollbar-thumb:hover": {
+            background: mode === 'dark'
+                ? "linear-gradient(180deg, #2563eb, #06b6d4)"
+                : "linear-gradient(180deg, #1d4ed8, #2563eb)",
+        },
+        MuiTableContainer: {
+    styleOverrides: {
+        root: {
+            scrollbarWidth: "thin",
+            scrollbarColor: mode === 'dark'
+                ? "#3b82f6 rgba(0,0,0,0.3)"
+                : "#1e40af rgba(0,0,0,0.1)",
+
+            "&::-webkit-scrollbar": {
+                width: "10px",
+                height: "10px",
+            },
+            "&::-webkit-scrollbar-track": {
+                background: mode === 'dark'
+                    ? "rgba(0,0,0,0.25)"
+                    : "rgba(0,0,0,0.05)",
+            },
+            "&::-webkit-scrollbar-thumb": {
+                background: mode === 'dark'
+                    ? "linear-gradient(180deg, #3b82f6, #22d3ee)"
+                    : "linear-gradient(180deg, #1e40af, #3b82f6)",
+                borderRadius: "8px",
+            },
+            "&::-webkit-scrollbar-thumb:hover": {
+                background: mode === 'dark'
+                    ? "linear-gradient(180deg, #2563eb, #06b6d4)"
+                    : "linear-gradient(180deg, #1d4ed8, #2563eb)",
+            },
+        }
+    }
+}
+    }
+}
+    }
+});
     return (
         <ThemeProvider theme={theme}>
             <CssBaseline />
