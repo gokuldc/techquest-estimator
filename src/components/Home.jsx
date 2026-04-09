@@ -4,7 +4,8 @@ import { db } from "../db";
 import {
     Box, Typography, Button, Paper,
     Grid, IconButton, Tooltip, Divider, Container, Pagination,
-    TextField, InputAdornment, Avatar, Chip
+    TextField, InputAdornment, Avatar, Chip,
+    Dialog, DialogTitle, DialogContent, DialogActions // Added Dialog components
 } from "@mui/material";
 
 // Icons
@@ -23,9 +24,17 @@ import PeopleAltIcon from '@mui/icons-material/PeopleAlt';
 import BadgeIcon from '@mui/icons-material/Badge';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import GroupsIcon from '@mui/icons-material/Groups';
+// Added Archive Icons
+import DownloadIcon from '@mui/icons-material/Download';
+import UploadIcon from '@mui/icons-material/Upload';
+import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
 export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const fileInputRef = useRef(null);
+
+    // --- ARCHIVE STATE ---
+    const [importData, setImportData] = useState(null);
+    const [importDialogOpen, setImportDialogOpen] = useState(false);
 
     // --- LIVE DATABASE QUERIES ---
     const projects = useLiveQuery(() => db.projects.orderBy('createdAt').reverse().toArray()) || [];
@@ -119,6 +128,100 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         }
     };
 
+    // --- IMPORT / EXPORT / PURGE LOGIC ---
+    const handleExport = async () => {
+        try {
+            const projectsData = await db.projects.toArray();
+            // Optional: Also fetch and export associated projectBoq data if needed for full restore
+            
+            const exportObject = {
+                timestamp: new Date().toISOString(),
+                projects: projectsData,
+            };
+
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject));
+            const downloadAnchorNode = document.createElement('a');
+            downloadAnchorNode.setAttribute("href", dataStr);
+            downloadAnchorNode.setAttribute("download", `Openprix_Archive_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchorNode);
+            downloadAnchorNode.click();
+            downloadAnchorNode.remove();
+        } catch (error) {
+            console.error("Export failed:", error);
+            alert("Failed to export project archive.");
+        }
+    };
+
+    const handlePurge = async () => {
+        if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete ALL projects? This cannot be undone.")) {
+            try {
+                await db.projects.clear();
+                await db.projectBoq.clear(); 
+                alert("Project archive has been purged successfully.");
+            } catch (error) {
+                console.error("Purge failed:", error);
+                alert("Failed to purge project archive.");
+            }
+        }
+    };
+
+    const handleFileSelect = (event) => {
+        const file = event.target.files[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            try {
+                const parsedData = JSON.parse(e.target.result);
+                if (!parsedData.projects) {
+                    alert("Invalid file format. No project data found.");
+                    return;
+                }
+                setImportData(parsedData);
+                setImportDialogOpen(true);
+            } catch (error) {
+                console.error("Parse error:", error);
+                alert("Failed to parse the JSON archive file.");
+            }
+        };
+        reader.readAsText(file);
+        event.target.value = null;
+    };
+
+    const processImport = async (mode) => {
+        if (!importData) return;
+
+        try {
+            await db.transaction('rw', db.projects, async () => {
+                const importedProjects = importData.projects || [];
+
+                if (mode === 'replace') {
+                    await db.projects.clear();
+                    await db.projects.bulkAdd(importedProjects);
+                } 
+                else if (mode === 'merge') {
+                    await db.projects.bulkPut(importedProjects);
+                } 
+                else if (mode === 'append') {
+                    const projectsWithNewIds = importedProjects.map(p => ({
+                        ...p,
+                        id: crypto.randomUUID() 
+                    }));
+                    await db.projects.bulkAdd(projectsWithNewIds);
+                }
+            });
+
+            alert(`Project archive successfully imported (${mode.toUpperCase()} mode).`);
+        } catch (error) {
+            console.error("Import transaction failed:", error);
+            alert("Failed to import project archive.");
+        } finally {
+            setImportDialogOpen(false);
+            setImportData(null);
+        }
+    };
+
+
     const MetricCard = ({ title, value, subtitle, icon, color }) => (
         <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
             <Avatar sx={{ bgcolor: `rgba(${color === 'success' ? '16, 185, 129' : color === 'info' ? '59, 130, 246' : color === 'warning' ? '245, 158, 11' : '139, 92, 246'}, 0.1)`, color: `${color}.main`, width: 42, height: 42 }}>
@@ -192,7 +295,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             </Grid>
 
             {/* --- ARCHIVE SECTION --- */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>PROJECT_ARCHIVE</Typography>
                     <TextField
@@ -200,6 +303,29 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                         onChange={(e) => setSearchQuery(e.target.value)}
                         InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16 }} /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', borderRadius: 2, height: 32, bgcolor: 'rgba(0,0,0,0.2)', width: 200 } }}
                     />
+                </Box>
+                
+                {/* IMPORT / EXPORT / PURGE CONTROLS */}
+                <Box display="flex" gap={1}>
+                    <Button 
+                        size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport}
+                        sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}
+                    >
+                        EXPORT
+                    </Button>
+                    <Button 
+                        size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()}
+                        sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}
+                    >
+                        IMPORT
+                    </Button>
+                    <input type="file" accept=".json" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileSelect} />
+                    <Button 
+                        size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={handlePurge}
+                        sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}
+                    >
+                        PURGE
+                    </Button>
                 </Box>
             </Box>
 
@@ -235,6 +361,40 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     <Pagination count={totalPages} page={page} onChange={(e, v) => setPage(v)} size="small" color="primary" sx={{ '& .MuiPaginationItem-root': { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
                 </Box>
             )}
+
+            {/* IMPORT RESOLUTION DIALOG */}
+            <Dialog 
+                open={importDialogOpen} 
+                onClose={() => setImportDialogOpen(false)}
+                PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}
+            >
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '14px' }}>
+                    DATABASE IMPORT RESOLUTION
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
+                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 3, color: '#ccc', fontSize: '12px' }}>
+                        How would you like to process the imported projects?
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Button variant="outlined" color="info" onClick={() => processImport('append')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}>
+                            <strong>[APPEND]</strong>&nbsp;&nbsp;Add as new entries.
+                        </Button>
+                        <Button variant="outlined" color="warning" onClick={() => processImport('merge')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}>
+                            <strong>[MERGE]</strong>&nbsp;&nbsp;&nbsp;Overwrite matching IDs, keep others.
+                        </Button>
+                        <Button variant="outlined" color="error" onClick={() => processImport('replace')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}>
+                            <strong>[REPLACE]</strong>&nbsp;Delete current projects, use imported.
+                        </Button>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)', p: 2 }}>
+                    <Button onClick={() => setImportDialogOpen(false)} sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#ccc', fontSize: '12px' }}>
+                        CANCEL
+                    </Button>
+                </DialogActions>
+            </Dialog>
+
         </Container>
     );
 }
