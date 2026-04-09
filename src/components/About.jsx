@@ -1,195 +1,81 @@
-import React, { useState } from "react";
-import { Box, Typography, Button, Paper, Tabs, Tab, IconButton } from "@mui/material";
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import React from 'react';
+import { Box, Typography, Grid, Divider, Link, Paper } from '@mui/material';
 import GitHubIcon from '@mui/icons-material/GitHub';
-import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import GavelIcon from '@mui/icons-material/Gavel';
 
-import licenseText from '../../LICENSE?raw';
-
-export default function About({ onBack }) {
-    const [tabIndex, setTabIndex] = useState(0);
-
-    const handleTabChange = (event, newValue) => {
-        setTabIndex(newValue);
-    };
-
-    const openExternalLink = (url) => {
-        if (typeof window !== 'undefined' && window.open) {
-            window.open(url, '_blank', 'noopener,noreferrer');
-        }
-    };
-
+export default function About({ isPopup }) {
     return (
-        <Box sx={{ maxWidth: 800, margin: "40px auto", padding: "20px" }}>
-            <Box display="flex" alignItems="center" gap={2} mb={3}>
-                <Button
-                    startIcon={<ArrowBackIcon />}
-                    onClick={onBack}
-                    variant="outlined"
-                    color="inherit"
-                    sx={{
-                        borderRadius: 2,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: '12px',
-                        borderColor: 'divider',
-                        color: 'text.secondary',
-                        '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
-                    }}
-                >
-                    {'< '}HOME
-                </Button>
-                <Typography
-                    variant="h4"
-                    fontWeight="bold"
-                    sx={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: { xs: '18px', md: '22px' },
-                    }}
-                >
-                    ABOUT_OPENPRIX
+        <Box sx={{ p: isPopup ? 1 : 4 }}>
+            <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
+                <Typography variant="h4" fontWeight="bold" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                    SYSTEM_INFO: v2.0.0
                 </Typography>
+                <Link 
+                    href="https://github.com/TechQuest-Engineering/OpenPrix" 
+                    target="_blank" 
+                    rel="noopener"
+                    sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: 1, 
+                        color: 'text.secondary', 
+                        textDecoration: 'none',
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: '12px',
+                        '&:hover': { color: 'primary.main' }
+                    }}
+                >
+                    <GitHubIcon fontSize="small" />
+                </Link>
             </Box>
 
-            <Paper elevation={0} variant="outlined" sx={{ borderRadius: 2, overflow: 'hidden', border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box sx={{
-                    p: 4,
-                    bgcolor: 'rgba(59, 130, 246, 0.08)',
-                    borderBottom: '1px solid',
-                    borderColor: 'divider',
-                    position: 'relative',
-                }}>
-                    <Typography
-                        variant="h3"
-                        gutterBottom
-                        fontWeight="bold"
-                        sx={{
-                            fontFamily: "'JetBrains Mono', monospace",
-                            letterSpacing: '2px',
-                            fontSize: { xs: '24px', md: '32px' },
-                            color: 'primary.main',
-                        }}
-                    >
-                        OPENPRIX
+            <Typography variant="body1" color="text.secondary" paragraph sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                OpenPrix is a Open Source Tool for Estimation and Management of COnstruction Projects. 
+            </Typography>
+            
+            <Divider sx={{ my: 3, borderColor: 'rgba(255,255,255,0.1)' }} />
+
+            <Grid container spacing={3}>
+                <Grid item xs={12} md={6}>
+                    <Typography variant="h6" color="secondary.main" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>
+                        CORE_ENGINE
                     </Typography>
-                    <Typography
-                        variant="subtitle1"
-                        sx={{
-                            opacity: 0.7,
-                            fontFamily: "'JetBrains Mono', monospace",
-                            fontSize: '12px',
-                            letterSpacing: '1px',
-                        }}
-                    >
-                        VERSION 1.2.3 // PROFESSIONAL CIVIL ENGINEERING SOLUTION
+                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', lineHeight: 1.8 }}>
+                        • Multi-Region Pricing Logic<br/>
+                        • Dynamic BOQ Formula Parsing Engine<br/>
+                        • Dexie.js IndexedDB Offline Architecture<br/>
+                        • React 18 / Material-UI Blueprint UI
                     </Typography>
-
-                    <IconButton
-                        onClick={() => openExternalLink('https://github.com/gokuldc/openprix')}
-                        sx={{
-                            position: 'absolute', top: 24, right: 24,
-                            color: 'primary.main',
-                            '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.1)' },
+                </Grid>
+                <Grid item xs={12} md={6}>
+                    <Box display="flex" alignItems="center" gap={1} mb={1}>
+                        <GavelIcon sx={{ fontSize: 16, color: 'secondary.main' }} />
+                        <Typography variant="h6" color="secondary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>
+                            LEGAL_LICENSE
+                        </Typography>
+                    </Box>
+                    <Paper 
+                        variant="outlined" 
+                        sx={{ 
+                            p: 1.5, 
+                            bgcolor: 'rgba(0,0,0,0.2)', 
+                            borderColor: 'rgba(255,255,255,0.05)',
+                            borderRadius: 1 
                         }}
-                        title="View Source on GitHub"
                     >
-                        <GitHubIcon fontSize="large" />
-                    </IconButton>
-                </Box>
-
-                <Box sx={{ borderBottom: 1, borderColor: 'divider', px: 2, bgcolor: 'rgba(0,0,0,0.15)' }}>
-                    <Tabs value={tabIndex} onChange={handleTabChange} aria-label="about tabs">
-                        <Tab label="01_ABOUT" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                        <Tab label="02_LICENSE" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    </Tabs>
-                </Box>
-
-                {tabIndex === 0 && (
-                    <Box sx={{ p: 4 }}>
-                        <Typography
-                            variant="h5"
-                            gutterBottom
-                            fontWeight="medium"
-                            color="primary.main"
-                            sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}
-                        >
-                            ARCHITECTURE_AND_PURPOSE
+                        <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                            Licensed under the **MIT License**. <br/>
+                            Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files.
                         </Typography>
-                        <Typography variant="body1" paragraph lineHeight={1.8} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>
-                            This application is an advanced, offline-first desktop tool designed to streamline the civil engineering and construction estimation process. It bridges the gap between raw master databases, Local Market Rates (LMR), and project-specific Bill of Quantities (BOQ).
-                        </Typography>
-                        <Typography variant="body1" paragraph lineHeight={1.8} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>
-                            By supporting nested assemblies, recursive rate calculations, and dynamic measurement books (MBook), it ensures that every project is priced accurately based on regional variables and live market data.
-                        </Typography>
-                        <Typography variant="body1" paragraph lineHeight={1.8} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>
-                            Built completely offline using IndexedDB, your master templates and sensitive client data never leave your local machine unless manually exported.
-                        </Typography>
+                    </Paper>
+                </Grid>
+            </Grid>
 
-                        <Box sx={{ mt: 5, pt: 3, borderTop: 1, borderColor: "divider", display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <Box>
-                                <Typography variant="body1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                    DEVELOPED_BY: GOKUL_DC
-                                </Typography>
-                                <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', mt: 0.5 }}>
-                                    [gokuldc@proton.me]
-                                </Typography>
-                            </Box>
-                            <Button
-                                variant="outlined"
-                                startIcon={<GitHubIcon />}
-                                endIcon={<OpenInNewIcon fontSize="small" />}
-                                onClick={() => openExternalLink('https://github.com/gokuldc/openprix')}
-                                sx={{
-                                    borderRadius: 2,
-                                    fontFamily: "'JetBrains Mono', monospace",
-                                    letterSpacing: '1px',
-                                    fontSize: '12px',
-                                }}
-                            >
-                                GITHUB
-                            </Button>
-                        </Box>
-                    </Box>
-                )}
-
-                {tabIndex === 1 && (
-                    <Box sx={{ p: 4 }}>
-                        <Typography
-                            variant="h5"
-                            gutterBottom
-                            fontWeight="medium"
-                            color="primary.main"
-                            sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}
-                        >
-                            SOFTWARE_LICENSE
-                        </Typography>
-
-                        <Paper
-                            elevation={0}
-                            variant="outlined"
-                            sx={{
-                                p: 3,
-                                bgcolor: 'rgba(0,0,0,0.2)',
-                                borderRadius: 2,
-                                mt: 2,
-                                maxHeight: '400px',
-                                overflowY: 'auto',
-                                border: '1px solid',
-                                borderColor: 'divider',
-                            }}
-                        >
-                            <Typography
-                                variant="body2"
-                                fontFamily="'JetBrains Mono', monospace"
-                                sx={{ whiteSpace: 'pre-wrap', lineHeight: 1.6, fontSize: '12px', color: 'text.secondary' }}
-                            >
-                                {licenseText || "License file not found. Please ensure a LICENSE file exists in the repository root."}
-                            </Typography>
-                        </Paper>
-                    </Box>
-                )}
-            </Paper>
+            <Box mt={4} textAlign="center">
+                <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.disabled', fontSize: '10px' }}>
+                    © 2026 Gokul DC
+                </Typography>
+            </Box>
         </Box>
     );
 }

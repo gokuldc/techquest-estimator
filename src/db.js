@@ -2,11 +2,12 @@ import Dexie from 'dexie';
 
 export const db = new Dexie('ConstructionAppDB');
 
-db.version(3).stores({
+db.version(4).stores({
     projects: 'id, name, code, status, createdAt',
     projectBoq: 'id, projectId, masterBoqId, slNo, phase',
     masterBoq: 'id, itemCode',
     resources: 'id, code, type',
     regions: 'id, name',
-    crmContacts: 'id, name, company, type, status, createdAt' // <-- MUST BE HERE
+    crmContacts: 'id, name, company, type, status, createdAt',
+    orgStaff: 'id, name, designation, department, status, createdAt' // <--- NEW TABLE
 });
