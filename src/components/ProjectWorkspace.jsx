@@ -40,6 +40,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const resources = useLiveQuery(() => db.resources.toArray()) || [];
     const masterBoqs = useLiveQuery(() => db.masterBoq.toArray()) || [];
     const projectBoqItems = useLiveQuery(() => db.projectBoq.where({ projectId }).toArray(), [projectId]) || [];
+    
+    // --- CRM DATA FETCH INJECTED HERE ---
+    const crmContacts = useLiveQuery(() => db.crmContacts.toArray()) || [];
 
     // --- SHARED UI STATE ---
     const [draggedId, setDraggedId] = useState(null);
@@ -424,7 +427,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             </Paper>
 
             {/* --- MODULAR TABS RENDERED IN ORDER --- */}
-            {tab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} />)}
+            {/* INJECTED CRM CONTACTS HERE */}
+            {tab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} />)}
 
             {tab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={openEditDialog} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}
 
@@ -432,7 +436,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
             {tab === "schedule" && (<GanttScheduleTab project={project} projectBoqItems={projectBoqItems} updateProject={updateProject} />)}
 
-            {tab === "subcontractors" && (<SubcontractorBidTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
+            {/* INJECTED CRM CONTACTS HERE */}
+            {tab === "subcontractors" && (<SubcontractorBidTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} crmContacts={crmContacts} />)}
 
             {tab === "daily_log" && (<DailyLogTab project={project} projectBoqItems={projectBoqItems} resources={resources} updateProject={updateProject} />)}
 

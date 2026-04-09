@@ -1,7 +1,8 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import {
     Box, Paper, Table, TableBody, TableCell, TableContainer, TableHead, TableRow,
-    TextField, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions
+    TextField, Button, IconButton, Dialog, DialogTitle, DialogContent, DialogActions,
+    Autocomplete
 } from '@mui/material';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
@@ -10,13 +11,23 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { tableInputActiveStyle } from '../../styles';
 import * as XLSX from 'xlsx';
 
-export default function SubcontractorBidTab({ project, renderedProjectBoq, updateProject }) {
+export default function SubcontractorBidTab({ project, renderedProjectBoq, updateProject, crmContacts = [] }) {
     const [newSubName, setNewSubName] = useState("");
     const fileInputRef = useRef(null);
 
     // Edit Subcontractor State
     const [editingSubId, setEditingSubId] = useState(null);
     const [editSubName, setEditSubName] = useState("");
+
+    // --- CRM MAPPING ---
+    const subOptions = useMemo(() => {
+        return crmContacts
+            .filter(c => {
+                const type = c.type ? c.type.toLowerCase() : "";
+                return type === 'subcontractor' || type === 'supplier';
+            })
+            .map(c => c.company ? `${c.company} (${c.name})` : c.name);
+    }, [crmContacts]);
 
     const addSubcontractor = async () => {
         if (!newSubName) return;
@@ -139,13 +150,24 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
             <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Box display="flex" gap={2} mb={3}>
-                    <TextField
-                        size="small"
-                        label="SUBCONTRACTOR_NAME"
+                    {/* CRM SEARCHABLE AUTOCOMPLETE */}
+                    <Autocomplete
+                        freeSolo
+                        openOnFocus
+                        disablePortal
+                        options={subOptions}
                         value={newSubName}
-                        onChange={e => setNewSubName(e.target.value)}
-                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                        onInputChange={(e, newVal) => setNewSubName(newVal || "")}
+                        sx={{ minWidth: 300 }}
+                        renderInput={(params) => (
+                            <TextField
+                                {...params}
+                                size="small"
+                                label="SUBCONTRACTOR_NAME (CRM)"
+                                placeholder="Search or type new..."
+                                InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                            />
+                        )}
                     />
                     <Button variant="contained" disableElevation onClick={addSubcontractor} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                         + ADD BIDDER
