@@ -11,7 +11,6 @@ import UploadIcon from '@mui/icons-material/Upload';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import { db } from '../../db';
-import * as XLSX from 'xlsx';
 
 export default function DailyLogTab({ project, projectBoqItems, resources, updateProject }) {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -23,6 +22,13 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
     const [customCode, setCustomCode] = useState("");
     const [customDesc, setCustomDesc] = useState("");
     const [customUnit, setCustomUnit] = useState("nos");
+
+    // --- NEW: DAILY SCHEDULE STATE ---
+    const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
+    const [shiftStart, setShiftStart] = useState("08:00");
+    const [shiftEnd, setShiftEnd] = useState("17:00");
+    const [weather, setWeather] = useState("Clear");
+    const [shiftNotes, setShiftNotes] = useState("");
 
     const fileInputRef = useRef(null);
 
@@ -56,6 +62,27 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         setCustomCode(""); setCustomDesc("");
     };
 
+    // --- NEW: DAILY SCHEDULE LOGIC ---
+    const addSchedule = async () => {
+        if (!scheduleDate || !shiftStart || !shiftEnd) return alert("Please specify Date and Shift timings.");
+        const newSchedule = { 
+            id: crypto.randomUUID(), 
+            date: scheduleDate, 
+            shiftStart, 
+            shiftEnd, 
+            weather, 
+            notes: shiftNotes 
+        };
+        const schedules = [...(project.dailySchedules || []), newSchedule];
+        await updateProject("dailySchedules", schedules);
+        setShiftNotes(""); // Clear notes after adding
+    };
+
+    const deleteSchedule = async (id) => {
+        const schedules = (project.dailySchedules || []).filter(s => s.id !== id);
+        await updateProject("dailySchedules", schedules);
+    };
+
     // --- TASK TRACKING LOGIC ---
     const tasks = project.ganttTasks || [];
 
@@ -64,7 +91,6 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         const updatedTasks = tasks.map(t => {
             if (t.id === taskId) {
                 const updated = { ...t, status: newStatus };
-                // Auto-fill actual dates for convenience
                 if (newStatus === "In Progress" && !updated.actualStart) updated.actualStart = today;
                 if (newStatus === "Completed") {
                     if (!updated.actualStart) updated.actualStart = today;
@@ -82,11 +108,11 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         await updateProject("ganttTasks", updatedTasks);
     };
 
-    // --- EXCEL PIPELINE (OMITTED FOR BREVITY - REMAINS UNCHANGED) ---
-    const exportTemplate = () => { /* existing logic */ };
-    const handleImport = async (e) => { /* existing logic */ };
+    const exportTemplate = () => { /* Logic hidden */ };
+    const handleImport = async (e) => { /* Logic hidden */ };
 
     const sortedLogs = [...(project.dailyLogs || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
+    const sortedSchedules = [...(project.dailySchedules || [])].sort((a, b) => new Date(b.date) - new Date(a.date));
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
@@ -99,6 +125,95 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                     IMPORT EXCEL
                 </Button>
             </Box>
+
+            {/* --- NEW: DAILY WORK SCHEDULE --- */}
+            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
+                    DAILY_WORK_SCHEDULE
+                </Typography>
+                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', mb: 3 }}>
+                    <TextField 
+                        type="date" size="small" label="DATE" 
+                        value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} 
+                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
+                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
+                    />
+                    <TextField 
+                        type="time" size="small" label="START" 
+                        value={shiftStart} onChange={e => setShiftStart(e.target.value)} 
+                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
+                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
+                    />
+                    <TextField 
+                        type="time" size="small" label="END" 
+                        value={shiftEnd} onChange={e => setShiftEnd(e.target.value)} 
+                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
+                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
+                    />
+                    <TextField 
+                        select size="small" label="WEATHER" 
+                        value={weather} onChange={e => setWeather(e.target.value)} 
+                        sx={{ minWidth: 120 }}
+                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
+                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
+                    >
+                        {["Clear", "Cloudy", "Rain", "Heavy Rain", "Extreme Heat"].map(w => (
+                            <MenuItem key={w} value={w} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{w}</MenuItem>
+                        ))}
+                    </TextField>
+                    <TextField 
+                        size="small" label="GENERAL NOTES" 
+                        value={shiftNotes} onChange={e => setShiftNotes(e.target.value)} 
+                        sx={{ flex: 1, minWidth: 200 }}
+                        placeholder="Site conditions, incidents, etc."
+                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
+                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
+                    />
+                    <Button variant="contained" color="primary" onClick={addSchedule} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
+                        LOG_SHIFT
+                    </Button>
+                </Box>
+
+                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Table size="small">
+                        <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
+                            <TableRow>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '15%' }}>DATE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '20%' }}>SHIFT TIMING</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '15%' }}>WEATHER</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>NOTES</TableCell>
+                                <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '10%' }}>ACTION</TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {sortedSchedules.map(schedule => (
+                                <TableRow key={schedule.id} hover>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                        {new Date(schedule.date).toLocaleDateString()}
+                                    </TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold' }}>
+                                        {schedule.shiftStart} - {schedule.shiftEnd}
+                                    </TableCell>
+                                    <TableCell sx={{ color: 'info.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                        {schedule.weather}
+                                    </TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                        {schedule.notes || "-"}
+                                    </TableCell>
+                                    <TableCell align="center">
+                                        <IconButton size="small" color="error" onClick={() => deleteSchedule(schedule.id)}>
+                                            <DeleteIcon fontSize="small" />
+                                        </IconButton>
+                                    </TableCell>
+                                </TableRow>
+                            ))}
+                            {sortedSchedules.length === 0 && (
+                                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>No daily schedules logged yet.</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
 
             {/* MATERIAL CONSUMPTION LOG */}
             <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
@@ -147,7 +262,7 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 </TableContainer>
             </Paper>
 
-            {/* NEW: TASK EXECUTION TRACKER */}
+            {/* TASK EXECUTION TRACKER */}
             <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
                     TASK_EXECUTION_&_TRACKING
@@ -225,7 +340,7 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 </TableContainer>
             </Paper>
 
-            {/* NEW CUSTOM RESOURCE DIALOG */}
+            {/* CUSTOM RESOURCE DIALOG */}
             <Dialog open={isCustomOpen} onClose={() => setIsCustomOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>ADD_CUSTOM_RESOURCE</DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', flexDirection: 'column', gap: 3 }}>

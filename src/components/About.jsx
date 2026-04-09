@@ -30,7 +30,7 @@ export default function About({ isPopup }) {
             </Box>
 
             <Typography variant="body1" color="text.secondary" paragraph sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                OpenPrix is a Open Source Tool for Estimation and Management of COnstruction Projects. 
+                OpenPrix is a Open Source Tool for Estimation and Management of Construction Projects. 
             </Typography>
             
             <Divider sx={{ my: 3, borderColor: 'rgba(255,255,255,0.1)' }} />
@@ -72,7 +72,7 @@ export default function About({ isPopup }) {
             </Grid>
 
             <Box mt={4} textAlign="center">
-                <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.disabled', fontSize: '10px' }}>
+                <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.disabled', fontSize: '12px' }}>
                     © 2026 Gokul DC
                 </Typography>
             </Box>

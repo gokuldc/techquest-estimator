@@ -9,5 +9,6 @@ db.version(4).stores({
     resources: 'id, code, type',
     regions: 'id, name',
     crmContacts: 'id, name, company, type, status, createdAt',
-    orgStaff: 'id, name, designation, department, status, createdAt' // <--- NEW TABLE
+    orgStaff: 'id, name, designation, department, status, createdAt', 
+    kanbanTasks: 'id, projectId, boqItemId, status, priority, assigneeId'
 });
