@@ -1,6 +1,4 @@
-import { useState, useMemo, useRef } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { getResourceRate, calculateMasterBoqRate } from "../engines/calculationEngine";
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { exportProjectExcel } from "../utils/exportExcel";
@@ -21,7 +19,7 @@ import {
     Box, Typography, Button, Paper, Tabs, Tab, TextField, MenuItem,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
     Alert, Dialog, DialogTitle, DialogContent, DialogActions,
-    FormControlLabel, Checkbox, Divider, Grid
+    FormControlLabel, Checkbox, Grid
 } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -35,14 +33,59 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [tab, setTab] = useState("details");
     const importFileRef = useRef(null);
 
-    // --- DATABASE QUERIES ---
-    const project = useLiveQuery(() => db.projects.get(projectId), [projectId]);
-    const regions = useLiveQuery(() => db.regions.toArray()) || [];
-    const resources = useLiveQuery(() => db.resources.toArray()) || [];
-    const masterBoqs = useLiveQuery(() => db.masterBoq.toArray()) || [];
-    const projectBoqItems = useLiveQuery(() => db.projectBoq.where({ projectId }).toArray(), [projectId]) || [];
-    const crmContacts = useLiveQuery(() => db.crmContacts.toArray()) || [];
-    const orgStaff = useLiveQuery(() => db.orgStaff.toArray()) || [];
+    // 🔥 SQLite State Management (Using "loading" string to prevent silent crashes)
+    const [project, setProject] = useState("loading");
+    const [regions, setRegions] = useState([]);
+    const [resources, setResources] = useState([]);
+    const [masterBoqs, setMasterBoqs] = useState([]);
+    const [projectBoqItems, setProjectBoqItems] = useState([]);
+    const [crmContacts, setCrmContacts] = useState([]);
+    const [orgStaff, setOrgStaff] = useState([]);
+
+    // 🔥 BULLETPROOF DATA LOADER
+    const loadData = async () => {
+        try {
+            const [p, reg, res, mBoqs, pBoqs, contacts, staff] = await Promise.all([
+                window.api.db.getProject(projectId),
+                window.api.db.getRegions(),
+                window.api.db.getResources(),
+                window.api.db.getMasterBoqs(),
+                window.api.db.getProjectBoqs(projectId),
+                window.api.db.getCrmContacts(),
+                window.api.db.getOrgStaff()
+            ]);
+
+            // Defensively parse nested JSON objects from SQLite strings
+            const safeRes = (res || []).map(r => ({ ...r, rates: typeof r.rates === 'string' ? JSON.parse(r.rates || '{}') : (r.rates || {}) }));
+            const safeMBoqs = (mBoqs || []).map(b => ({ ...b, components: typeof b.components === 'string' ? JSON.parse(b.components || '[]') : (b.components || []) }));
+
+            // Defensively parse MBook and Daily Logs from Project Boqs/Projects
+            const safePBoqs = (pBoqs || []).map(b => ({ ...b, measurements: typeof b.measurements === 'string' ? JSON.parse(b.measurements || '[]') : (b.measurements || []) }));
+            const safeProject = p ? {
+                ...p,
+                dailyLogs: typeof p.dailyLogs === 'string' ? JSON.parse(p.dailyLogs || '[]') : (p.dailyLogs || []),
+                actualResources: typeof p.actualResources === 'string' ? JSON.parse(p.actualResources || '[]') : (p.actualResources || []),
+                ganttTasks: typeof p.ganttTasks === 'string' ? JSON.parse(p.ganttTasks || '[]') : (p.ganttTasks || []),
+                subcontractors: typeof p.subcontractors === 'string' ? JSON.parse(p.subcontractors || '[]') : (p.subcontractors || []),
+                phaseAssignments: typeof p.phaseAssignments === 'string' ? JSON.parse(p.phaseAssignments || '{}') : (p.phaseAssignments || {})
+            } : null;
+
+            setProject(safeProject || null);
+            setRegions(reg || []);
+            setResources(safeRes);
+            setMasterBoqs(safeMBoqs);
+            setProjectBoqItems(safePBoqs);
+            setCrmContacts(contacts || []);
+            setOrgStaff(staff || []);
+        } catch (error) {
+            console.error("Failed to load workspace data:", error);
+            setProject(null); // Force error state if fetch fails
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, [projectId]);
 
     // --- SHARED UI STATE ---
     const [draggedId, setDraggedId] = useState(null);
@@ -51,14 +94,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     // --- EXPORT/SYNC STATE ---
     const [isExportOpen, setIsExportOpen] = useState(false);
-    const [exportOpts, setExportOpts] = useState({
-        details: true,
-        boq: true,
-        kanban: true,
-        dailyLogs: true,
-        subcontractors: true,
-        gantt: true
-    });
+    const [exportOpts, setExportOpts] = useState({ details: true, boq: true, kanban: true, dailyLogs: true, subcontractors: true, gantt: true });
 
     // --- MASTER BOQ EDITOR STATE ---
     const [isMasterEditorOpen, setIsMasterEditorOpen] = useState(false);
@@ -81,12 +117,11 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     // --- MATH ENGINES ---
     const computeQty = (formulaStr, currentItems, currentItemSlNo = null, currentMeasurements = []) => {
-        if (formulaStr === undefined || formulaStr === null) return 0;
+        if (!formulaStr) return 0;
         const str = String(formulaStr).trim().toLowerCase();
         if (str === "") return 0;
         if (!str.startsWith('=')) { const num = Number(str); return isNaN(num) ? 0 : num; }
-        let expr = str.substring(1);
-        expr = expr.replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
+        let expr = str.substring(1).replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
         expr = expr.replace(/#(\d+)(?:\.(\d+))?(?:\.([a-z]+))?/g, (match, slNoStr, rowStr, prop) => {
             const slNo = parseInt(slNoStr, 10);
             const rowIndex = rowStr ? parseInt(rowStr, 10) - 1 : 0;
@@ -110,22 +145,20 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             if (property === 'qty') return m.computedQty || 0;
             return 0;
         });
-        try { if (/[^0-9+\-*/().\seE]/.test(expr)) return 0; const res = new Function(`return ${expr}`)(); return isFinite(res) ? res : 0; } catch { return 0; }
+        try { return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); } catch { return 0; }
     };
 
     const computeMasterQty = (formulaStr, currentRows) => {
-        if (formulaStr === undefined || formulaStr === null) return 0;
+        if (!formulaStr) return 0;
         const str = String(formulaStr).trim().toLowerCase();
         if (str === "") return 0;
         if (!str.startsWith('=')) { const num = Number(str); return isNaN(num) ? 0 : num; }
-        let expr = str.substring(1);
-        expr = expr.replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
+        let expr = str.substring(1).replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
         expr = expr.replace(/#(\d+)/g, (match, slNoStr) => {
             const idx = parseInt(slNoStr, 10) - 1;
-            const refItem = currentRows[idx];
-            return refItem ? (refItem.computedQty || 0) : 0;
+            return currentRows[idx] ? (currentRows[idx].computedQty || 0) : 0;
         });
-        try { if (/[^0-9+\-*/().\seE]/.test(expr)) return 0; const res = new Function(`return ${expr}`)(); return isFinite(res) ? res : 0; } catch { return 0; }
+        try { return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); } catch { return 0; }
     };
 
     const { renderedProjectBoq, totalAmount } = useMemo(() => {
@@ -197,9 +230,32 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         return { editRenderedRows: rows, editSubTotal: sub, editOhAmount: oh, editProfitAmount: prof, editGrandTotal: sub + oh + prof };
     }, [editBoqRows, resources, masterBoqs, editPreviewRegion, editBoqOH, editBoqProfit]);
 
-    if (!project) return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
+    // 🔥 Early Exit Handlers for Loading / Missing Data
+    if (project === "loading") {
+        return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
+    }
 
-    const updateProject = (field, value) => db.projects.update(projectId, { [field]: value });
+    if (project === null) {
+        return (
+            <Box p={5} textAlign="center">
+                <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'error.main', mb: 2 }}>
+                    Error: Project Not Found
+                </Typography>
+                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', mb: 3 }}>
+                    The project ID "{projectId}" does not exist in the new SQLite database.
+                </Typography>
+                <Button variant="outlined" onClick={onBack} startIcon={<ArrowBackIcon />}>
+                    Return to Dashboard
+                </Button>
+            </Box>
+        );
+    }
+
+    // 🔥 SQLite DB Mutations
+    const updateProject = async (field, value) => {
+        await window.api.db.updateProject(projectId, { [field]: value });
+        loadData();
+    };
 
     const togglePriceLock = async () => {
         const isCurrentlyLocked = project.isPriceLocked || false;
@@ -211,35 +267,31 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 if (masterBoq) currentRate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project.region);
                 return { ...item, lockedRate: currentRate };
             });
-            await db.projectBoq.bulkPut(updates);
-            await updateProject("isPriceLocked", true);
+            await window.api.db.bulkPutProjectBoqs(updates);
+            await window.api.db.updateProject(projectId, { isPriceLocked: true });
         } else {
-            await updateProject("isPriceLocked", false);
+            await window.api.db.updateProject(projectId, { isPriceLocked: false });
         }
+        loadData();
     };
 
     const handleExportData = async () => {
-        // We fetch the latest data based on the selection
-        const tasks = exportOpts.kanban ? await db.kanbanTasks.where({ projectId: project.id }).toArray() : [];
-        
+        const tasks = exportOpts.kanban ? await window.api.db.getKanbanTasks(project.id) : [];
+
         const payload = {
             metadata: { app: "OpenPrix", version: "1.0", type: "ProjectSync" },
             projectId: project.id,
-            // Selective Detail Export
             projectDetails: exportOpts.details ? {
                 name: project.name, code: project.code, clientName: project.clientName,
                 status: project.status, region: project.region, projectLead: project.projectLead,
                 siteSupervisor: project.siteSupervisor, isPriceLocked: project.isPriceLocked,
                 pmc: project.pmc, architect: project.architect, structuralEngineer: project.structuralEngineer,
-                // Only include logs/tasks/gantt if opted in
                 dailyLogs: exportOpts.dailyLogs ? project.dailyLogs : [],
                 actualResources: exportOpts.dailyLogs ? project.actualResources : [],
                 ganttTasks: exportOpts.gantt ? project.ganttTasks : [],
                 subcontractors: exportOpts.subcontractors ? project.subcontractors : [],
                 phaseAssignments: project.phaseAssignments
             } : { name: project.name, id: project.id },
-            
-            // Selective Store Export
             projectBoq: exportOpts.boq ? projectBoqItems : [],
             kanbanTasks: exportOpts.kanban ? tasks : []
         };
@@ -261,12 +313,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             try {
                 const data = JSON.parse(evt.target.result);
                 if (data.metadata?.app !== "OpenPrix") throw new Error("Invalid format");
-                await db.projects.update(project.id, data.projectDetails);
-                if (data.projectBoq) {
-                    await db.projectBoq.where({ projectId: project.id }).delete();
-                    await db.projectBoq.bulkPut(data.projectBoq.map(b => ({ ...b, projectId: project.id })));
-                }
+                await window.api.db.syncProjectData(project.id, data);
                 alert("Project data synchronized successfully!");
+                loadData();
             } catch (err) { alert("Failed to read project sync file."); }
         };
         reader.readAsText(file);
@@ -279,63 +328,39 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             const masterBoq = masterBoqs.find(m => m.id === addBoqId);
             if (masterBoq) lockedRate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project.region);
         }
-        await db.projectBoq.add({ id: crypto.randomUUID(), projectId, masterBoqId: addBoqId, slNo: nextSlNo, formulaStr: String(addBoqQty), qty: 0, measurements: [], phase, lockedRate });
+        await window.api.db.addProjectBoq({ projectId, masterBoqId: addBoqId, slNo: nextSlNo, formulaStr: String(addBoqQty), qty: 0, measurements: [], phase, lockedRate });
+        loadData();
     };
 
     const handleAddCustomItem = async (customCode, customDesc, customUnit, customRate, customQty, phase) => {
         const nextSlNo = projectBoqItems.length + 1;
-        await db.projectBoq.add({ id: crypto.randomUUID(), projectId, slNo: nextSlNo, isCustom: true, measurements: [], itemCode: customCode, description: customDesc, unit: customUnit, rate: Number(customRate), formulaStr: String(customQty), qty: 0, phase });
+        await window.api.db.addProjectBoq({ projectId, slNo: nextSlNo, isCustom: true, measurements: [], itemCode: customCode, description: customDesc, unit: customUnit, rate: Number(customRate), formulaStr: String(customQty), qty: 0, phase });
+        loadData();
     };
 
-    const updateBoqQtyManual = async (id, val) => await db.projectBoq.update(id, { formulaStr: val });
-    const deleteProjectBoq = async (id) => await db.projectBoq.delete(id);
+    const updateBoqQtyManual = async (id, val) => { await window.api.db.updateProjectBoq(id, { formulaStr: val }); loadData(); };
+    const deleteProjectBoq = async (id) => { await window.api.db.deleteProjectBoq(id); loadData(); };
 
     const openEditDialog = (item) => {
         setEditingProjectBoqId(item.id);
-        
         if (item.isCustom) {
-            // Handle Custom Item Editing
-            setEditingCustomId(item.id); 
-            setEditingMasterBoqId(null); 
-            setEditCustomCode(item.itemCode || ""); 
-            setEditCustomDesc(item.description || ""); 
-            setEditCustomUnit(item.unit || "cum"); 
-            setEditCustomRate(item.rate || 0);
-            // We reuse the Master Editor Dialog for UI consistency
-            setIsMasterEditorOpen(true); 
+            setEditingCustomId(item.id); setEditingMasterBoqId(null); setEditCustomCode(item.itemCode || ""); setEditCustomDesc(item.description || ""); setEditCustomUnit(item.unit || "cum"); setEditCustomRate(item.rate || 0);
+            setIsMasterEditorOpen(true);
         } else {
-            // Handle Master Item Editing
             const master = masterBoqs.find(m => m.id === item.masterBoqId);
             if (!master) return alert("Master Databook Item not found.");
-            
-            setEditingCustomId(null);
-            setEditingMasterBoqId(master.id); 
-            setEditBoqCode(master.itemCode || ""); 
-            setEditBoqDesc(master.description || ""); 
-            setEditBoqUnit(master.unit || "cum"); 
-            setEditBoqOH(master.overhead || 0); 
-            setEditBoqProfit(master.profit || 0); 
-            setEditPreviewRegion(project?.region || "");
-            
-            setEditBoqRows((master.components || []).map(c => ({ 
-                id: crypto.randomUUID(), 
-                itemType: c.itemType || 'resource', 
-                itemId: c.itemId, 
-                qty: c.qty, 
-                formulaStr: c.formulaStr || String(c.qty) 
-            })));
-            
+            setEditingCustomId(null); setEditingMasterBoqId(master.id); setEditBoqCode(master.itemCode || ""); setEditBoqDesc(master.description || ""); setEditBoqUnit(master.unit || "cum"); setEditBoqOH(master.overhead || 0); setEditBoqProfit(master.profit || 0); setEditPreviewRegion(project?.region || "");
+            setEditBoqRows((master.components || []).map(c => ({ id: crypto.randomUUID(), itemType: c.itemType || 'resource', itemId: c.itemId, qty: c.qty, formulaStr: c.formulaStr || String(c.qty) })));
             setIsMasterEditorOpen(true);
         }
     };
 
-    const saveEditedCustomBoq = async () => { 
-        if (!editCustomDesc || !editCustomRate) return alert("Description and Rate are required."); 
-        await db.projectBoq.update(editingCustomId, { itemCode: editCustomCode, description: editCustomDesc, unit: editCustomUnit, rate: Number(editCustomRate) }); 
-        setEditingCustomId(null); 
-        setEditingProjectBoqId(null); 
+    const saveEditedCustomBoq = async () => {
+        if (!editCustomDesc || !editCustomRate) return alert("Description and Rate are required.");
+        await window.api.db.updateProjectBoq(editingCustomId, { itemCode: editCustomCode, description: editCustomDesc, unit: editCustomUnit, rate: Number(editCustomRate) });
+        setEditingCustomId(null); setEditingProjectBoqId(null); setIsMasterEditorOpen(false); loadData();
     };
-    
+
     const addEditSpreadsheetRow = () => setEditBoqRows([...editBoqRows, { id: crypto.randomUUID(), itemType: "resource", itemId: "", formulaStr: "1", qty: 1 }]);
     const updateEditSpreadsheetRow = (id, field, value) => setEditBoqRows(editBoqRows.map(row => row.id === id ? { ...row, [field]: value, ...(field === 'itemType' ? { itemId: "", tempCode: undefined, tempDesc: undefined } : {}) } : row));
     const removeEditSpreadsheetRow = (id) => setEditBoqRows(editBoqRows.filter(row => row.id !== id));
@@ -345,58 +370,31 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         const validComponents = editRenderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
         if (validComponents.length === 0) return alert("Add at least one valid component to generate a valid rate.");
         const payload = { itemCode: editBoqCode, description: editBoqDesc, unit: editBoqUnit, overhead: Number(editBoqOH), profit: Number(editBoqProfit), components: validComponents };
-        
+
+        let newMasterId = crypto.randomUUID();
         if (isSaveAsNew || !editingMasterBoqId) {
-            const newId = crypto.randomUUID();
-            await db.masterBoq.add({ id: newId, ...payload });
+            await window.api.db.saveMasterBoq(payload, newMasterId, true);
             if (editingProjectBoqId) {
                 let lockedRate = undefined;
                 if (project.isPriceLocked) lockedRate = calculateMasterBoqRate(payload, resources, masterBoqs, project.region);
-                await db.projectBoq.update(editingProjectBoqId, { masterBoqId: newId, isCustom: false, lockedRate });
+                await window.api.db.updateProjectBoq(editingProjectBoqId, { masterBoqId: newMasterId, isCustom: false, lockedRate });
             }
-        } else { 
-            await db.masterBoq.update(editingMasterBoqId, payload); 
+        } else {
+            await window.api.db.saveMasterBoq(payload, editingMasterBoqId, false);
         }
-        setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null);
+        setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); loadData();
     };
 
     return (
         <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
-            
-            {/* --- NEXUS ALIGNED HEADER (REDUCED TITLE SIZE) --- */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Button 
-                        startIcon={<ArrowBackIcon />} 
-                        onClick={onBack} 
-                        variant="outlined" 
-                        sx={{ 
-                            borderRadius: 50, // PILL SHAPE
-                            fontFamily: "'JetBrains Mono', monospace", 
-                            letterSpacing: '1px', 
-                            fontSize: '11px', 
-                            borderColor: 'divider', 
-                            color: 'text.secondary', 
-                            px: 3,
-                            '&:hover': { borderColor: 'primary.main', color: 'primary.main' } 
-                        }}
-                    >
-                        {'< '}BACK
-                    </Button>
+                    <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px', borderColor: 'divider', color: 'text.secondary', px: 3, '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>{'< '}BACK</Button>
                     <Box>
-                        {/* REDUCED FONT SIZE TO H5 */}
-                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                            WORKSPACE: <span style={{ color: '#3b82f6' }}>{project.name.toUpperCase()}</span>
-                        </Typography>
-                        {project.isPriceLocked && (
-                            <Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}>
-                                <LockIcon sx={{ fontSize: 12 }} /> PROJECT_PRICING_LOCKED
-                            </Typography>
-                        )}
+                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>WORKSPACE: <span style={{ color: '#3b82f6' }}>{project.name.toUpperCase()}</span></Typography>
+                        {project.isPriceLocked && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PROJECT_PRICING_LOCKED</Typography>)}
                     </Box>
                 </Box>
-
-                {/* ACTION TOOLS (PILL SHAPE) */}
                 <Box display="flex" gap={1.5} flexWrap="wrap">
                     <input type="file" accept=".json" ref={importFileRef} style={{ display: 'none' }} onChange={handleImportData} />
                     <Button variant="outlined" color="primary" startIcon={<UploadIcon />} onClick={() => importFileRef.current.click()} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>IMPORT</Button>
@@ -406,7 +404,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Box>
             </Box>
 
-            {/* --- TAB NAVIGATION --- */}
             <Paper sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
                     <Tab value="details" label="01_DASHBOARD" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
@@ -432,307 +429,107 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             </Box>
 
             <Dialog open={isExportOpen} onClose={() => setIsExportOpen(false)} maxWidth="xs" fullWidth>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
-                    EXPORT_CONFIG: <span style={{ color: '#3b82f6' }}>SYNC_GEN</span>
-                </DialogTitle>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EXPORT_CONFIG: <span style={{ color: '#3b82f6' }}>SYNC_GEN</span></DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', pt: 2 }}>
-                    <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'block', opacity: 0.7 }}>
-                        SELECT_MODULES_TO_INCLUDE_IN_SYNC_FILE:
-                    </Typography>
-            
+                    <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'block', opacity: 0.7 }}>SELECT_MODULES_TO_INCLUDE_IN_SYNC_FILE:</Typography>
                     <Box display="flex" flexDirection="column" gap={1}>
                         {[
-                            { key: 'details', label: 'PROJECT_METADATA_&_STAKEHOLDERS' },
-                            { key: 'boq', label: 'BILL_OF_QUANTITIES_&_MEASUREMENTS' },
-                            { key: 'kanban', label: 'AGILE_KANBAN_TASKS' },
-                            { key: 'dailyLogs', label: 'SITE_LOGS_&_RESOURCE_CONSUMPTION' },
-                            { key: 'gantt', label: 'GANTT_SCHEDULE_DATA' },
-                            { key: 'subcontractors', label: 'SUBCONTRACTOR_BID_DATA' }
+                            { key: 'details', label: 'PROJECT_METADATA_&_STAKEHOLDERS' }, { key: 'boq', label: 'BILL_OF_QUANTITIES_&_MEASUREMENTS' },
+                            { key: 'kanban', label: 'AGILE_KANBAN_TASKS' }, { key: 'dailyLogs', label: 'SITE_LOGS_&_RESOURCE_CONSUMPTION' },
+                            { key: 'gantt', label: 'GANTT_SCHEDULE_DATA' }, { key: 'subcontractors', label: 'SUBCONTRACTOR_BID_DATA' }
                         ].map((opt) => (
-                            <FormControlLabel
-                                key={opt.key}
-                                control={
-                                    <Checkbox 
-                                        checked={exportOpts[opt.key]} 
-                                        onChange={(e) => setExportOpts({...exportOpts, [opt.key]: e.target.checked})}
-                                        size="small"
-                                        sx={{ color: 'primary.main' }}
-                                    />
-                                }
-                                label={
-                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
-                                        {opt.label}
-                                    </Typography>
-                                }
-                            />
+                            <FormControlLabel key={opt.key} control={<Checkbox checked={exportOpts[opt.key]} onChange={(e) => setExportOpts({ ...exportOpts, [opt.key]: e.target.checked })} size="small" sx={{ color: 'primary.main' }} />} label={<Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>{opt.label}</Typography>} />
                         ))}
                     </Box>
-
-                    <Alert severity="info" sx={{ mt: 3, bgcolor: 'rgba(59, 130, 246, 0.1)', border: '1px solid #3b82f6', '& .MuiAlert-message': { fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' } }}>
-                        The generated JSON file is encrypted only by its structure. Handle sensitive client data with care.
-                    </Alert>
                 </DialogContent>
                 <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    <Button onClick={() => setIsExportOpen(false)} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                        CANCEL
-                    </Button>
-                    <Button 
-                        variant="contained" 
-                        color="primary" 
-                        onClick={handleExportData}
-                        sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", px: 3 }}
-                    >
-                        GENERATE_SYNC_FILE
-                    </Button>
+                    <Button onClick={() => setIsExportOpen(false)} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
+                    <Button variant="contained" color="primary" onClick={handleExportData} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", px: 3 }}>GENERATE_SYNC_FILE</Button>
                 </DialogActions>
             </Dialog>
 
-            {/* --- FROM OLD VERSION: CUSTOM BOQ EDITOR DIALOG --- */}
-            <Dialog open={!!editingCustomId && !isMasterEditorOpen} onClose={() => { setEditingCustomId(null); setEditingProjectBoqId(null); }} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EDIT_CUSTOM_ITEM</DialogTitle>
-                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                    <TextField label="CODE" value={editCustomCode} onChange={e => setEditCustomCode(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                    <TextField label="DESCRIPTION" value={editCustomDesc} onChange={e => setEditCustomDesc(e.target.value)} multiline rows={2} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                    <Box display="flex" gap={2}>
-                        <TextField label="UNIT" value={editCustomUnit} onChange={e => setEditCustomUnit(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                        <TextField label="RATE" type="number" value={editCustomRate} onChange={e => setEditCustomRate(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                    </Box>
-                </DialogContent>
-                <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    <Button onClick={() => { setEditingCustomId(null); setEditingProjectBoqId(null); }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
-                    <Button variant="contained" color="success" onClick={saveEditedCustomBoq} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                        SAVE
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* --- FROM OLD VERSION: FORMULA HELP DIALOG --- */}
-            <Dialog open={formulaHelpOpen} onClose={() => setFormulaHelpOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.main' }}>
-                    FORMULA_ENGINE_GUIDE
-                </DialogTitle>
-                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', lineHeight: 1.7, p: 4 }}>
-                    <Typography variant="body1" paragraph>
-                        The Formula Engine allows you to calculate quantities dynamically by referencing other items in your BOQ.
-                        To trigger the engine, start your input with the equals sign (<code>=</code>).
-                    </Typography>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
-                        1. Basic Math & Functions
-                    </Typography>
-                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
-                        • <code>= 10 * 5</code> ➔ 50<br />
-                        • <code>= ceil(10.2)</code> ➔ 11<br />
-                        • <code>= round(10.5)</code> ➔ 11<br />
-                        • Supported: <code>+ - * / ( ) ceil() floor() round() min() max()</code>
-                    </Box>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
-                        2. Referencing Total Item Quantities
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                        Use <code>#</code> followed by the <strong>Sl.No</strong> to get the total calculated quantity of an item located <em>above</em> the current item.
-                    </Typography>
-                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
-                        • <code>= #1 * 125</code> ➔ Multiplies the total quantity of Sl.No 1 by 125.<br />
-                        • <code>= #1 + #2</code> ➔ Adds the quantities of Sl.No 1 and Sl.No 2.
-                    </Box>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
-                        3. Cross-Dimensional Referencing (Measurement Book)
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                        You can fetch specific dimensions (Length, Breadth, Depth) from a specific row inside the Measurement Book of any item.
-                        <br /><strong>Syntax:</strong> <code>#SlNo.RowIndex.Property</code>
-                    </Typography>
-                    <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
-                        • <code>#1.1.l</code> ➔ Fetches the <strong>L</strong>ength from Row 1 of Sl.No 1.<br />
-                        • <code>#2.3.b</code> ➔ Fetches the <strong>B</strong>readth from Row 3 of Sl.No 2.<br />
-                        • <code>#1.1.no</code> ➔ Fetches the <strong>No.</strong> multiplier from Row 1 of Sl.No 1.
-                    </Box>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="success.main" mt={3} mb={1}>
-                        Example Use Case: Stirrups
-                    </Typography>
-                    <Typography variant="body2" sx={{ bgcolor: 'rgba(16, 185, 129, 0.1)', p: 2, borderRadius: 1, border: '1px solid', borderColor: 'success.main' }}>
-                        To calculate the number of stirrups needed for a beam, where the beam is <strong>Sl.No 1, Row 1</strong> and the stirrup spacing is 150mm (0.15m):<br /><br />
-                        In the <strong>No.</strong> column of the stirrups MBook, type:<br />
-                        <code>= ceil(#1.1.l / 0.15) + 1</code>
-                    </Typography>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    <Button onClick={() => setFormulaHelpOpen(false)} variant="contained" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                        UNDERSTOOD
-                    </Button>
-                </DialogActions>
-            </Dialog>
-
-            {/* --- FROM OLD VERSION: MASTER BOQ EDITOR DIALOG --- */}
-            <Dialog open={isMasterEditorOpen} onClose={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); }} maxWidth="lg" fullWidth>
+            <Dialog open={isMasterEditorOpen} onClose={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); setEditingCustomId(null); }} maxWidth="lg" fullWidth>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
-                    {editingMasterBoqId ? "EDIT_DATABOOK_ITEM" : "CONVERT_TO_MASTER_ITEM"}
+                    {editingCustomId ? "EDIT_CUSTOM_ITEM" : (editingMasterBoqId ? "EDIT_DATABOOK_ITEM" : "CONVERT_TO_MASTER_ITEM")}
                 </DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    {!editingMasterBoqId && (
-                        <Alert severity="warning" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                            You are converting a Custom Ad-Hoc item into a Master Databook Item. You must define its components below to generate its rate.
-                        </Alert>
-                    )}
-                    <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
-                        <TextField label="ITEM_CODE" value={editBoqCode} onChange={e => setEditBoqCode(e.target.value)} sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <TextField label="DESCRIPTION" value={editBoqDesc} onChange={e => setEditBoqDesc(e.target.value)} sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <TextField label="UNIT" value={editBoqUnit} onChange={e => setEditBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                    </Box>
-
-                    <Alert severity="info" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', display: 'flex', alignItems: 'center' }}>
-                        💡 <strong>TIPS:</strong> Start with <code>=</code> for formulas. Use <code>ceil()</code>, <code>floor()</code>, <code>round()</code>. Reference components by row index using <code>#</code> (e.g. <code>=#1 * 1.5</code>).
-                    </Alert>
-
-                    <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3 }}>
-                        <Table size="small">
-                            <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
-                                <TableRow>
-                                    <TableCell sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SL.NO</TableCell>
-                                    <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TYPE</TableCell>
-                                    <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE_SEARCH</TableCell>
-                                    <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESC_SEARCH</TableCell>
-                                    <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
-                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY/FORMULA</TableCell>
-                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE</TableCell>
-                                    <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT</TableCell>
-                                    <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
-                                </TableRow>
-                            </TableHead>
-                            <TableBody>
-                                {editRenderedRows.map((row, idx) => {
-                                    const sourceList = row.itemType === 'boq' ? masterBoqs : resources;
-                                    const isFormula = String(row.formulaStr || "").trim().startsWith("=");
-                                    const isFocused = focusedQtyId === row.id;
-
-                                    return (
-                                        <TableRow key={row.id}>
-                                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
-                                            <TableCell>
-                                                <select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}>
-                                                    <option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option>
-                                                </select>
-                                            </TableCell>
-                                            <TableCell>
-                                                <input
-                                                    list={`edit-codes-${row.id}`}
-                                                    value={row.tempCode !== undefined ? row.tempCode : (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        const matched = sourceList.find(s => (s.code || s.itemCode) === val);
-                                                        setEditBoqRows(prev => prev.map(r => {
-                                                            if (r.id === row.id) {
-                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
-                                                                return { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc };
-                                                            }
-                                                            return r;
-                                                        }));
-                                                    }}
-                                                    placeholder="Type code..." style={tableInputActiveStyle}
-                                                />
-                                                <datalist id={`edit-codes-${row.id}`}>
-                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}
-                                                </datalist>
-                                            </TableCell>
-                                            <TableCell>
-                                                <input
-                                                    list={`edit-descs-${row.id}`}
-                                                    value={row.tempDesc !== undefined ? row.tempDesc : (sourceList.find(s => s.id === row.itemId)?.description || "")}
-                                                    onChange={e => {
-                                                        const val = e.target.value;
-                                                        const matched = sourceList.find(s => s.description === val);
-                                                        setEditBoqRows(prev => prev.map(r => {
-                                                            if (r.id === row.id) {
-                                                                if (matched) return { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined };
-                                                                return { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val };
-                                                            }
-                                                            return r;
-                                                        }));
-                                                    }}
-                                                    placeholder="Type description..." style={tableInputActiveStyle}
-                                                />
-                                                <datalist id={`edit-descs-${row.id}`}>
-                                                    {sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}
-                                                </datalist>
-                                            </TableCell>
-                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
-                                            <TableCell>
-                                                <input
-                                                    type="text"
-                                                    value={isFocused ? (row.formulaStr !== undefined ? row.formulaStr : row.qty) : Number(row.computedQty || 0).toFixed(4)}
-                                                    onFocus={() => setFocusedQtyId(row.id)}
-                                                    onBlur={() => setFocusedQtyId(null)}
-                                                    onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)}
-                                                    placeholder="e.g. =#1 * 0.05"
-                                                    style={tableInputActiveStyle}
-                                                />
-                                                {(isFormula && isFocused) && (
-                                                    <Typography variant="caption" color="info.main" display="block" mt={0.5} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
-                                                        Computed: <strong>{Number(row.computedQty || 0).toFixed(4)}</strong>
-                                                    </Typography>
-                                                )}
-                                            </TableCell>
-                                            <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
-                                            <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>
-                                            <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
+                    {editingCustomId ? (
+                        <Box display='flex' flexDirection='column' gap={3}>
+                            <TextField label="CODE" value={editCustomCode} onChange={e => setEditCustomCode(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
+                            <TextField label="DESCRIPTION" value={editCustomDesc} onChange={e => setEditCustomDesc(e.target.value)} multiline rows={2} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
+                            <Box display="flex" gap={2}>
+                                <TextField label="UNIT" value={editCustomUnit} onChange={e => setEditCustomUnit(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
+                                <TextField label="RATE" type="number" value={editCustomRate} onChange={e => setEditCustomRate(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
+                            </Box>
+                        </Box>
+                    ) : (
+                        <>
+                            <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
+                                <TextField label="ITEM_CODE" value={editBoqCode} onChange={e => setEditBoqCode(e.target.value)} sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField label="DESCRIPTION" value={editBoqDesc} onChange={e => setEditBoqDesc(e.target.value)} sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                <TextField label="UNIT" value={editBoqUnit} onChange={e => setEditBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                            </Box>
+                            <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3 }}>
+                                <Table size="small">
+                                    <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
+                                        <TableRow>
+                                            <TableCell sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SL.NO</TableCell>
+                                            <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TYPE</TableCell>
+                                            <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE_SEARCH</TableCell>
+                                            <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESC_SEARCH</TableCell>
+                                            <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+                                            <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY/FORMULA</TableCell>
+                                            <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE</TableCell>
+                                            <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT</TableCell>
+                                            <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
                                         </TableRow>
-                                    )
-                                })}
-                            </TableBody>
-                        </Table>
-                    </TableContainer>
-
-                    <Button variant="outlined" disableElevation onClick={addEditSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
-                        + ADD_COMPONENT
-                    </Button>
-
-                    <Box display="flex" justifyContent="flex-end">
-                        <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                            <Box display="flex" justifyContent="space-between" mb={2}>
-                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
-                                <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editSubTotal || 0).toFixed(2)}</Typography>
-                            </Box>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>OVERHEAD (%):</Typography>
-                                    <input type="number" value={editBoqOH} onChange={e => setEditBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
-                                </Box>
-                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editOhAmount || 0).toFixed(2)}</Typography>
-                            </Box>
-                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="2px solid" borderColor="divider">
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>PROFIT (%):</Typography>
-                                    <input type="number" value={editBoqProfit} onChange={e => setEditBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
-                                </Box>
-                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editProfitAmount || 0).toFixed(2)}</Typography>
-                            </Box>
-                            <Box display="flex" justifyContent="space-between" mb={3} color="success.main">
-                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{editBoqUnit}:</Typography>
-                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {Number(editGrandTotal || 0).toFixed(2)}</Typography>
-                            </Box>
-                        </Paper>
-                    </Box>
+                                    </TableHead>
+                                    <TableBody>
+                                        {editRenderedRows.map((row, idx) => {
+                                            const sourceList = row.itemType === 'boq' ? masterBoqs : resources;
+                                            const isFormula = String(row.formulaStr || "").trim().startsWith("=");
+                                            const isFocused = focusedQtyId === row.id;
+                                            return (
+                                                <TableRow key={row.id}>
+                                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
+                                                    <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
+                                                    <TableCell>
+                                                        <input list={`ws-codes-${row.id}`} value={row.tempCode !== undefined ? row.tempCode : (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")} onChange={e => { const matched = sourceList.find(s => (s.code || s.itemCode) === e.target.value); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: e.target.value, tempDesc: r.tempDesc }) : r)); }} style={tableInputActiveStyle} />
+                                                        <datalist id={`ws-codes-${row.id}`}>{sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
+                                                    </TableCell>
+                                                    <TableCell>
+                                                        <input list={`ws-descs-${row.id}`} value={row.tempDesc !== undefined ? row.tempDesc : (sourceList.find(s => s.id === row.itemId)?.description || "")} onChange={e => { const matched = sourceList.find(s => s.description === e.target.value); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: r.tempCode, tempDesc: e.target.value }) : r)); }} style={tableInputActiveStyle} />
+                                                        <datalist id={`ws-descs-${row.id}`}>{sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}</datalist>
+                                                    </TableCell>
+                                                    <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
+                                                    <TableCell>
+                                                        <input type="text" value={isFocused ? (row.formulaStr !== undefined ? row.formulaStr : row.qty) : Number(row.computedQty || 0).toFixed(4)} onFocus={() => setFocusedQtyId(row.id)} onBlur={() => setFocusedQtyId(null)} onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)} style={tableInputActiveStyle} />
+                                                    </TableCell>
+                                                    <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>
+                                                    <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </TableBody>
+                                </Table>
+                            </TableContainer>
+                            <Button variant="outlined" disableElevation onClick={addEditSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>+ ADD_COMPONENT</Button>
+                        </>
+                    )}
                 </DialogContent>
                 <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', gap: 2 }}>
-                    <Button onClick={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
+                    <Button onClick={() => { setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); setEditingCustomId(null); }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
                     <Box display="flex" gap={2}>
-                        {editingMasterBoqId ? (
+                        {editingCustomId ? (
+                            <Button variant="contained" color="success" onClick={saveEditedCustomBoq} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>SAVE</Button>
+                        ) : editingMasterBoqId ? (
                             <>
-                                <Button variant="outlined" color="info" onClick={() => saveEditedMasterBoq(true)} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                                    SAVE_AS_NEW
-                                </Button>
-                                <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(false)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                                    UPDATE_ORIGINAL
-                                </Button>
+                                <Button variant="outlined" color="info" onClick={() => saveEditedMasterBoq(true)} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>SAVE_AS_NEW</Button>
+                                <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(false)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>UPDATE_ORIGINAL</Button>
                             </>
                         ) : (
-                            <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(true)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                                SAVE_TO_MASTER_DB
-                            </Button>
+                            <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(true)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>SAVE_TO_MASTER_DB</Button>
                         )}
                     </Box>
                 </DialogActions>

@@ -53,6 +53,7 @@ function initDatabase() {
             unit TEXT,
             rates TEXT 
         );
+
         CREATE TABLE IF NOT EXISTS master_boq (
             id TEXT PRIMARY KEY,
             itemCode TEXT UNIQUE,
@@ -62,8 +63,39 @@ function initDatabase() {
             profit REAL,
             components TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS projects (
+            id TEXT PRIMARY KEY,
+            name TEXT, code TEXT, clientName TEXT, status TEXT, region TEXT, 
+            projectLead TEXT, siteSupervisor TEXT, pmc TEXT, architect TEXT, 
+            structuralEngineer TEXT, isPriceLocked INTEGER DEFAULT 0,
+            dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, 
+            subcontractors TEXT, phaseAssignments TEXT,
+            createdAt INTEGER
+        );
+
+        CREATE TABLE IF NOT EXISTS project_boq (
+            id TEXT PRIMARY KEY,
+            projectId TEXT,
+            masterBoqId TEXT,
+            slNo INTEGER,
+            isCustom INTEGER DEFAULT 0,
+            itemCode TEXT, description TEXT, unit TEXT,
+            rate REAL, formulaStr TEXT, qty REAL,
+            measurements TEXT, phase TEXT, lockedRate REAL
+        );
     `;
     db.exec(initSql);
+
+    // 🔥 THE AUTOMATED FIX 🔥
+    // This forces SQLite to add the missing column to your existing file
+    try {
+        db.exec("ALTER TABLE projects ADD COLUMN createdAt INTEGER;");
+        console.log("✅ Successfully patched existing database: Added 'createdAt' column.");
+    } catch (err) {
+        // It's perfectly safe to ignore this error. 
+        // It just means the column was already successfully added!
+    }
 }
 
 // ==========================================
@@ -294,5 +326,98 @@ ipcMain.handle('db:purge-database', () => {
         db.prepare('DELETE FROM regions').run();
         db.prepare('DELETE FROM resources').run();
         db.prepare('DELETE FROM master_boq').run();
+    })();
+});
+
+// ==========================================
+// PROJECT WORKSPACE IPC HANDLERS
+// ==========================================
+
+ipcMain.handle('db:get-project', (e, id) => {
+    return db.prepare('SELECT * FROM projects WHERE id = ?').get(id);
+});
+
+ipcMain.handle('db:update-project', (e, id, data) => {
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+    db.prepare(`UPDATE projects SET ${fields} WHERE id = ?`).run(...values, id);
+});
+
+ipcMain.handle('db:get-project-boqs', (e, projectId) => {
+    return db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(projectId);
+});
+
+ipcMain.handle('db:add-project-boq', (e, data) => {
+    const id = crypto.randomUUID();
+    const cols = Object.keys(data).join(', ');
+    const placeholders = Object.keys(data).map(() => '?').join(', ');
+    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+    db.prepare(`INSERT INTO project_boq (id, ${cols}) VALUES (?, ${placeholders})`).run(id, ...values);
+});
+
+ipcMain.handle('db:update-project-boq', (e, id, data) => {
+    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+    db.prepare(`UPDATE project_boq SET ${fields} WHERE id = ?`).run(...values, id);
+});
+
+ipcMain.handle('db:delete-project-boq', (e, id) => {
+    db.prepare('DELETE FROM project_boq WHERE id = ?').run(id);
+});
+
+ipcMain.handle('db:bulk-put-project-boqs', (e, dataArray) => {
+    db.transaction(() => {
+        const stmt = db.prepare(`UPDATE project_boq SET lockedRate = ? WHERE id = ?`);
+        for (const item of dataArray) { stmt.run(item.lockedRate, item.id); }
+    })();
+});
+
+// Stubs for currently unused but required tables
+ipcMain.handle('db:get-kanban-tasks', () => []);
+ipcMain.handle('db:get-crm-contacts', () => []);
+ipcMain.handle('db:get-org-staff', () => []);
+ipcMain.handle('db:sync-project-data', () => { /* Add your JSON sync logic here later */ });
+ipcMain.handle('db:get-projects', () => {
+    return db.prepare('SELECT * FROM projects').all();
+});
+
+ipcMain.handle('db:add-project', (e, data) => {
+    const cols = Object.keys(data).join(', ');
+    const placeholders = Object.keys(data).map(() => '?').join(', ');
+    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+    db.prepare(`INSERT INTO projects (${cols}) VALUES (${placeholders})`).run(...values);
+});
+
+ipcMain.handle('db:delete-project', (e, id) => {
+    db.transaction(() => {
+        db.prepare('DELETE FROM projects WHERE id = ?').run(id);
+        db.prepare('DELETE FROM project_boq WHERE projectId = ?').run(id);
+    })();
+});
+
+ipcMain.handle('db:purge-projects', () => {
+    db.transaction(() => {
+        db.prepare('DELETE FROM projects').run();
+        db.prepare('DELETE FROM project_boq').run();
+    })();
+});
+
+ipcMain.handle('db:import-projects', (e, projectsArray, mode) => {
+    db.transaction(() => {
+        if (mode === 'replace') {
+            db.prepare('DELETE FROM projects').run();
+            // Optional: You might want to delete ALL project_boqs here too if replacing completely
+            // db.prepare('DELETE FROM project_boq').run(); 
+        }
+
+        for (const p of projectsArray) {
+            const idToUse = mode === 'append' ? crypto.randomUUID() : p.id;
+            const data = { ...p, id: idToUse };
+            const cols = Object.keys(data).join(', ');
+            const placeholders = Object.keys(data).map(() => '?').join(', ');
+            const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+
+            db.prepare(`INSERT OR REPLACE INTO projects (${cols}) VALUES (${placeholders})`).run(...values);
+        }
     })();
 });
