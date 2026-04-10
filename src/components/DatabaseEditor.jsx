@@ -1,6 +1,4 @@
-import { useState, useMemo, useRef } from "react";
-import { useLiveQuery } from "dexie-react-hooks";
-import { db } from "../db";
+import { useState, useMemo, useRef, useEffect } from "react";
 import * as XLSX from "xlsx";
 import { getResourceRate, calculateMasterBoqRate } from "../engines/calculationEngine";
 import { tableInputStyle, tableInputActiveStyle } from "../styles";
@@ -25,15 +23,8 @@ const Resizer = ({ onMouseDown }) => (
     <div
         onMouseDown={onMouseDown}
         style={{
-            display: 'inline-block',
-            width: '10px',
-            height: '100%',
-            position: 'absolute',
-            right: 0,
-            top: 0,
-            cursor: 'col-resize',
-            zIndex: 1,
-            backgroundColor: 'transparent',
+            display: 'inline-block', width: '10px', height: '100%', position: 'absolute',
+            right: 0, top: 0, cursor: 'col-resize', zIndex: 1, backgroundColor: 'transparent',
             transition: 'background-color 0.2s',
         }}
         onMouseEnter={(e) => e.target.style.backgroundColor = 'rgba(59, 130, 246, 0.2)'}
@@ -52,11 +43,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
     const excelInputRef = useRef(null);
 
     const [colWidths, setColWidths] = useState({
-        code: 150,
-        desc: 400,
-        unit: 100,
-        rate: 150,
-        actions: 150
+        code: 150, desc: 400, unit: 100, rate: 150, actions: 150
     });
 
     const handleResizeStart = (colKey) => (e) => {
@@ -97,7 +84,6 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                 ? codeA.localeCompare(codeB, undefined, { numeric: true })
                 : codeB.localeCompare(codeA, undefined, { numeric: true });
         });
-
         return filtered;
     }, [masterBoqs, searchCode, searchDesc, sortDirection]);
 
@@ -111,10 +97,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
             <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3} flexWrap="wrap" gap={2}>
                 <Box display="flex" gap={2} flexWrap="wrap" flex={1} alignItems="flex-start">
                     <TextField
-                        placeholder="Search Code..."
-                        variant="outlined"
-                        size="small"
-                        value={searchCode}
+                        placeholder="Search Code..." variant="outlined" size="small" value={searchCode}
                         onChange={(e) => { setSearchCode(e.target.value); setPage(0); }}
                         sx={{ flex: 1, minWidth: 150 }}
                         InputProps={{
@@ -123,10 +106,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                         }}
                     />
                     <TextField
-                        placeholder="Search Description..."
-                        variant="outlined"
-                        size="small"
-                        value={searchDesc}
+                        placeholder="Search Description..." variant="outlined" size="small" value={searchDesc}
                         onChange={(e) => { setSearchDesc(e.target.value); setPage(0); }}
                         sx={{ flex: 2, minWidth: 250 }}
                         InputProps={{
@@ -135,10 +115,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                         }}
                     />
                     <TextField
-                        select
-                        size="small"
-                        label="PREVIEW_REGION"
-                        value={previewRegion}
+                        select size="small" label="PREVIEW_REGION" value={previewRegion}
                         onChange={e => setPreviewRegion(e.target.value)}
                         sx={{ flex: 1, minWidth: 150 }}
                         InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
@@ -151,20 +128,14 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
 
                 <Box display="flex" gap={2} alignItems="flex-start">
                     <Button
-                        size="small"
-                        variant="outlined"
-                        startIcon={<DownloadIcon />}
-                        onClick={onDownloadTemplate}
+                        size="small" variant="outlined" startIcon={<DownloadIcon />} onClick={onDownloadTemplate}
                         sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
                     >
                         TEMPLATE
                     </Button>
                     <input type="file" accept=".xls,.xlsx" ref={excelInputRef} style={{ display: 'none' }} onChange={(e) => { onExcelUpload(e); excelInputRef.current.value = null; }} />
                     <Button
-                        size="small"
-                        variant="contained"
-                        disableElevation
-                        startIcon={<UploadIcon />}
+                        size="small" variant="contained" disableElevation startIcon={<UploadIcon />}
                         onClick={() => excelInputRef.current.click()}
                         sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
                     >
@@ -183,22 +154,15 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                                 </TableSortLabel>
                                 <Resizer onMouseDown={handleResizeStart('code')} />
                             </TableCell>
-
                             <TableCell sx={{ width: colWidths.desc, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
-                                <strong>DESCRIPTION</strong>
-                                <Resizer onMouseDown={handleResizeStart('desc')} />
+                                <strong>DESCRIPTION</strong><Resizer onMouseDown={handleResizeStart('desc')} />
                             </TableCell>
-
                             <TableCell sx={{ width: colWidths.unit, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
-                                <strong>UNIT</strong>
-                                <Resizer onMouseDown={handleResizeStart('unit')} />
+                                <strong>UNIT</strong><Resizer onMouseDown={handleResizeStart('unit')} />
                             </TableCell>
-
                             <TableCell sx={{ width: colWidths.rate, position: 'relative', overflow: 'visible', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
-                                <strong>RATE_PREVIEW</strong>
-                                <Resizer onMouseDown={handleResizeStart('rate')} />
+                                <strong>RATE_PREVIEW</strong><Resizer onMouseDown={handleResizeStart('rate')} />
                             </TableCell>
-
                             <TableCell align="center" sx={{ width: colWidths.actions, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                                 <strong>ACTIONS</strong>
                             </TableCell>
@@ -222,45 +186,22 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
                                         </TableCell>
                                         <TableCell align="center">
                                             <Box display="flex" gap={1} justifyContent="center">
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="warning"
-                                                    onClick={() => editMasterBoq(b)}
-                                                    sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                                                >
-                                                    EDIT
-                                                </Button>
-                                                <Button
-                                                    size="small"
-                                                    variant="outlined"
-                                                    color="error"
-                                                    onClick={() => deleteMasterBoq(b.id)}
-                                                    sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                                                >
-                                                    DELETE
-                                                </Button>
+                                                <Button size="small" variant="outlined" color="warning" onClick={() => editMasterBoq(b)} sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}>EDIT</Button>
+                                                <Button size="small" variant="outlined" color="error" onClick={() => deleteMasterBoq(b.id)} sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}>DELETE</Button>
                                             </Box>
                                         </TableCell>
                                     </TableRow>
                                 );
                             })
                         ) : (
-                            <TableRow>
-                                <TableCell colSpan={5} align="center" sx={{ py: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>NO_MATCHING_ITEMS</TableCell>
-                            </TableRow>
+                            <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>NO_MATCHING_ITEMS</TableCell></TableRow>
                         )}
                     </TableBody>
                 </Table>
             </TableContainer>
-
             <TablePagination
-                rowsPerPageOptions={[10, 25, 50, 100]}
-                component="div"
-                count={processedBOQs.length}
-                rowsPerPage={rowsPerPage}
-                page={page}
-                onPageChange={(e, newPage) => setPage(newPage)}
+                rowsPerPageOptions={[10, 25, 50, 100]} component="div" count={processedBOQs.length}
+                rowsPerPage={rowsPerPage} page={page} onPageChange={(e, newPage) => setPage(newPage)}
                 onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0); }}
                 sx={{ fontFamily: "'JetBrains Mono', monospace" }}
             />
@@ -271,9 +212,29 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
 export default function DatabaseEditor({ onBack }) {
     const [tab, setTab] = useState("resources");
 
-    const regions = useLiveQuery(() => db.regions.toArray(), []) || [];
-    const resources = useLiveQuery(() => db.resources.toArray(), []) || [];
-    const masterBoqs = useLiveQuery(() => db.masterBoq.toArray(), []) || [];
+    // 🔥 SQLite State Management
+    const [regions, setRegions] = useState([]);
+    const [resources, setResources] = useState([]);
+    const [masterBoqs, setMasterBoqs] = useState([]);
+
+    const loadData = async () => {
+        try {
+            const [reg, res, boqs] = await Promise.all([
+                window.api.db.getRegions(),
+                window.api.db.getResources(),
+                window.api.db.getMasterBoqs()
+            ]);
+            setRegions(reg || []);
+            setResources(res || []);
+            setMasterBoqs(boqs || []);
+        } catch (error) {
+            console.error("Failed to load SQLite data:", error);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
 
     const [newRegion, setNewRegion] = useState("");
     const [importRegion, setImportRegion] = useState("");
@@ -300,13 +261,11 @@ export default function DatabaseEditor({ onBack }) {
 
     const [importData, setImportData] = useState(null);
     const fileInputRef = useRef(null);
-    const lmrExcelInputRef = useRef(null);
 
-    // Formula UI state
     const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
     const [focusedQtyId, setFocusedQtyId] = useState(null);
 
-    // --- FORMULA ENGINE FOR MASTER DB ---
+    // --- FORMULA ENGINE ---
     const computeQty = (formulaStr, currentRows) => {
         if (formulaStr === undefined || formulaStr === null) return 0;
         const str = String(formulaStr).trim().toLowerCase();
@@ -319,8 +278,6 @@ export default function DatabaseEditor({ onBack }) {
 
         let expr = str.substring(1);
         expr = expr.replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
-
-        // Map #1 to row index 0
         expr = expr.replace(/#(\d+)/g, (match, slNoStr) => {
             const idx = parseInt(slNoStr, 10) - 1;
             const refItem = currentRows[idx];
@@ -336,34 +293,39 @@ export default function DatabaseEditor({ onBack }) {
         }
     };
 
+    // 🔥 SQLite CRUD Operations
     const handleAddRegion = async () => {
-        if (newRegion) {
-            await db.regions.add({ id: crypto.randomUUID(), name: newRegion });
-            setNewRegion("");
-        }
+        if (!newRegion) return;
+        await window.api.db.createRegion(newRegion);
+        setNewRegion("");
+        loadData();
     };
 
     const handleDeleteRegion = async (regionId, regionName) => {
         if (window.confirm(`Are you sure you want to delete the region "${regionName}"? All local rates for this region will be permanently erased.`)) {
-            await db.regions.delete(regionId);
-            const allResources = await db.resources.toArray();
-            const updates = [];
-            for (const res of allResources) {
-                if (res.rates && res.rates[regionName] !== undefined) {
-                    const newRates = { ...res.rates };
-                    delete newRates[regionName];
-                    updates.push({ ...res, rates: newRates });
-                }
-            }
-            if (updates.length > 0) {
-                await db.resources.bulkPut(updates);
-            }
+            await window.api.db.deleteRegion(regionId, regionName);
+            loadData();
         }
     };
 
-    const addResourceManually = async () => { if (!resDesc) return; await db.resources.add({ id: crypto.randomUUID(), code: resCode, description: resDesc, unit: resUnit, rates: {} }); setResCode(""); setResDesc(""); };
-    const updateResourceInline = (id, field, value) => db.resources.update(id, { [field]: value });
-    const deleteResource = async (id) => { if (window.confirm("Delete this resource?")) await db.resources.delete(id); };
+    const addResourceManually = async () => {
+        if (!resDesc) return;
+        await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit });
+        setResCode(""); setResDesc("");
+        loadData();
+    };
+
+    const updateResourceInline = async (id, field, value) => {
+        await window.api.db.updateResource(id, field, value);
+        loadData();
+    };
+
+    const deleteResource = async (id) => {
+        if (window.confirm("Delete this resource?")) {
+            await window.api.db.deleteResource(id);
+            loadData();
+        }
+    };
 
     const handleSort = (field) => {
         if (sortField === field) setSortAsc(!sortAsc);
@@ -371,50 +333,21 @@ export default function DatabaseEditor({ onBack }) {
         setCurrentPage(1);
     };
 
-    const handleExcelUpload = (e) => {
+    const triggerLmrImport = async () => {
         if (!importRegion) return alert("Select a region for import first.");
-        const file = e.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            const data = new Uint8Array(event.target.result);
-            const workbook = XLSX.read(data, { type: 'array' });
-            const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
-
-            let headerIdx = -1;
-            for (let i = 0; i < 20; i++) if (jsonData[i] && jsonData[i].includes("Code") && jsonData[i].includes("Description")) { headerIdx = i; break; }
-            if (headerIdx === -1) return alert("Invalid Excel Format");
-
-            const headers = jsonData[headerIdx];
-            const codeIdx = headers.indexOf("Code"), descIdx = headers.indexOf("Description"), unitIdx = headers.indexOf("Unit"), rateIdx = headers.findIndex(h => h && String(h).toLowerCase().includes("lmr rate"));
-
-            let updates = [], adds = [];
-            const currentResources = await db.resources.toArray();
-
-            for (let i = headerIdx + 1; i < jsonData.length; i++) {
-                const row = jsonData[i];
-                if (!row || !row[descIdx]) continue;
-                const code = String(row[codeIdx] || "").trim(), desc = String(row[descIdx]).trim(), unit = String(row[unitIdx] || "").trim(), rate = Number(String(row[rateIdx]).replace(/,/g, '')) || 0;
-                if (rate > 0) {
-                    const existing = currentResources.find(r => (code && r.code === code) || r.description === desc);
-                    if (existing) { existing.rates[importRegion] = rate; updates.push(existing); }
-                    else { const newItem = { id: crypto.randomUUID(), code, description: desc, unit, rates: { [importRegion]: rate } }; adds.push(newItem); currentResources.push(newItem); }
-                }
-            }
-            if (updates.length > 0) if (!window.confirm(`Found ${updates.length} existing items. Update their rates for ${importRegion}?`)) updates = [];
-            if (adds.length > 0 || updates.length > 0) { await db.resources.bulkPut([...updates, ...adds]); alert(`Success! Appended ${adds.length} new items, updated ${updates.length} existing.`); }
-            else alert("No items imported.");
-            e.target.value = null;
-        };
-        reader.readAsArrayBuffer(file);
+        const res = await window.api.db.importExcel(importRegion);
+        if (res.success) {
+            alert(res.message);
+            loadData();
+        } else if (res.message !== 'User cancelled') {
+            alert(res.error);
+        }
     };
 
     const generateDatabookTemplate = () => {
         const wsData = [
             { "BOQ_Code": "EXAMPLE-01", "BOQ_Description": "12 mm cement plaster of mix: 1:4", "BOQ_Unit": "sqm", "Overhead_Percent": 15, "Profit_Percent": 15, "Component_Type": "boq", "Component_Code": "MIX.01", "Component_Qty": 0.0144 },
-            { "BOQ_Code": "EXAMPLE-01", "BOQ_Description": "12 mm cement plaster of mix: 1:4", "BOQ_Unit": "sqm", "Overhead_Percent": 15, "Profit_Percent": 15, "Component_Type": "resource", "Component_Code": "0155", "Component_Qty": 0.067 },
-            { "BOQ_Code": "EXAMPLE-01", "BOQ_Description": "12 mm cement plaster of mix: 1:4", "BOQ_Unit": "sqm", "Overhead_Percent": 15, "Profit_Percent": 15, "Component_Type": "resource", "Component_Code": "0115", "Component_Qty": 0.075 }
+            { "BOQ_Code": "EXAMPLE-01", "BOQ_Description": "12 mm cement plaster of mix: 1:4", "BOQ_Unit": "sqm", "Overhead_Percent": 15, "Profit_Percent": 15, "Component_Type": "resource", "Component_Code": "0155", "Component_Qty": 0.067 }
         ];
         const ws = XLSX.utils.json_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
@@ -457,67 +390,50 @@ export default function DatabaseEditor({ onBack }) {
 
                     if (compType && compCode && compQty > 0) {
                         boqGroups[boqCode].components.push({
-                            tempType: compType,
-                            tempCode: compCode,
-                            qty: compQty
+                            tempType: compType, tempCode: compCode, qty: compQty
                         });
                     }
                 });
 
-                const currentResources = await db.resources.toArray();
-                const currentBoqs = await db.masterBoq.toArray();
-
                 let added = 0, updated = 0;
+                // Instead of dexie bulk add, we save one by one through the bridge
+                for (const boqCode of Object.keys(boqGroups)) {
+                    const group = boqGroups[boqCode];
+                    const validComponents = [];
+                    for (const comp of group.components) {
+                        let itemId = null;
+                        let itemType = "resource";
 
-                await db.transaction('rw', db.masterBoq, async () => {
-                    for (const boqCode of Object.keys(boqGroups)) {
-                        const group = boqGroups[boqCode];
-
-                        const validComponents = [];
-                        for (const comp of group.components) {
-                            let itemId = null;
-                            let itemType = "resource";
-
-                            if (comp.tempType === 'resource') {
-                                const res = currentResources.find(r => r.code === comp.tempCode);
-                                if (res) itemId = res.id;
-                            } else if (comp.tempType === 'boq' || comp.tempType === 'databook_item') {
-                                const b = currentBoqs.find(b => b.itemCode === comp.tempCode);
-                                if (b) itemId = b.id;
-                                itemType = "boq";
-                            }
-
-                            if (itemId) {
-                                validComponents.push({ itemType, itemId, qty: comp.qty, formulaStr: String(comp.qty) });
-                            } else {
-                                console.warn(`Component code ${comp.tempCode} not found in DB. Skipped in BOQ ${boqCode}`);
-                            }
+                        if (comp.tempType === 'resource') {
+                            const res = resources.find(r => r.code === comp.tempCode);
+                            if (res) itemId = res.id;
+                        } else if (comp.tempType === 'boq' || comp.tempType === 'databook_item') {
+                            const b = masterBoqs.find(b => b.itemCode === comp.tempCode);
+                            if (b) itemId = b.id;
+                            itemType = "boq";
                         }
 
-                        const payload = {
-                            itemCode: group.itemCode,
-                            description: group.description,
-                            unit: group.unit,
-                            overhead: group.overhead,
-                            profit: group.profit,
-                            components: validComponents
-                        };
-
-                        const existing = currentBoqs.find(b => b.itemCode === group.itemCode);
-                        if (existing) {
-                            await db.masterBoq.update(existing.id, payload);
-                            updated++;
-                        } else {
-                            await db.masterBoq.add({ id: crypto.randomUUID(), ...payload });
-                            added++;
+                        if (itemId) {
+                            validComponents.push({ itemType, itemId, qty: comp.qty, formulaStr: String(comp.qty) });
                         }
                     }
-                });
 
-                alert(`Databook Excel Processed!\n\nAdded: ${added} items\nUpdated: ${updated} items`);
+                    const payload = { ...group, components: validComponents };
+                    const existing = masterBoqs.find(b => b.itemCode === group.itemCode);
+
+                    if (existing) {
+                        await window.api.db.saveMasterBoq(payload, existing.id, false);
+                        updated++;
+                    } else {
+                        await window.api.db.saveMasterBoq(payload, null, true);
+                        added++;
+                    }
+                }
+                alert(`Databook Excel Processed!\n\nProcessed: ${added + updated} items`);
+                loadData();
             } catch (err) {
                 console.error(err);
-                alert("Failed to parse Excel file. Please ensure it strictly matches the Template format.");
+                alert("Failed to parse Excel file.");
             }
         };
         reader.readAsArrayBuffer(file);
@@ -531,16 +447,14 @@ export default function DatabaseEditor({ onBack }) {
         if (!boqCode || !boqDesc) return alert("Please enter a Code and Description.");
         const validComponents = renderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
         if (validComponents.length === 0) return alert("Add at least one valid component.");
+
         const payload = { itemCode: boqCode, description: boqDesc, unit: boqUnit, overhead: Number(boqOH), profit: Number(boqProfit), components: validComponents };
 
-        if (editingBoqId && !isSaveAsNew) {
-            await db.masterBoq.update(editingBoqId, payload);
-            alert("Databook Item Updated!");
-        } else {
-            await db.masterBoq.add({ id: crypto.randomUUID(), ...payload });
-            alert(isSaveAsNew ? "Saved as a New Databook Item!" : "Databook Item Created!");
-        }
+        await window.api.db.saveMasterBoq(payload, editingBoqId, isSaveAsNew);
+        alert(isSaveAsNew ? "Saved as a New Databook Item!" : "Databook Item Saved!");
+
         setEditingBoqId(null); setBoqCode(""); setBoqDesc(""); setBoqRows([]);
+        loadData();
     };
 
     const editMasterBoq = (b) => {
@@ -549,7 +463,12 @@ export default function DatabaseEditor({ onBack }) {
         setTab("createBoq");
     };
 
-    const deleteMasterBoq = async (id) => { if (window.confirm("Delete this Databook item?")) await db.masterBoq.delete(id); };
+    const deleteMasterBoq = async (id) => {
+        if (window.confirm("Delete this Databook item?")) {
+            await window.api.db.deleteMasterBoq(id);
+            loadData();
+        }
+    };
 
     const exportDatabase = () => {
         const data = { regions, resources, masterBoq: masterBoqs, exportDate: new Date().toISOString(), type: "MasterDatabase" };
@@ -561,7 +480,6 @@ export default function DatabaseEditor({ onBack }) {
     const handleFileSelect = (e) => {
         const file = e.target.files[0];
         if (!file) return;
-
         const reader = new FileReader();
         reader.onload = async (event) => {
             try {
@@ -569,98 +487,35 @@ export default function DatabaseEditor({ onBack }) {
                 if (data.type !== "MasterDatabase" && !data.masterBoq) throw new Error("Invalid format");
                 setImportData(data);
             } catch (err) {
-                alert("Failed to parse file. Please ensure this is a valid Master Database backup.");
-                e.target.value = null;
+                alert("Failed to parse file.");
             }
+            e.target.value = null;
         };
         reader.readAsText(file);
     };
 
     const handleImportProcess = async (mode) => {
         if (!importData) return;
-
-        try {
-            await db.transaction('rw', db.regions, db.resources, db.masterBoq, async () => {
-                if (mode === 'replace') {
-                    await db.regions.clear(); await db.resources.clear(); await db.masterBoq.clear();
-                    if (importData.regions?.length) await db.regions.bulkAdd(importData.regions);
-                    if (importData.resources?.length) await db.resources.bulkAdd(importData.resources);
-                    if (importData.masterBoq?.length) await db.masterBoq.bulkAdd(importData.masterBoq);
-                } else if (mode === 'append') {
-                    const existingRegions = await db.regions.toArray();
-                    const existingResources = await db.resources.toArray();
-                    const existingBoqs = await db.masterBoq.toArray();
-
-                    const regionNames = new Set(existingRegions.map(r => r.name));
-                    const resCodeMap = new Map(existingResources.map(r => [r.code, r.id]));
-                    const boqCodeSet = new Set(existingBoqs.map(b => b.itemCode));
-
-                    const idMapping = {};
-
-                    const newRegions = [];
-                    (importData.regions || []).forEach(r => {
-                        if (!regionNames.has(r.name)) {
-                            newRegions.push(r);
-                            regionNames.add(r.name);
-                        }
-                    });
-
-                    const newResources = [];
-                    (importData.resources || []).forEach(r => {
-                        if (resCodeMap.has(r.code)) {
-                            idMapping[r.id] = resCodeMap.get(r.code);
-                        } else {
-                            newResources.push(r);
-                            resCodeMap.set(r.code, r.id);
-                        }
-                    });
-
-                    const newBoqs = [];
-                    (importData.masterBoq || []).forEach(b => {
-                        if (!boqCodeSet.has(b.itemCode)) {
-                            const remappedComponents = b.components.map(comp => ({
-                                ...comp,
-                                itemId: idMapping[comp.itemId] || comp.itemId
-                            }));
-                            newBoqs.push({ ...b, components: remappedComponents });
-                            boqCodeSet.add(b.itemCode);
-                        } else {
-                            const existingBoq = existingBoqs.find(ex => ex.itemCode === b.itemCode);
-                            if (existingBoq) {
-                                const remappedComponents = b.components.map(comp => ({
-                                    ...comp,
-                                    itemId: idMapping[comp.itemId] || comp.itemId
-                                }));
-                                db.masterBoq.update(existingBoq.id, { ...b, components: remappedComponents, id: existingBoq.id });
-                            }
-                        }
-                    });
-
-                    if (newRegions.length) await db.regions.bulkAdd(newRegions);
-                    if (newResources.length) await db.resources.bulkAdd(newResources);
-                    if (newBoqs.length) await db.masterBoq.bulkAdd(newBoqs);
-                }
-            });
-            alert(`Database successfully ${mode === 'replace' ? 'replaced' : 'appended & updated'}!`);
-        } catch (err) {
-            console.error(err);
-            alert("Database Transaction Failed during import.");
+        if (window.api.db.restoreDatabase) {
+            const res = await window.api.db.restoreDatabase(importData, mode);
+            if (res.success) {
+                alert(`Database successfully ${mode === 'replace' ? 'replaced' : 'appended & updated'}!`);
+                loadData();
+            } else {
+                alert("Database Restore Failed: " + res.error);
+            }
+        } else {
+            alert("The mass restore function is not implemented in the bridge yet. For now, use the SQLite database file directly.");
         }
-
         setImportData(null);
     };
 
     const purgeMasterDatabase = async () => {
-        const confirm1 = window.confirm("CRITICAL WARNING: This will permanently delete ALL Regions, Resources, and Databook items.");
-        if (confirm1) {
-            const confirm2 = window.confirm("Are you absolutely sure? Active projects may lose their master reference data. Type 'OK' to proceed:");
-            if (confirm2) {
-                await db.transaction('rw', db.regions, db.resources, db.masterBoq, async () => {
-                    await db.regions.clear();
-                    await db.resources.clear();
-                    await db.masterBoq.clear();
-                });
+        if (window.confirm("CRITICAL WARNING: This will permanently delete ALL Regions, Resources, and Databook items.")) {
+            if (window.confirm("Are you absolutely sure? Active projects may lose their master reference data. Type 'OK' to proceed:")) {
+                await window.api.db.purgeDatabase();
                 alert("Master Database has been completely purged.");
+                loadData();
             }
         }
     };
@@ -700,6 +555,7 @@ export default function DatabaseEditor({ onBack }) {
         return { renderedRows: computedRows, subTotal: sub, ohAmount: oh, profitAmount: prof, grandTotal: sub + oh + prof };
     }, [boqRows, resources, masterBoqs, previewRegion, boqOH, boqProfit]);
 
+
     return (
         <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
             <Box display="flex" alignItems="center" gap={2} mb={3}>
@@ -709,26 +565,14 @@ export default function DatabaseEditor({ onBack }) {
                     variant="outlined"
                     color="inherit"
                     sx={{
-                        borderRadius: 2,
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: '12px',
-                        borderColor: 'divider',
-                        color: 'text.secondary',
+                        borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px',
+                        fontSize: '12px', borderColor: 'divider', color: 'text.secondary',
                         '&:hover': { borderColor: 'primary.main', color: 'primary.main' },
                     }}
                 >
                     {'< '}HOME
                 </Button>
-                <Typography
-                    variant="h4"
-                    fontWeight="bold"
-                    sx={{
-                        fontFamily: "'JetBrains Mono', monospace",
-                        letterSpacing: '1px',
-                        fontSize: { xs: '18px', md: '22px' },
-                    }}
-                >
+                <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '22px' } }}>
                     DATABASE_MANAGER
                 </Typography>
             </Box>
@@ -754,13 +598,7 @@ export default function DatabaseEditor({ onBack }) {
                                 <CloudDownloadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
                                 <Typography variant="h6" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>EXPORT_DB</Typography>
                                 <Typography variant="body2" color="text.secondary" paragraph>Download master database as template.</Typography>
-                                <Button
-                                    variant="contained"
-                                    disableElevation
-                                    size="large"
-                                    onClick={exportDatabase}
-                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                >
+                                <Button variant="contained" disableElevation size="large" onClick={exportDatabase} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                                     DOWNLOAD
                                 </Button>
                             </Paper>
@@ -771,13 +609,7 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="h6" color="error.main" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>RESTORE_DB</Typography>
                                 <Typography variant="body2" color="text.secondary" paragraph>Upload Master DB file and process records.</Typography>
                                 <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
-                                <Button
-                                    variant="outlined"
-                                    color="error"
-                                    size="large"
-                                    onClick={() => fileInputRef.current.click()}
-                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                >
+                                <Button variant="outlined" color="error" size="large" onClick={() => fileInputRef.current.click()} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                                     UPLOAD
                                 </Button>
                             </Paper>
@@ -789,13 +621,7 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="body2" color="error.light" paragraph>
                                     <strong>DANGER:</strong> Erase all Databook items, LMR Rates, and Resources. This cannot be undone.
                                 </Typography>
-                                <Button
-                                    variant="contained"
-                                    color="error"
-                                    size="large"
-                                    onClick={purgeMasterDatabase}
-                                    sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', fontWeight: 'bold' }}
-                                >
+                                <Button variant="contained" color="error" size="large" onClick={purgeMasterDatabase} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', fontWeight: 'bold' }}>
                                     NUKE DATABASE
                                 </Button>
                             </Paper>
@@ -830,28 +656,18 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="subtitle1" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '13px' }}>IMPORT_EXCEL_LMR</Typography>
                                 <Box display="flex" gap={2} alignItems="flex-start" flexWrap="wrap">
                                     <TextField
-                                        select
-                                        size="small"
-                                        label="TARGET_REGION"
-                                        // Apply the same safety check we used in the workspace
-                                        value={regions.some(r => r.name === importRegion) ? importRegion : ""}
+                                        select size="small" label="TARGET_REGION" value={regions.some(r => r.name === importRegion) ? importRegion : ""}
                                         onChange={e => setImportRegion(e.target.value)}
                                         sx={{ minWidth: 150, flex: 1 }}
                                         InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     >
-                                        {/* Add the missing fallback menu item */}
                                         <MenuItem value="">-- SELECT_REGION --</MenuItem>
                                         {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                                     </TextField>
-
-                                    <input type="file" accept=".xls,.xlsx" ref={lmrExcelInputRef} style={{ display: 'none' }} onChange={handleExcelUpload} />
                                     <Button
-                                        variant="contained"
-                                        color="primary"
-                                        disableElevation
-                                        startIcon={<UploadIcon />}
-                                        onClick={() => lmrExcelInputRef.current.click()}
+                                        variant="contained" color="primary" disableElevation startIcon={<UploadIcon />}
+                                        onClick={triggerLmrImport}
                                         sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', whiteSpace: 'nowrap' }}
                                     >
                                         UPLOAD LMR
@@ -864,34 +680,18 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="subtitle1" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '13px' }}>MANAGE_REGIONS</Typography>
                                 <Box display="flex" gap={2} alignItems="flex-start">
                                     <TextField
-                                        size="small"
-                                        label="NEW_REGION"
-                                        value={newRegion}
-                                        onChange={e => setNewRegion(e.target.value)}
-                                        fullWidth
+                                        size="small" label="NEW_REGION" value={newRegion} onChange={e => setNewRegion(e.target.value)} fullWidth
                                         InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     />
-                                    <Button
-                                        variant="contained"
-                                        disableElevation
-                                        onClick={handleAddRegion}
-                                        sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                    >
+                                    <Button variant="contained" disableElevation onClick={handleAddRegion} sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                                         ADD
                                     </Button>
                                 </Box>
                                 {regions.length > 0 && (
                                     <Box display="flex" gap={1} flexWrap="wrap" mt={2} pt={2} borderTop="1px dashed" borderColor="divider">
                                         {regions.map(r => (
-                                            <Chip
-                                                key={r.id}
-                                                label={r.name}
-                                                onDelete={() => handleDeleteRegion(r.id, r.name)}
-                                                size="small"
-                                                variant="outlined"
-                                                sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }}
-                                            />
+                                            <Chip key={r.id} label={r.name} onDelete={() => handleDeleteRegion(r.id, r.name)} size="small" variant="outlined" sx={{ borderRadius: 1, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                                         ))}
                                     </Box>
                                 )}
@@ -905,67 +705,22 @@ export default function DatabaseEditor({ onBack }) {
                                 <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>SEARCH_RESOURCES</Typography>
                                 <Box display="flex" gap={2} alignItems="flex-start">
                                     <TextField
-                                        size="small"
-                                        placeholder="Search Code..."
-                                        value={searchCode}
-                                        onChange={e => { setSearchCode(e.target.value); setCurrentPage(1); }}
-                                        fullWidth
-                                        InputProps={{
-                                            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-                                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
-                                        }}
+                                        size="small" placeholder="Search Code..." value={searchCode} onChange={e => { setSearchCode(e.target.value); setCurrentPage(1); }} fullWidth
+                                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     />
                                     <TextField
-                                        size="small"
-                                        placeholder="Search Description..."
-                                        value={searchDesc}
-                                        onChange={e => { setSearchDesc(e.target.value); setCurrentPage(1); }}
-                                        fullWidth
-                                        InputProps={{
-                                            startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>,
-                                            sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }
-                                        }}
+                                        size="small" placeholder="Search Description..." value={searchDesc} onChange={e => { setSearchDesc(e.target.value); setCurrentPage(1); }} fullWidth
+                                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                                     />
                                 </Box>
                             </Grid>
                             <Grid item xs={12} md={6}>
                                 <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>ADD_RESOURCE</Typography>
                                 <Box display="flex" gap={1} alignItems="flex-start">
-                                    <TextField
-                                        size="small"
-                                        label="CODE"
-                                        value={resCode}
-                                        onChange={e => setResCode(e.target.value)}
-                                        sx={{ width: 120 }}
-                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                    />
-                                    <TextField
-                                        size="small"
-                                        label="DESCRIPTION"
-                                        value={resDesc}
-                                        onChange={e => setResDesc(e.target.value)}
-                                        fullWidth
-                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                    />
-                                    <TextField
-                                        size="small"
-                                        label="UNIT"
-                                        value={resUnit}
-                                        onChange={e => setResUnit(e.target.value)}
-                                        sx={{ width: 100 }}
-                                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                                    />
-                                    <Button
-                                        variant="contained"
-                                        disableElevation
-                                        onClick={addResourceManually}
-                                        sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                    >
-                                        ADD
-                                    </Button>
+                                    <TextField size="small" label="CODE" value={resCode} onChange={e => setResCode(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <TextField size="small" label="DESCRIPTION" value={resDesc} onChange={e => setResDesc(e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <TextField size="small" label="UNIT" value={resUnit} onChange={e => setResUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                    <Button variant="contained" disableElevation onClick={addResourceManually} sx={{ height: 40, px: 3, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD</Button>
                                 </Box>
                             </Grid>
                         </Grid>
@@ -976,25 +731,9 @@ export default function DatabaseEditor({ onBack }) {
                             SHOWING {paginatedResources.length > 0 ? ((currentPage - 1) * itemsPerPage) + 1 : 0} TO {Math.min(currentPage * itemsPerPage, filteredResources.length)} OF {filteredResources.length}
                         </Typography>
                         <Box display="flex" gap={1} alignItems="center">
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                disabled={currentPage === 1}
-                                onClick={() => setCurrentPage(p => p - 1)}
-                                sx={{ height: 32, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
-                            >
-                                PREV
-                            </Button>
+                            <Button size="small" variant="outlined" disabled={currentPage === 1} onClick={() => setCurrentPage(p => p - 1)} sx={{ height: 32, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>PREV</Button>
                             <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>PAGE {currentPage} OF {totalPages || 1}</Typography>
-                            <Button
-                                size="small"
-                                variant="outlined"
-                                disabled={currentPage === totalPages || totalPages === 0}
-                                onClick={() => setCurrentPage(p => p + 1)}
-                                sx={{ height: 32, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
-                            >
-                                NEXT
-                            </Button>
+                            <Button size="small" variant="outlined" disabled={currentPage === totalPages || totalPages === 0} onClick={() => setCurrentPage(p => p + 1)} sx={{ height: 32, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>NEXT</Button>
                         </Box>
                     </Box>
 
@@ -1038,41 +777,10 @@ export default function DatabaseEditor({ onBack }) {
                     <Divider sx={{ mb: 3, borderColor: 'divider' }} />
 
                     <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
-                        <TextField
-                            label="ITEM_CODE"
-                            value={boqCode}
-                            onChange={e => setBoqCode(e.target.value)}
-                            placeholder="e.g. BOQ-001"
-                            sx={{ flex: 1, minWidth: 150 }}
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                        />
-                        <TextField
-                            label="DESCRIPTION"
-                            value={boqDesc}
-                            onChange={e => setBoqDesc(e.target.value)}
-                            placeholder="e.g. Earthwork..."
-                            sx={{ flex: 2, minWidth: 300 }}
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                        />
-                        <TextField
-                            label="UNIT"
-                            value={boqUnit}
-                            onChange={e => setBoqUnit(e.target.value)}
-                            sx={{ width: 100 }}
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                        />
-                        <TextField
-                            select
-                            label="PREVIEW_REGION"
-                            value={previewRegion}
-                            onChange={e => setPreviewRegion(e.target.value)}
-                            sx={{ flex: 1, minWidth: 200 }}
-                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
-                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
-                        >
+                        <TextField label="ITEM_CODE" value={boqCode} onChange={e => setBoqCode(e.target.value)} placeholder="e.g. BOQ-001" sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="DESCRIPTION" value={boqDesc} onChange={e => setBoqDesc(e.target.value)} placeholder="e.g. Earthwork..." sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="UNIT" value={boqUnit} onChange={e => setBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField select label="PREVIEW_REGION" value={previewRegion} onChange={e => setPreviewRegion(e.target.value)} sx={{ flex: 1, minWidth: 200 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                             <MenuItem value="">-- DEFAULT_RATE --</MenuItem>
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{r.name}</MenuItem>)}
                         </TextField>
@@ -1080,13 +788,7 @@ export default function DatabaseEditor({ onBack }) {
 
                     <Alert severity="info" sx={{ mb: 3, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', display: 'flex', alignItems: 'center' }}>
                         💡 <strong>TIPS:</strong> Start with <code>=</code> for formulas. Use <code>ceil()</code>, <code>floor()</code>, <code>round()</code>. Reference components by row index using <code>#</code> (e.g. <code>=#1 * 1.5</code>).
-                        <Button
-                            variant="outlined"
-                            size="small"
-                            startIcon={<HelpOutlineIcon />}
-                            onClick={() => setFormulaHelpOpen(true)}
-                            sx={{ ml: 2, py: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}
-                        >
+                        <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ ml: 2, py: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
                             FORMULA GUIDE
                         </Button>
                     </Alert>
@@ -1118,9 +820,7 @@ export default function DatabaseEditor({ onBack }) {
                                             <TableCell>
                                                 <select
                                                     value={row.itemType}
-                                                    onChange={e => {
-                                                        setBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemType: e.target.value, itemId: "", tempCode: undefined, tempDesc: undefined } : r));
-                                                    }}
+                                                    onChange={e => setBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemType: e.target.value, itemId: "", tempCode: undefined, tempDesc: undefined } : r))}
                                                     style={tableInputActiveStyle}
                                                 >
                                                     <option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option>
@@ -1141,13 +841,10 @@ export default function DatabaseEditor({ onBack }) {
                                                             return r;
                                                         }));
                                                     }}
-                                                    placeholder="Type code..."
-                                                    style={tableInputActiveStyle}
+                                                    placeholder="Type code..." style={tableInputActiveStyle}
                                                 />
                                                 <datalist id={`codes-${row.id}`}>
-                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => (
-                                                        <option key={s.id} value={s.code || s.itemCode} />
-                                                    ))}
+                                                    {sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}
                                                 </datalist>
                                             </TableCell>
                                             <TableCell>
@@ -1165,13 +862,10 @@ export default function DatabaseEditor({ onBack }) {
                                                             return r;
                                                         }));
                                                     }}
-                                                    placeholder="Type description..."
-                                                    style={tableInputActiveStyle}
+                                                    placeholder="Type description..." style={tableInputActiveStyle}
                                                 />
                                                 <datalist id={`descs-${row.id}`}>
-                                                    {sourceList.filter(s => s.description).map(s => (
-                                                        <option key={s.id} value={s.description} />
-                                                    ))}
+                                                    {sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}
                                                 </datalist>
                                             </TableCell>
                                             <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
@@ -1182,8 +876,7 @@ export default function DatabaseEditor({ onBack }) {
                                                     onFocus={() => setFocusedQtyId(row.id)}
                                                     onBlur={() => setFocusedQtyId(null)}
                                                     onChange={e => updateSpreadsheetRow(row.id, 'formulaStr', e.target.value)}
-                                                    placeholder="e.g. =#1 * 0.05"
-                                                    style={tableInputActiveStyle}
+                                                    placeholder="e.g. =#1 * 0.05" style={tableInputActiveStyle}
                                                 />
                                                 {(isFormula && isFocused) && (
                                                     <Typography variant="caption" color="info.main" display="block" mt={0.5} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
@@ -1201,12 +894,7 @@ export default function DatabaseEditor({ onBack }) {
                         </Table>
                     </TableContainer>
 
-                    <Button
-                        variant="outlined"
-                        disableElevation
-                        onClick={addSpreadsheetRow}
-                        sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                    >
+                    <Button variant="outlined" disableElevation onClick={addSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                         + ADD_COMPONENT
                     </Button>
 
@@ -1237,28 +925,11 @@ export default function DatabaseEditor({ onBack }) {
 
                             <Box display="flex" gap={2} mb={1}>
                                 {editingBoqId && (
-                                    <Button
-                                        variant="outlined"
-                                        color="info"
-                                        fullWidth
-                                        size="large"
-                                        onClick={() => saveMasterBoq(true)}
-                                        disableElevation
-                                        sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}
-                                    >
+                                    <Button variant="outlined" color="info" fullWidth size="large" onClick={() => saveMasterBoq(true)} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
                                         SAVE_AS_NEW
                                     </Button>
                                 )}
-                                <Button
-                                    variant="contained"
-                                    color="success"
-                                    fullWidth
-                                    size="large"
-                                    onClick={() => saveMasterBoq(false)}
-                                    startIcon={<SaveIcon />}
-                                    disableElevation
-                                    sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}
-                                >
+                                <Button variant="contained" color="success" fullWidth size="large" onClick={() => saveMasterBoq(false)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}>
                                     {editingBoqId ? "UPDATE_ITEM" : "SAVE_ITEM"}
                                 </Button>
                             </Box>
@@ -1273,71 +944,30 @@ export default function DatabaseEditor({ onBack }) {
                         DATABOOK_ITEMS
                     </Typography>
                     <MasterBOQTab
-                        masterBoqs={masterBoqs}
-                        regions={regions}
-                        resources={resources}
-                        editMasterBoq={editMasterBoq}
-                        deleteMasterBoq={deleteMasterBoq}
-                        onExcelUpload={handleDatabookExcelUpload}
-                        onDownloadTemplate={generateDatabookTemplate}
+                        masterBoqs={masterBoqs} regions={regions} resources={resources}
+                        editMasterBoq={editMasterBoq} deleteMasterBoq={deleteMasterBoq}
+                        onExcelUpload={handleDatabookExcelUpload} onDownloadTemplate={generateDatabookTemplate}
                     />
                 </Box>
             )}
 
-            <Dialog open={!!importData} onClose={() => { setImportData(null); if (fileInputRef.current) fileInputRef.current.value = null; }}>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>IMPORT_DATABASE</DialogTitle>
-                <DialogContent>
-                    <DialogContentText sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                        How would you like to process this Master Database file?
-                        <br /><br />
-                        <strong>REPLACE:</strong> Wipes all existing Databook items, Resources, and Regions before loading the new file.
-                        <br /><br />
-                        <strong>APPEND:</strong> Keeps your existing data and only adds items/resources whose Codes do not already exist locally.
-                    </DialogContentText>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, pt: 0 }}>
-                    <Button onClick={() => { setImportData(null); if (fileInputRef.current) fileInputRef.current.value = null; }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
-                    <Button onClick={() => handleImportProcess('append')} variant="outlined" color="primary" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>APPEND MISSING</Button>
-                    <Button onClick={() => handleImportProcess('replace')} variant="contained" color="error" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace" }}>REPLACE ALL</Button>
-                </DialogActions>
-            </Dialog>
-
             {/* --- FORMULA HELP DIALOG --- */}
             <Dialog open={formulaHelpOpen} onClose={() => setFormulaHelpOpen(false)} maxWidth="md" fullWidth>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.main' }}>
-                    FORMULA_ENGINE_GUIDE
-                </DialogTitle>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.main' }}>FORMULA_ENGINE_GUIDE</DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', lineHeight: 1.7, p: 4 }}>
-                    <Typography variant="body1" paragraph>
-                        The Formula Engine allows you to calculate quantities dynamically by referencing other components in your Databook.
-                        To trigger the engine, start your input with the equals sign (<code>=</code>).
-                    </Typography>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
-                        1. Basic Math & Functions
-                    </Typography>
+                    <Typography variant="body1" paragraph>The Formula Engine allows you to calculate quantities dynamically by referencing other components in your Databook. To trigger the engine, start your input with the equals sign (<code>=</code>).</Typography>
+                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>1. Basic Math & Functions</Typography>
                     <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
-                        • <code>= 10 * 5</code> ➔ 50<br />
-                        • <code>= ceil(10.2)</code> ➔ 11<br />
-                        • <code>= round(10.5)</code> ➔ 11<br />
-                        • Supported: <code>+ - * / ( ) ceil() floor() round() min() max()</code>
+                        • <code>= 10 * 5</code> ➔ 50<br />• <code>= ceil(10.2)</code> ➔ 11<br />• <code>= round(10.5)</code> ➔ 11<br />• Supported: <code>+ - * / ( ) ceil() floor() round() min() max()</code>
                     </Box>
-
-                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>
-                        2. Referencing Total Item Quantities
-                    </Typography>
-                    <Typography variant="body2" paragraph>
-                        Use <code>#</code> followed by the <strong>Sl.No</strong> to get the total calculated quantity of a component located <em>above</em> the current component.
-                    </Typography>
+                    <Typography variant="subtitle1" fontWeight="bold" color="secondary.main" mt={3} mb={1}>2. Referencing Total Item Quantities</Typography>
+                    <Typography variant="body2" paragraph>Use <code>#</code> followed by the <strong>Sl.No</strong> to get the total calculated quantity of a component located <em>above</em> the current component.</Typography>
                     <Box sx={{ bgcolor: 'rgba(0,0,0,0.3)', p: 2, borderRadius: 1, mb: 2 }}>
-                        • <code>= #1 * 0.45</code> ➔ Multiplies the quantity of Sl.No 1 by 0.45.<br />
-                        • <code>= #1 + #2</code> ➔ Adds the quantities of Sl.No 1 and Sl.No 2.
+                        • <code>= #1 * 0.45</code> ➔ Multiplies the quantity of Sl.No 1 by 0.45.<br />• <code>= #1 + #2</code> ➔ Adds the quantities of Sl.No 1 and Sl.No 2.
                     </Box>
                 </DialogContent>
                 <DialogActions sx={{ p: 2, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    <Button onClick={() => setFormulaHelpOpen(false)} variant="contained" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                        UNDERSTOOD
-                    </Button>
+                    <Button onClick={() => setFormulaHelpOpen(false)} variant="contained" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>UNDERSTOOD</Button>
                 </DialogActions>
             </Dialog>
         </Box>

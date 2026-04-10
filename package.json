@@ -8,6 +8,7 @@
   "main": "electron/main.js",
   "scripts": {
     "dev": "vite",
+    "postinstall": "electron-rebuild -f -w better-sqlite3",
     "build": "vite build",
     "preview": "vite preview",
     "electron:start": "electron . --disable-gpu --disable-software-rasterizer --disable-gpu-compositing --in-process-gpu",
@@ -51,6 +52,7 @@
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
+    "@electron/rebuild": "^3.7.2",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^9.1.2",
     "cross-env": "^7.0.3",
