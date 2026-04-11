@@ -195,9 +195,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px' }}>BACK</Button>
                     <Box>
                         <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                            WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
+                            PROJECT WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
                         </Typography>
-                        {project.isPriceLocked && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
+                        {Boolean(project.isPriceLocked) && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
                     </Box>
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap">
