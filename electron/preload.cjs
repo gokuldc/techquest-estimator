@@ -59,5 +59,10 @@ contextBridge.exposeInMainWorld('api', {
         exportProjectSqlite: (id, options) => ipcRenderer.invoke('db:export-project-sqlite', id, options),
         selectSyncFile: () => ipcRenderer.invoke('db:select-sync-file'),
         executeProjectSync: (targetId, filePath, mode) => ipcRenderer.invoke('db:execute-project-sync', targetId, filePath, mode),
+
+        // 🔥 FULL PROJECT ARCHIVE (SQLite)
+        exportAllProjectsSqlite: () => ipcRenderer.invoke('db:export-all-projects-sqlite'),
+        importProjectsSqlite: (filePath, mode) => ipcRenderer.invoke('db:import-projects-sqlite', filePath, mode),
+        selectArchiveFile: () => ipcRenderer.invoke('db:select-archive-file'),
     }
 });

@@ -225,7 +225,7 @@ ipcMain.handle('db:update-resource', (event, id, field, value) => {
 
 ipcMain.handle('db:delete-resource', (event, id) => db.prepare('DELETE FROM resources WHERE id = ?').run(id));
 
-ipcMain.handle('db:save-master-boq', (event, payload, id, isNew) => {
+ipcMain.handle('db:save-master-boq', async (event, payload, id, isNew) => {
     const compStr = JSON.stringify(payload.components);
     
     if (id && !isNew) {
@@ -423,6 +423,144 @@ ipcMain.handle('db:export-project-sqlite', async (e, projectId, options) => {
     }
 });
 
+// ==========================================
+// FULL PROJECT ARCHIVE EXPORT/IMPORT (SQLite)
+// ==========================================
+ipcMain.handle('db:export-all-projects-sqlite', async () => {
+    const projects = db.prepare('SELECT * FROM projects').all();
+    if (projects.length === 0) return { success: false, error: 'No projects to export' };
+
+    const dest = await dialog.showSaveDialog(mainWindow, {
+        title: 'Export All Projects Archive',
+        defaultPath: `OpenPrix_Archive_${new Date().toISOString().slice(0, 10)}.sqlite`,
+        filters: [{ name: 'SQLite Archive', extensions: ['sqlite', 'db'] }]
+    });
+
+    if (dest.canceled) return { success: false, canceled: true };
+
+    try {
+        const syncDb = new Database(dest.filePath);
+        
+        // Create tables
+        syncDb.exec(`
+            CREATE TABLE IF NOT EXISTS projects (
+                id TEXT PRIMARY KEY, name TEXT, code TEXT, clientName TEXT, status TEXT, region TEXT, 
+                projectLead TEXT, siteSupervisor TEXT, pmc TEXT, architect TEXT, 
+                structuralEngineer TEXT, isPriceLocked INTEGER DEFAULT 0,
+                dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, 
+                subcontractors TEXT, phaseAssignments TEXT, dailySchedules TEXT, resourceTrackingMode TEXT DEFAULT 'manual', createdAt INTEGER
+            );
+            CREATE TABLE IF NOT EXISTS project_boq (
+                id TEXT PRIMARY KEY, projectId TEXT, masterBoqId TEXT, slNo INTEGER, isCustom INTEGER DEFAULT 0,
+                itemCode TEXT, description TEXT, unit TEXT, rate REAL, formulaStr TEXT, qty REAL,
+                measurements TEXT, phase TEXT, lockedRate REAL
+            );
+        `);
+
+        // Export all projects
+        for (const p of projects) {
+            const cols = Object.keys(p).join(', ');
+            const placeholders = Object.keys(p).map(() => '?').join(', ');
+            syncDb.prepare(`INSERT OR REPLACE INTO projects (${cols}) VALUES (${placeholders})`).run(...Object.values(p));
+
+            // Export BOQ items for this project
+            const boqs = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(p.id);
+            for (const b of boqs) {
+                const bCols = Object.keys(b).join(', ');
+                const bPlaceholders = Object.keys(b).map(() => '?').join(', ');
+                syncDb.prepare(`INSERT OR REPLACE INTO project_boq (${bCols}) VALUES (${bPlaceholders})`).run(...Object.values(b));
+            }
+        }
+
+        syncDb.close();
+        return { success: true };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('db:import-projects-sqlite', async (e, filePath, mode) => {
+    try {
+        const importDb = new Database(filePath);
+        
+        // Check if it's a valid archive
+        const tables = importDb.prepare("SELECT name FROM sqlite_master WHERE type='table'").all();
+        const tableNames = tables.map(t => t.name);
+        if (!tableNames.includes('projects')) {
+            importDb.close();
+            return { success: false, error: 'Invalid archive: no projects table found' };
+        }
+
+        const importedProjects = importDb.prepare('SELECT * FROM projects').all();
+        if (importedProjects.length === 0) {
+            importDb.close();
+            return { success: false, error: 'No projects found in archive' };
+        }
+
+        db.transaction(() => {
+            if (mode === 'replace') {
+                db.prepare('DELETE FROM project_boq').run();
+                db.prepare('DELETE FROM projects').run();
+            }
+
+            for (const p of importedProjects) {
+                const existing = db.prepare('SELECT id FROM projects WHERE id = ?').get(p.id);
+                
+                if (mode === 'merge' && existing) {
+                    // Update existing project
+                    const cols = Object.keys(p).filter(k => k !== 'id').map(k => `${k} = ?`).join(', ');
+                    const values = Object.values(p).filter((_, i) => Object.keys(p)[i] !== 'id');
+                    db.prepare(`UPDATE projects SET ${cols} WHERE id = ?`).run(...values, p.id);
+                } else if (mode === 'append' || (mode === 'merge' && !existing)) {
+                    // New ID for append, or insert if merging non-existing
+                    const newId = mode === 'append' ? crypto.randomUUID() : p.id;
+                    const cols = Object.keys(p).join(', ');
+                    const placeholders = Object.keys(p).map(() => '?').join(', ');
+                    const values = Object.values(p).map((v, i) => Object.keys(p)[i] === 'id' ? newId : v);
+                    db.prepare(`INSERT OR REPLACE INTO projects (${cols}) VALUES (${placeholders})`).run(...values);
+                    
+                    // Also import BOQ with new project ID mapping
+                    if (mode === 'append') {
+                        const oldBoqs = importDb.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(p.id);
+                        for (const b of oldBoqs) {
+                            const bCols = Object.keys(b).map(k => k === 'projectId' ? 'projectId = ?' : `${k} = ?`).join(', ');
+                            const bValues = Object.values(b).map((v, i) => Object.keys(b)[i] === 'projectId' ? newId : v);
+                            db.prepare(`INSERT INTO project_boq (id, projectId, masterBoqId, slNo, isCustom, itemCode, description, unit, rate, formulaStr, qty, measurements, phase, lockedRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                                crypto.randomUUID(), newId, b.masterBoqId, b.slNo, b.isCustom, b.itemCode, b.description, b.unit, b.rate, b.formulaStr, b.qty, b.measurements, b.phase, b.lockedRate
+                            );
+                        }
+                    }
+                }
+            }
+
+            // Import BOQ items for non-conflicting projects
+            if (mode === 'merge') {
+                const importedBoqs = importDb.prepare(`
+                    SELECT b.* FROM project_boq b
+                    LEFT JOIN projects p ON b.projectId = p.id
+                    WHERE p.id IS NULL
+                `).all();
+                for (const b of importedBoqs) {
+                    const targetProject = importedProjects.find(p => p.id === b.projectId);
+                    if (targetProject) {
+                        const newProjectId = db.prepare('SELECT id FROM projects WHERE id = ?').get(targetProject.id) ? targetProject.id : null;
+                        if (newProjectId) {
+                            db.prepare(`INSERT INTO project_boq (id, projectId, masterBoqId, slNo, isCustom, itemCode, description, unit, rate, formulaStr, qty, measurements, phase, lockedRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                                crypto.randomUUID(), newProjectId, b.masterBoqId, b.slNo, b.isCustom, b.itemCode, b.description, b.unit, b.rate, b.formulaStr, b.qty, b.measurements, b.phase, b.lockedRate
+                            );
+                        }
+                    }
+                }
+            }
+        })();
+
+        importDb.close();
+        return { success: true, count: importedProjects.length };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
 ipcMain.handle('db:select-sync-file', async () => {
     const src = await dialog.showOpenDialog(mainWindow, {
         title: 'Select Project Sync File',
@@ -434,11 +572,30 @@ ipcMain.handle('db:select-sync-file', async () => {
 
     try {
         const syncDb = new Database(src.filePaths[0], { readonly: true });
-        const project = syncDb.prepare('SELECT * FROM projects LIMIT 1').get();
+        const project = syncDb.prepare('SELECT id, name, code FROM projects LIMIT 1').get();
         syncDb.close();
         
-        if (!project) throw new Error("Invalid Sync File: No project data found.");
-        return { success: true, filePath: src.filePaths[0], projectName: project.name, projectCode: project.code };
+        return { success: true, filePath: src.filePaths[0], projectName: project?.name, projectCode: project?.code };
+    } catch (error) {
+        return { success: false, error: error.message };
+    }
+});
+
+ipcMain.handle('db:select-archive-file', async () => {
+    const src = await dialog.showOpenDialog(mainWindow, {
+        title: 'Select Project Archive File',
+        filters: [{ name: 'SQLite Archive', extensions: ['sqlite', 'db'] }],
+        properties: ['openFile']
+    });
+
+    if (src.canceled || src.filePaths.length === 0) return { success: false, canceled: true };
+
+    try {
+        const importDb = new Database(src.filePaths[0], { readonly: true });
+        const projects = importDb.prepare('SELECT id, name, code FROM projects').all();
+        importDb.close();
+        
+        return { success: true, filePath: src.filePaths[0], projects };
     } catch (error) {
         return { success: false, error: error.message };
     }

@@ -150,17 +150,9 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     // --- IMPORT / EXPORT / PURGE LOGIC ---
     const handleExport = async () => {
         try {
-            const exportObject = {
-                timestamp: new Date().toISOString(),
-                projects: projects,
-            };
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObject));
-            const downloadAnchorNode = document.createElement('a');
-            downloadAnchorNode.setAttribute("href", dataStr);
-            downloadAnchorNode.setAttribute("download", `Openprix_Archive_${new Date().toISOString().slice(0, 10)}.json`);
-            document.body.appendChild(downloadAnchorNode);
-            downloadAnchorNode.click();
-            downloadAnchorNode.remove();
+            const res = await window.api.db.exportAllProjectsSqlite();
+            if (res.success) { alert("Project archive exported successfully!"); }
+            else if (!res.canceled) { alert("Export failed: " + res.error); }
         } catch (error) {
             console.error("Export failed:", error);
             alert("Failed to export project archive.");
@@ -180,32 +172,27 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         }
     };
 
-    const handleFileSelect = (event) => {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const parsedData = JSON.parse(e.target.result);
-                if (!parsedData.projects) return alert("Invalid file format. No project data found.");
-                setImportData(parsedData);
+    const handleFileSelect = async () => {
+        try {
+            const res = await window.api.db.selectArchiveFile();
+            if (res.success) {
+                setImportData({ projects: res.projects, filePath: res.filePath });
                 setImportDialogOpen(true);
-            } catch (error) {
-                console.error("Parse error:", error);
-                alert("Failed to parse the JSON archive file.");
+            } else if (!res.canceled) {
+                alert("Failed to open archive file: " + res.error);
             }
-        };
-        reader.readAsText(file);
-        event.target.value = null;
+        } catch (error) {
+            console.error("File selection failed:", error);
+            alert("Failed to select archive file.");
+        }
     };
 
     const processImport = async (mode) => {
-        if (!importData) return;
+        if (!importData || !importData.filePath) return;
         try {
-            await window.api.db.importProjects(importData.projects || [], mode);
-            alert(`Project archive successfully imported (${mode.toUpperCase()} mode).`);
-            loadData();
+            const res = await window.api.db.importProjectsSqlite(importData.filePath, mode);
+            if (res.success) { alert(`Project archive successfully imported (${mode.toUpperCase()} mode). ${res.count || 0} projects.`); loadData(); }
+            else { alert("Import failed: " + res.error); }
         } catch (error) {
             console.error("Import transaction failed:", error);
             alert("Failed to import project archive.");
@@ -273,8 +260,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
                 <Box display="flex" gap={1}>
                     <Button size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>EXPORT</Button>
-                    <Button size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>IMPORT</Button>
-                    <input type="file" accept=".json" style={{ display: 'none' }} ref={fileInputRef} onChange={handleFileSelect} />
+                    <Button size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={handleFileSelect} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>IMPORT</Button>
                     <Button size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={handlePurge} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>PURGE</Button>
                 </Box>
             </Box>
