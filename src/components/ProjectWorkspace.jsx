@@ -16,6 +16,7 @@ import SubcontractorBidTab from "./workspace/SubcontractorBidTab";
 import DailyLogTab from "./workspace/DailyLogTab";
 import ResourceTrackerTab from "./workspace/ResourceTrackerTab";
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
+import FormulaGuideDialog from "./workspace/FormulaGuideDialog"; // <- Your new detailed guide!
 
 // --- MUI COMPONENTS ---
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
@@ -254,15 +255,11 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </DialogActions>
             </Dialog>
 
-            <Dialog open={formulaHelpOpen} onClose={() => setFormulaHelpOpen(false)} maxWidth="sm" fullWidth>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>FORMULA_GUIDE</DialogTitle>
-                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2 }}>Start any quantity with <code>=</code> to evaluate math.</Typography>
-                    <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, color: "primary.main" }}><strong>Basic Math:</strong> <code>= 10 * 2.5 + 4</code></Typography>
-                    <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, color: "success.main" }}><strong>Reference Rows:</strong> <code>= #1 * 2</code></Typography>
-                </DialogContent>
-                <DialogActions sx={{ p: 2, bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Button onClick={() => setFormulaHelpOpen(false)}>CLOSE</Button></DialogActions>
-            </Dialog>
+            {/* 🔥 THE FIX: Swapped out the old Dialog for the new FormulaGuideDialog component 🔥 */}
+            <FormulaGuideDialog
+                open={formulaHelpOpen}
+                onClose={() => setFormulaHelpOpen(false)}
+            />
 
             <Dialog open={isSyncResolveOpen} onClose={() => setIsSyncResolveOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#fff', fontSize: '14px' }}>SYNC IMPORT RESOLUTION</DialogTitle>

@@ -11,7 +11,7 @@
     "postinstall": "electron-rebuild -f -w better-sqlite3",
     "build": "vite build",
     "preview": "vite preview",
-    "electron:start": "electron . --disable-gpu --disable-software-rasterizer --disable-gpu-compositing --in-process-gpu",
+    "electron:start": "electron . --disable-gpu --disable-gpu-compositing",
     "dev:electron": "cross-env NODE_ENV=development concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
     "build:electron": "npm run build && electron-builder"
   },

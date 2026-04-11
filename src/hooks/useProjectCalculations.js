@@ -3,16 +3,35 @@ import { calculateMasterBoqRate } from "../engines/calculationEngine";
 
 export function useProjectCalculations(projectBoqItems, masterBoqs, resources, project) {
 
-    const computeQty = (formulaStr, currentItems, currentItemSlNo = null, currentMeasurements = []) => {
+    const computeQty = (formulaStr, currentItems, currentItemSlNo = null, currentMeasurements = [], currentRowPartial = null) => {
         if (!formulaStr) return 0;
         const str = String(formulaStr).trim().toLowerCase();
         if (str === "") return 0;
         if (!str.startsWith('=')) { const num = Number(str); return isNaN(num) ? 0 : num; }
+
         let expr = str.substring(1).replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
+
+        // 🔥 SHORTHAND FEATURE: Allow formulas like `= no * 2` or `= L + B` within the exact same row!
+        if (currentRowPartial) {
+            expr = expr.replace(/\b(no)\b/g, currentRowPartial.computedNo || 0);
+            expr = expr.replace(/\b(l)\b/g, currentRowPartial.computedL || 0);
+            expr = expr.replace(/\b(b)\b/g, currentRowPartial.computedB || 0);
+            expr = expr.replace(/\b(d|h)\b/g, currentRowPartial.computedD || 0);
+        }
+
         expr = expr.replace(/#(\d+)(?:\.(\d+))?(?:\.([a-z]+))?/g, (match, slNoStr, rowStr, prop) => {
             const slNo = parseInt(slNoStr, 10);
             const rowIndex = rowStr ? parseInt(rowStr, 10) - 1 : 0;
             const property = prop || 'qty';
+
+            // 🔥 PARTIAL ROW MEMORY: Allow checking the current row before it finishes computing
+            if (slNo === currentItemSlNo && currentRowPartial && rowIndex === currentMeasurements.length) {
+                if (property === 'no') return currentRowPartial.computedNo || 0;
+                if (property === 'l') return currentRowPartial.computedL || 0;
+                if (property === 'b') return currentRowPartial.computedB || 0;
+                if (property === 'd' || property === 'h') return currentRowPartial.computedD || 0;
+            }
+
             let targetItem, targetMeasurements;
             if (slNo === currentItemSlNo) {
                 targetMeasurements = currentMeasurements;
@@ -23,6 +42,7 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                 targetMeasurements = targetItem.computedMeasurements || [];
                 if (property === 'qty' && !rowStr) return targetItem.computedQty || 0;
             }
+
             const m = targetMeasurements[rowIndex];
             if (!m) return 0;
             if (property === 'l') return m.computedL || 0;
@@ -32,6 +52,7 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
             if (property === 'qty') return m.computedQty || 0;
             return 0;
         });
+
         try { return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); } catch { return 0; }
     };
 
@@ -69,16 +90,29 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                 const u = (displayUnit || "").toLowerCase();
                 for (let i = 0; i < item.measurements.length; i++) {
                     const m = item.measurements[i];
-                    const cNo = (m.no === "" || m.no === undefined) ? 1 : computeQty(m.no, computedItems, item.slNo, computedMeasurements);
-                    const cL = (m.l === "" || m.l === undefined) ? 1 : computeQty(m.l, computedItems, item.slNo, computedMeasurements);
-                    const cB = (m.b === "" || m.b === undefined) ? 1 : computeQty(m.b, computedItems, item.slNo, computedMeasurements);
-                    const cD = (m.d === "" || m.d === undefined) ? 1 : computeQty(m.d, computedItems, item.slNo, computedMeasurements);
+
+                    // 🔥 Initialize partial tracking for sequential calculation within THIS row
+                    let partial = { computedNo: 1, computedL: 1, computedB: 1, computedD: 1 };
+
+                    const cNo = (m.no === "" || m.no === undefined) ? 1 : computeQty(m.no, computedItems, item.slNo, computedMeasurements, partial);
+                    partial.computedNo = cNo; // Save to partial memory immediately
+
+                    const cL = (m.l === "" || m.l === undefined) ? 1 : computeQty(m.l, computedItems, item.slNo, computedMeasurements, partial);
+                    partial.computedL = cL; // Save to partial memory immediately
+
+                    const cB = (m.b === "" || m.b === undefined) ? 1 : computeQty(m.b, computedItems, item.slNo, computedMeasurements, partial);
+                    partial.computedB = cB; // Save to partial memory immediately
+
+                    const cD = (m.d === "" || m.d === undefined) ? 1 : computeQty(m.d, computedItems, item.slNo, computedMeasurements, partial);
+                    partial.computedD = cD; // Save to partial memory immediately
+
                     let rowQty = 0;
                     if (u.includes("cum") || u === "m3" || u === "m³") rowQty = cNo * cL * cB * cD;
                     else if (u.includes("sqm") || u === "m2" || u === "m²") rowQty = cNo * cL * cB;
                     else if (u.includes("rm") || u === "m" || u === "r.m") rowQty = cNo * cL;
                     else if (u.includes("nos") || u === "each") rowQty = cNo;
                     else rowQty = cNo * cL * cB * cD;
+
                     mbookTotal += rowQty;
                     computedMeasurements.push({ ...m, computedNo: cNo, computedL: cL, computedB: cB, computedD: cD, computedQty: rowQty });
                 }
