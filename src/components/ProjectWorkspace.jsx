@@ -35,9 +35,6 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 
 export default function ProjectWorkspace({ projectId, onBack }) {
-    // ==========================================
-    // 1. ALL STATE DECLARATIONS (STRICTLY AT TOP)
-    // ==========================================
     const [tab, setTab] = useState("details");
 
     // --- NATIVE SYNC & EXPORT STATE ---
@@ -58,33 +55,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [crmContacts, setCrmContacts] = useState([]);
     const [orgStaff, setOrgStaff] = useState([]);
 
-    // --- UI INTERACTION STATE ---
-    const [draggedId, setDraggedId] = useState(null);
-    const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
-    const [focusedQtyId, setFocusedQtyId] = useState(null);
-
-    // --- MASTER BOQ EDITOR STATE ---
-    const [isMasterEditorOpen, setIsMasterEditorOpen] = useState(false);
-    const [editingProjectBoqId, setEditingProjectBoqId] = useState(null);
-    const [editingMasterBoqId, setEditingMasterBoqId] = useState(null);
-    const [editBoqCode, setEditBoqCode] = useState("");
-    const [editBoqDesc, setEditBoqDesc] = useState("");
-    const [editBoqUnit, setEditBoqUnit] = useState("cum");
-    const [editBoqOH, setEditBoqOH] = useState(15);
-    const [editBoqProfit, setEditBoqProfit] = useState(15);
-    const [editPreviewRegion, setEditPreviewRegion] = useState("");
-    const [editBoqRows, setEditBoqRows] = useState([]);
-
-    // --- CUSTOM BOQ EDITOR STATE ---
-    const [editingCustomId, setEditingCustomId] = useState(null);
-    const [editCustomCode, setEditCustomCode] = useState("");
-    const [editCustomDesc, setEditCustomDesc] = useState("");
-    const [editCustomUnit, setEditCustomUnit] = useState("");
-    const [editCustomRate, setEditCustomRate] = useState("");
-
-    // ==========================================
-    // 2. DATA LOADING
-    // ==========================================
     const loadData = async () => {
         try {
             const [p, reg, res, mBoqs, pBoqs, contacts, staff] = await Promise.all([
@@ -132,9 +102,26 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     useEffect(() => { loadData(); }, [projectId]);
 
-    // ==========================================
-    // 3. MATH ENGINES
-    // ==========================================
+    const [draggedId, setDraggedId] = useState(null);
+    const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
+    const [focusedQtyId, setFocusedQtyId] = useState(null);
+    const [editBoqRows, setEditBoqRows] = useState([]);
+    const [editPreviewRegion, setEditPreviewRegion] = useState("");
+    const [editBoqOH, setEditBoqOH] = useState(15);
+    const [editBoqProfit, setEditBoqProfit] = useState(15);
+    const [editBoqCode, setEditBoqCode] = useState("");
+    const [editBoqDesc, setEditBoqDesc] = useState("");
+    const [editBoqUnit, setEditBoqUnit] = useState("cum");
+    const [isMasterEditorOpen, setIsMasterEditorOpen] = useState(false);
+    const [editingProjectBoqId, setEditingProjectBoqId] = useState(null);
+    const [editingMasterBoqId, setEditingMasterBoqId] = useState(null);
+    const [editingCustomId, setEditingCustomId] = useState(null);
+    const [editCustomCode, setEditCustomCode] = useState("");
+    const [editCustomDesc, setEditCustomDesc] = useState("");
+    const [editCustomUnit, setEditCustomUnit] = useState("cum");
+    const [editCustomRate, setEditCustomRate] = useState(0);
+
+    // --- MATH ENGINES ---
     const computeQty = (formulaStr, currentItems, currentItemSlNo = null, currentMeasurements = []) => {
         if (!formulaStr) return 0;
         const str = String(formulaStr).trim().toLowerCase();
@@ -180,9 +167,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         try { return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); } catch { return 0; }
     };
 
-    // ==========================================
-    // 4. DATA COMPUTATION HOOKS (Dependent on State)
-    // ==========================================
+    // --- PRIMARY COMPUTATION ---
     const { renderedProjectBoq, totalAmount } = useMemo(() => {
         let total = 0;
         const sortedItems = [...projectBoqItems].sort((a, b) => a.slNo - b.slNo);
@@ -270,15 +255,10 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         return map;
     }, [renderedProjectBoq, masterBoqs, resources]);
 
-    // ==========================================
-    // 5. EARLY RETURNS
-    // ==========================================
     if (project === "loading") return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
     if (project === null) return ( <Box p={5} textAlign="center"><Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'error.main', mb: 2 }}>Error: Project Not Found</Typography><Button variant="outlined" onClick={onBack} startIcon={<ArrowBackIcon />}>Return to Dashboard</Button></Box> );
 
-    // ==========================================
-    // 6. DB MUTATION HANDLERS
-    // ==========================================
+    // --- DB MUTATIONS ---
     const updateProject = async (field, value) => { 
         const valToSave = (typeof value === 'object' && value !== null) ? JSON.stringify(value) : value;
         await window.api.db.updateProject(projectId, { [field]: valToSave }); 
@@ -407,25 +387,31 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         const validComponents = editRenderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
         if (validComponents.length === 0) { alert("Add at least one valid component to generate a valid rate."); return; }
         
-        const payload = { itemCode: editBoqCode, description: editBoqDesc, unit: editBoqUnit, overhead: Number(editBoqOH), profit: Number(editBoqProfit), components: JSON.stringify(validComponents) };
+        // 🔥 CRITICAL FIX: Differentiate payload for engine vs payload for DB!
+        const enginePayload = { itemCode: editBoqCode, description: editBoqDesc, unit: editBoqUnit, overhead: Number(editBoqOH), profit: Number(editBoqProfit), components: validComponents };
+        const dbPayload = { ...enginePayload, components: JSON.stringify(validComponents) };
 
-        let newMasterId = crypto.randomUUID();
+        let targetMasterId = editingMasterBoqId;
         
         if (isSaveAsNew || !editingMasterBoqId) {
-            await window.api.db.saveMasterBoq(payload, newMasterId, true);
+            targetMasterId = crypto.randomUUID(); // Fallback
+            // 🔥 CAPTURE THE REAL ID ASSIGNED BY SQLITE
+            const returnedId = await window.api.db.saveMasterBoq(dbPayload, targetMasterId, true);
+            if (returnedId) { targetMasterId = returnedId; }
+
             if (editingProjectBoqId) {
                 let lockedRate = null;
                 if (project.isPriceLocked) {
-                    lockedRate = calculateMasterBoqRate(payload, resources, masterBoqs, project.region);
+                    lockedRate = calculateMasterBoqRate(enginePayload, resources, masterBoqs, project.region);
                 }
                 await window.api.db.updateProjectBoq(editingProjectBoqId, { 
-                    masterBoqId: newMasterId, isCustom: false, lockedRate: lockedRate, itemCode: "", description: "", unit: "", rate: 0
+                    masterBoqId: targetMasterId, isCustom: false, lockedRate: lockedRate, itemCode: "", description: "", unit: "", rate: 0
                 });
             }
         } else {
-            await window.api.db.saveMasterBoq(payload, editingMasterBoqId, false);
+            await window.api.db.saveMasterBoq(dbPayload, targetMasterId, false);
             if (editingProjectBoqId && project.isPriceLocked) {
-                let lockedRate = calculateMasterBoqRate(payload, resources, masterBoqs, project.region);
+                let lockedRate = calculateMasterBoqRate(enginePayload, resources, masterBoqs, project.region);
                 await window.api.db.updateProjectBoq(editingProjectBoqId, { lockedRate: lockedRate });
             }
         }
@@ -434,12 +420,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
         setIsMasterEditorOpen(false); setEditingMasterBoqId(null); setEditingProjectBoqId(null); 
     };
 
-    // ==========================================
-    // 7. RENDER COMPONENT
-    // ==========================================
     return (
         <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
-            {/* --- HEADER --- */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
                     <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px', borderColor: 'divider', color: 'text.secondary', px: 3, '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>{'< '}BACK</Button>
@@ -458,7 +440,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Box>
             </Box>
 
-            {/* --- TABS --- */}
             <Paper sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
                     <Tab value="details" label="01_DASHBOARD" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
@@ -472,7 +453,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Tabs>
             </Paper>
 
-            {/* --- CONTENT --- */}
             <Box sx={{ minHeight: '60vh' }}>
                 {tab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
                 {tab === "boq" && (
@@ -490,7 +470,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 {tab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} />)}
             </Box>
 
-            {/* --- DIALOGS --- */}
             <Dialog open={isExportOpen} onClose={() => setIsExportOpen(false)} maxWidth="xs" fullWidth>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EXPORT_CONFIG: <span style={{ color: '#3b82f6' }}>SYNC_GEN</span></DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', pt: 2 }}>
@@ -574,16 +553,16 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
                                                     <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
                                                     <TableCell>
-                                                        <input list={`ws-codes-${row.id}`} value={row.tempCode !== undefined ? row.tempCode : (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")} onChange={e => { const matched = sourceList.find(s => (s.code || s.itemCode) === e.target.value); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: e.target.value, tempDesc: r.tempDesc }) : r)); }} style={tableInputActiveStyle} />
-                                                        <datalist id={`ws-codes-${row.id}`}>{sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
+                                                        <input list={`ws-codes-${row.id}`} value={row.tempCode ?? ((row.itemType === 'resource' ? resources : masterBoqs).find(s => s.id === row.itemId)?.code || (row.itemType === 'resource' ? resources : masterBoqs).find(s => s.id === row.itemId)?.itemCode || "")} onChange={e => { const val = e.target.value; const matched = (row.itemType === 'resource' ? resources : masterBoqs).find(s => (s.code || s.itemCode) === val); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc }) : r)); }} style={tableInputActiveStyle} />
+                                                        <datalist id={`ws-codes-${row.id}`}>{(row.itemType === 'resource' ? resources : masterBoqs).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <input list={`ws-descs-${row.id}`} value={row.tempDesc !== undefined ? row.tempDesc : (sourceList.find(s => s.id === row.itemId)?.description || "")} onChange={e => { const matched = sourceList.find(s => s.description === e.target.value); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: r.tempCode, tempDesc: e.target.value }) : r)); }} style={tableInputActiveStyle} />
-                                                        <datalist id={`ws-descs-${row.id}`}>{sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}</datalist>
+                                                        <input list={`ws-descs-${row.id}`} value={row.tempDesc ?? ((row.itemType === 'resource' ? resources : masterBoqs).find(s => s.id === row.itemId)?.description || "")} onChange={e => { const val = e.target.value; const matched = (row.itemType === 'resource' ? resources : masterBoqs).find(s => s.description === val); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val }) : r)); }} style={tableInputActiveStyle} />
+                                                        <datalist id={`ws-descs-${row.id}`}>{(row.itemType === 'resource' ? resources : masterBoqs).map(s => <option key={s.id} value={s.description} />)}</datalist>
                                                     </TableCell>
                                                     <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
                                                     <TableCell>
-                                                        <input type="text" value={isFocused ? (row.formulaStr !== undefined ? row.formulaStr : row.qty || "") : Number(row.computedQty || 0).toFixed(4)} onFocus={() => setFocusedQtyId(row.id)} onBlur={() => setFocusedQtyId(null)} onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)} style={tableInputActiveStyle} />
+                                                        <input type="text" value={isFocused ? (row.formulaStr ?? row.qty ?? "") : Number(row.computedQty || 0).toFixed(4)} onFocus={() => setFocusedQtyId(row.id)} onBlur={() => setFocusedQtyId(null)} onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)} style={tableInputActiveStyle} />
                                                     </TableCell>
                                                     <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
                                                     <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>

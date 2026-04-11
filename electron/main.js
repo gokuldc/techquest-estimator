@@ -241,6 +241,7 @@ ipcMain.handle('db:save-master-boq', (event, payload, id, isNew) => {
             db.prepare('INSERT INTO master_boq (id, itemCode, description, unit, overhead, profit, components) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
                 insertId, payload.itemCode, payload.description, payload.unit, payload.overhead, payload.profit, compStr
             );
+            return insertId;
         } catch (error) {
             // Friendly error if the user forgets to change the Item Code when saving as new
             if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {

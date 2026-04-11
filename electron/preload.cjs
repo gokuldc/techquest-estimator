@@ -56,7 +56,7 @@ contextBridge.exposeInMainWorld('api', {
         restoreDatabase: (mode) => ipcRenderer.invoke('db:restore-database', mode),
 
         // 🔥 NATIVE PROJECT SYNC (Workspace Management)
-        exportProjectSqlite: (id) => ipcRenderer.invoke('db:export-project-sqlite', id),
+        exportProjectSqlite: (id, options) => ipcRenderer.invoke('db:export-project-sqlite', id, options),
         selectSyncFile: () => ipcRenderer.invoke('db:select-sync-file'),
         executeProjectSync: (targetId, filePath, mode) => ipcRenderer.invoke('db:execute-project-sync', targetId, filePath, mode),
     }
