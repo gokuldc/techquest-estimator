@@ -16,36 +16,48 @@ contextBridge.exposeInMainWorld('api', {
         updateResource: (id, field, value) => ipcRenderer.invoke('db:update-resource', id, field, value),
         deleteResource: (id) => ipcRenderer.invoke('db:delete-resource', id),
 
-        // --- MASTER BOQ ---
+        // --- MASTER BOQ (DATABOOK) ---
         saveMasterBoq: (payload, id, isNew) => ipcRenderer.invoke('db:save-master-boq', payload, id, isNew),
         deleteMasterBoq: (id) => ipcRenderer.invoke('db:delete-master-boq', id),
 
-        // --- MASS OPERATIONS ---
+        // --- GLOBAL SETTINGS / MASS OPS ---
         importExcel: (regionName) => ipcRenderer.invoke('db:import-excel', regionName),
-        restoreDatabase: (data, mode) => ipcRenderer.invoke('db:restore-database', data, mode),
         purgeDatabase: () => ipcRenderer.invoke('db:purge-database'),
 
-        // ==========================================
-        // 🔥 MISSING PROJECT WORKSPACE HANDLERS 🔥
-        // ==========================================
+        // --- PROJECTS MANAGEMENT ---
+        getProjects: () => ipcRenderer.invoke('db:get-projects'),
         getProject: (id) => ipcRenderer.invoke('db:get-project', id),
+        addProject: (data) => ipcRenderer.invoke('db:add-project', data),
         updateProject: (id, data) => ipcRenderer.invoke('db:update-project', id, data),
+        deleteProject: (id) => ipcRenderer.invoke('db:delete-project', id),
+        purgeProjects: () => ipcRenderer.invoke('db:purge-projects'),
+        importProjects: (projectsArray, mode) => ipcRenderer.invoke('db:import-projects', projectsArray, mode),
 
+        // --- PROJECT BOQ & MEASUREMENTS ---
         getProjectBoqs: (projectId) => ipcRenderer.invoke('db:get-project-boqs', projectId),
         addProjectBoq: (data) => ipcRenderer.invoke('db:add-project-boq', data),
         updateProjectBoq: (id, data) => ipcRenderer.invoke('db:update-project-boq', id, data),
         deleteProjectBoq: (id) => ipcRenderer.invoke('db:delete-project-boq', id),
         bulkPutProjectBoqs: (dataArray) => ipcRenderer.invoke('db:bulk-put-project-boqs', dataArray),
 
-        // --- STUBS ---
-        getKanbanTasks: (projectId) => ipcRenderer.invoke('db:get-kanban-tasks', projectId),
+        // --- DIRECTORY (CRM & STAFF) ---
         getCrmContacts: () => ipcRenderer.invoke('db:get-crm-contacts'),
+        saveCrmContact: (data) => ipcRenderer.invoke('db:save-crm-contact', data),
+        deleteCrmContact: (id) => ipcRenderer.invoke('db:delete-crm-contact', id),
         getOrgStaff: () => ipcRenderer.invoke('db:get-org-staff'),
-        syncProjectData: (projectId, data) => ipcRenderer.invoke('db:sync-project-data', projectId, data),
-        getProjects: () => ipcRenderer.invoke('db:get-projects'),
-        addProject: (data) => ipcRenderer.invoke('db:add-project', data),
-        deleteProject: (id) => ipcRenderer.invoke('db:delete-project', id),
-        purgeProjects: () => ipcRenderer.invoke('db:purge-projects'),
-        importProjects: (projectsArray, mode) => ipcRenderer.invoke('db:import-projects', projectsArray, mode),
+        saveOrgStaff: (data) => ipcRenderer.invoke('db:save-org-staff', data),
+        deleteOrgStaff: (id) => ipcRenderer.invoke('db:delete-org-staff', id),
+
+        // --- KANBAN ---
+        getKanbanTasks: (projectId) => ipcRenderer.invoke('db:get-kanban-tasks', projectId),
+
+        // 🔥 NATIVE BACKUP & RESTORE (Master Database Management)
+        backupDatabase: () => ipcRenderer.invoke('db:backup-database'),
+        restoreDatabase: (mode) => ipcRenderer.invoke('db:restore-database', mode),
+
+        // 🔥 NATIVE PROJECT SYNC (Workspace Management)
+        exportProjectSqlite: (id) => ipcRenderer.invoke('db:export-project-sqlite', id),
+        selectSyncFile: () => ipcRenderer.invoke('db:select-sync-file'),
+        executeProjectSync: (targetId, filePath, mode) => ipcRenderer.invoke('db:execute-project-sync', targetId, filePath, mode),
     }
 });

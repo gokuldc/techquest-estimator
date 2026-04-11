@@ -4,15 +4,14 @@ import {
     TableContainer, TableHead, TableRow
 } from '@mui/material';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
-import { db } from '../../db';
 import { tableInputStyle } from '../../styles';
 
-export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpOpen }) {
-    // Local state moved out of the main workspace!
+export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpOpen, loadData }) {
     const [mbInputs, setMbInputs] = useState({});
     const [focusedMbCell, setFocusedMbCell] = useState(null);
+    // 🔥 Lag Fix: Local cache for fast typing
+    const [localMb, setLocalMb] = useState({}); 
 
-    // --- MBOOK HANDLERS ---
     const handleMbInputChange = (itemId, field, value) => {
         setMbInputs(prev => ({ ...prev, [itemId]: { ...prev[itemId], [field]: value } }));
     };
@@ -28,14 +27,17 @@ export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpO
             b: String(inputs.b || ""),
             d: String(inputs.d || "")
         };
+        
         const updatedMeasurements = [...(item.measurements || []), newRow];
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
         setMbInputs(prev => ({ ...prev, [item.id]: { details: "", no: "", l: "", b: "", d: "" } }));
+        if (loadData) loadData(); 
     };
 
     const deleteMeasurementRow = async (item, measurementId) => {
         const updatedMeasurements = (item.measurements || []).filter(m => m.id !== measurementId);
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
+        if (loadData) loadData(); 
     };
 
     const updateMeasurementInline = async (item, measurementId, field, value) => {
@@ -43,7 +45,8 @@ export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpO
             if (m.id === measurementId) return { ...m, [field]: value };
             return m;
         });
-        await db.projectBoq.update(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
+        if (loadData) loadData(); 
     };
 
     return (
@@ -95,44 +98,47 @@ export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpO
                                     return (
                                         <TableRow key={m.id}>
                                             <TableCell>
+                                                {/* Details uses simple focus since it doesn't do complex math instantly */}
                                                 <input value={m.details} onChange={e => updateMeasurementInline(item, m.id, 'details', e.target.value)} style={tableInputStyle} />
                                                 <Typography variant="caption" color="text.disabled" sx={{ display: 'block', mt: 0.5, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>Row Index: {idx + 1}</Typography>
                                             </TableCell>
+                                            
+                                            {/* 🔥 THE FIX: Dimensions use Local State and save onBlur */}
                                             <TableCell>
                                                 <input
                                                     type="text"
-                                                    value={isNoFocused ? (m.no !== undefined ? m.no : "") : ((m.no === "" || m.no === undefined) ? "" : Number(m.computedNo || 0).toFixed(2))}
-                                                    onFocus={() => setFocusedMbCell(`${m.id}-no`)} onBlur={() => setFocusedMbCell(null)}
-                                                    onChange={e => updateMeasurementInline(item, m.id, 'no', e.target.value)} style={tableInputStyle}
+                                                    value={isNoFocused ? (localMb[`${m.id}-no`] !== undefined ? localMb[`${m.id}-no`] : m.no) : ((m.no === "" || m.no === undefined) ? "" : Number(m.computedNo || 0).toFixed(2))}
+                                                    onFocus={() => { setFocusedMbCell(`${m.id}-no`); setLocalMb(prev => ({ ...prev, [`${m.id}-no`]: m.no !== undefined ? m.no : "" })); }}
+                                                    onBlur={() => { setFocusedMbCell(null); if (localMb[`${m.id}-no`] !== undefined && localMb[`${m.id}-no`] !== m.no) updateMeasurementInline(item, m.id, 'no', localMb[`${m.id}-no`]); }}
+                                                    onChange={e => setLocalMb(prev => ({ ...prev, [`${m.id}-no`]: e.target.value }))} style={tableInputStyle}
                                                 />
-                                                {isNoFocused && String(m.no || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedNo || 0).toFixed(2)}</Typography>}
                                             </TableCell>
                                             <TableCell>
                                                 <input
                                                     type="text"
-                                                    value={isLFocused ? (m.l !== undefined ? m.l : "") : ((m.l === "" || m.l === undefined) ? "" : Number(m.computedL || 0).toFixed(2))}
-                                                    onFocus={() => setFocusedMbCell(`${m.id}-l`)} onBlur={() => setFocusedMbCell(null)}
-                                                    onChange={e => updateMeasurementInline(item, m.id, 'l', e.target.value)} style={tableInputStyle}
+                                                    value={isLFocused ? (localMb[`${m.id}-l`] !== undefined ? localMb[`${m.id}-l`] : m.l) : ((m.l === "" || m.l === undefined) ? "" : Number(m.computedL || 0).toFixed(2))}
+                                                    onFocus={() => { setFocusedMbCell(`${m.id}-l`); setLocalMb(prev => ({ ...prev, [`${m.id}-l`]: m.l !== undefined ? m.l : "" })); }}
+                                                    onBlur={() => { setFocusedMbCell(null); if (localMb[`${m.id}-l`] !== undefined && localMb[`${m.id}-l`] !== m.l) updateMeasurementInline(item, m.id, 'l', localMb[`${m.id}-l`]); }}
+                                                    onChange={e => setLocalMb(prev => ({ ...prev, [`${m.id}-l`]: e.target.value }))} style={tableInputStyle}
                                                 />
-                                                {isLFocused && String(m.l || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedL || 0).toFixed(2)}</Typography>}
                                             </TableCell>
                                             <TableCell>
                                                 <input
                                                     type="text"
-                                                    value={isBFocused ? (m.b !== undefined ? m.b : "") : ((m.b === "" || m.b === undefined) ? "" : Number(m.computedB || 0).toFixed(2))}
-                                                    onFocus={() => setFocusedMbCell(`${m.id}-b`)} onBlur={() => setFocusedMbCell(null)}
-                                                    onChange={e => updateMeasurementInline(item, m.id, 'b', e.target.value)} style={tableInputStyle}
+                                                    value={isBFocused ? (localMb[`${m.id}-b`] !== undefined ? localMb[`${m.id}-b`] : m.b) : ((m.b === "" || m.b === undefined) ? "" : Number(m.computedB || 0).toFixed(2))}
+                                                    onFocus={() => { setFocusedMbCell(`${m.id}-b`); setLocalMb(prev => ({ ...prev, [`${m.id}-b`]: m.b !== undefined ? m.b : "" })); }}
+                                                    onBlur={() => { setFocusedMbCell(null); if (localMb[`${m.id}-b`] !== undefined && localMb[`${m.id}-b`] !== m.b) updateMeasurementInline(item, m.id, 'b', localMb[`${m.id}-b`]); }}
+                                                    onChange={e => setLocalMb(prev => ({ ...prev, [`${m.id}-b`]: e.target.value }))} style={tableInputStyle}
                                                 />
-                                                {isBFocused && String(m.b || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedB || 0).toFixed(2)}</Typography>}
                                             </TableCell>
                                             <TableCell>
                                                 <input
                                                     type="text"
-                                                    value={isDFocused ? (m.d !== undefined ? m.d : "") : ((m.d === "" || m.d === undefined) ? "" : Number(m.computedD || 0).toFixed(2))}
-                                                    onFocus={() => setFocusedMbCell(`${m.id}-d`)} onBlur={() => setFocusedMbCell(null)}
-                                                    onChange={e => updateMeasurementInline(item, m.id, 'd', e.target.value)} style={tableInputStyle}
+                                                    value={isDFocused ? (localMb[`${m.id}-d`] !== undefined ? localMb[`${m.id}-d`] : m.d) : ((m.d === "" || m.d === undefined) ? "" : Number(m.computedD || 0).toFixed(2))}
+                                                    onFocus={() => { setFocusedMbCell(`${m.id}-d`); setLocalMb(prev => ({ ...prev, [`${m.id}-d`]: m.d !== undefined ? m.d : "" })); }}
+                                                    onBlur={() => { setFocusedMbCell(null); if (localMb[`${m.id}-d`] !== undefined && localMb[`${m.id}-d`] !== m.d) updateMeasurementInline(item, m.id, 'd', localMb[`${m.id}-d`]); }}
+                                                    onChange={e => setLocalMb(prev => ({ ...prev, [`${m.id}-d`]: e.target.value }))} style={tableInputStyle}
                                                 />
-                                                {isDFocused && String(m.d || "").startsWith("=") && <Typography variant="caption" color="info.main" display="block">={Number(m.computedD || 0).toFixed(2)}</Typography>}
                                             </TableCell>
                                             <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{Number(m.computedQty || 0).toFixed(2)}</TableCell>
                                             <TableCell align="center"><Button color="error" size="small" onClick={() => deleteMeasurementRow(item, m.id)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DELETE</Button></TableCell>

@@ -6,7 +6,7 @@ import {
     Box, Button, Typography, Paper, Grid, Alert, Tabs, Tab, TextField, MenuItem,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, Chip,
     TablePagination, TableSortLabel, InputAdornment, Divider,
-    Dialog, DialogTitle, DialogContent, DialogContentText, DialogActions
+    Dialog, DialogTitle, DialogContent, DialogActions
 } from "@mui/material";
 import CloudDownloadIcon from '@mui/icons-material/CloudDownload';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -39,7 +39,7 @@ function MasterBOQTab({ masterBoqs, regions, resources, editMasterBoq, deleteMas
     const [page, setPage] = useState(0);
     const [rowsPerPage, setRowsPerPage] = useState(10);
     const [previewRegion, setPreviewRegion] = useState('');
-
+    
     const excelInputRef = useRef(null);
 
     const [colWidths, setColWidths] = useState({
@@ -259,11 +259,11 @@ export default function DatabaseEditor({ onBack }) {
     const [previewRegion, setPreviewRegion] = useState("");
     const [boqRows, setBoqRows] = useState([]);
 
-    const [importData, setImportData] = useState(null);
-    const fileInputRef = useRef(null);
-
     const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
     const [focusedQtyId, setFocusedQtyId] = useState(null);
+
+    // 🔥 NEW: Restore Dialog State
+    const [isRestoreOpen, setIsRestoreOpen] = useState(false);
 
     // --- FORMULA ENGINE ---
     const computeQty = (formulaStr, currentRows) => {
@@ -396,7 +396,6 @@ export default function DatabaseEditor({ onBack }) {
                 });
 
                 let added = 0, updated = 0;
-                // Instead of dexie bulk add, we save one by one through the bridge
                 for (const boqCode of Object.keys(boqGroups)) {
                     const group = boqGroups[boqCode];
                     const validComponents = [];
@@ -470,44 +469,23 @@ export default function DatabaseEditor({ onBack }) {
         }
     };
 
-    const exportDatabase = () => {
-        const data = { regions, resources, masterBoq: masterBoqs, exportDate: new Date().toISOString(), type: "MasterDatabase" };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a"); a.href = url; a.download = `Master_DB_Template_${new Date().toLocaleDateString().replace(/\//g, '-')}.json`; a.click(); URL.revokeObjectURL(url);
+    // 🔥 NEW NATIVE SQLITE BACKUP ENGINE 🔥
+    const handleBackup = async () => {
+        const res = await window.api.db.backupDatabase();
+        if (res.success) alert("Database backup saved successfully!");
+        else if (!res.canceled) alert("Backup failed: " + res.error);
     };
 
-    const handleFileSelect = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            try {
-                const data = JSON.parse(event.target.result);
-                if (data.type !== "MasterDatabase" && !data.masterBoq) throw new Error("Invalid format");
-                setImportData(data);
-            } catch (err) {
-                alert("Failed to parse file.");
-            }
-            e.target.value = null;
-        };
-        reader.readAsText(file);
-    };
-
-    const handleImportProcess = async (mode) => {
-        if (!importData) return;
-        if (window.api.db.restoreDatabase) {
-            const res = await window.api.db.restoreDatabase(importData, mode);
-            if (res.success) {
-                alert(`Database successfully ${mode === 'replace' ? 'replaced' : 'appended & updated'}!`);
-                loadData();
-            } else {
-                alert("Database Restore Failed: " + res.error);
-            }
-        } else {
-            alert("The mass restore function is not implemented in the bridge yet. For now, use the SQLite database file directly.");
+    // 🔥 NEW SMART RESTORE WITH MODES
+    const handleRestore = async (mode) => {
+        setIsRestoreOpen(false); // Close the dialog immediately
+        const res = await window.api.db.restoreDatabase(mode);
+        if (res.success) {
+            alert(`Master Database restored successfully (${mode.toUpperCase()})! Active projects were safely preserved.`);
+            loadData(); // Seamlessly update the UI
+        } else if (!res.canceled) {
+            alert("Restore failed: " + res.error);
         }
-        setImportData(null);
     };
 
     const purgeMasterDatabase = async () => {
@@ -589,17 +567,17 @@ export default function DatabaseEditor({ onBack }) {
             {tab === "backup" && (
                 <Box sx={{ maxWidth: 800, mx: "auto", mt: 4 }}>
                     <Alert severity="info" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                        <strong>MASTER_TEMPLATE_DATA</strong> — Regions, Resources, and Databook Items.
-                        Client projects are exported/imported from the Home screen.
+                        <strong>MASTER_DATABASE_FILE (.sqlite)</strong> — Regions, Resources, Databook Items, and Projects.
+                        This handles your entire core database. Store this file securely as a backup!
                     </Alert>
                     <Grid container spacing={4}>
                         <Grid item xs={12} md={6}>
                             <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                                 <CloudDownloadIcon sx={{ fontSize: 48, color: 'primary.main', mb: 2 }} />
                                 <Typography variant="h6" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>EXPORT_DB</Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>Download master database as template.</Typography>
-                                <Button variant="contained" disableElevation size="large" onClick={exportDatabase} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
-                                    DOWNLOAD
+                                <Typography variant="body2" color="text.secondary" paragraph>Create a safe .sqlite copy of your active database.</Typography>
+                                <Button variant="contained" disableElevation size="large" onClick={handleBackup} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
+                                    CREATE BACKUP
                                 </Button>
                             </Paper>
                         </Grid>
@@ -607,10 +585,9 @@ export default function DatabaseEditor({ onBack }) {
                             <Paper elevation={0} variant="outlined" sx={{ p: 4, textAlign: 'center', height: '100%', borderStyle: 'dashed', borderColor: 'error.main', borderRadius: 2, bgcolor: 'rgba(239, 68, 68, 0.03)' }}>
                                 <CloudUploadIcon sx={{ fontSize: 48, color: 'error.main', mb: 2 }} />
                                 <Typography variant="h6" color="error.main" gutterBottom sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '14px' }}>RESTORE_DB</Typography>
-                                <Typography variant="body2" color="text.secondary" paragraph>Upload Master DB file and process records.</Typography>
-                                <input type="file" accept=".json" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileSelect} />
-                                <Button variant="outlined" color="error" size="large" onClick={() => fileInputRef.current.click()} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
-                                    UPLOAD
+                                <Typography variant="body2" color="text.secondary" paragraph>Select a backup .sqlite file to import Master Data.</Typography>
+                                <Button variant="outlined" color="error" size="large" onClick={() => setIsRestoreOpen(true)} sx={{ mt: 2, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
+                                    RESTORE MASTER DATA
                                 </Button>
                             </Paper>
                         </Grid>
@@ -627,24 +604,6 @@ export default function DatabaseEditor({ onBack }) {
                             </Paper>
                         </Grid>
                     </Grid>
-
-                    <Dialog open={!!importData} onClose={() => { setImportData(null); if (fileInputRef.current) fileInputRef.current.value = null; }}>
-                        <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>IMPORT_DATABASE</DialogTitle>
-                        <DialogContent>
-                            <DialogContentText sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                How would you like to process this Master Database file?
-                                <br /><br />
-                                <strong>REPLACE:</strong> Wipes all existing Databook items, Resources, and Regions before loading the new file.
-                                <br /><br />
-                                <strong>APPEND:</strong> Keeps your existing data and only adds items/resources whose Codes do not already exist locally.
-                            </DialogContentText>
-                        </DialogContent>
-                        <DialogActions sx={{ p: 2, pt: 0 }}>
-                            <Button onClick={() => { setImportData(null); if (fileInputRef.current) fileInputRef.current.value = null; }} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
-                            <Button onClick={() => handleImportProcess('append')} variant="outlined" color="primary" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>APPEND MISSING</Button>
-                            <Button onClick={() => handleImportProcess('replace')} variant="contained" color="error" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace" }}>REPLACE ALL</Button>
-                        </DialogActions>
-                    </Dialog>
                 </Box>
             )}
 
@@ -968,6 +927,33 @@ export default function DatabaseEditor({ onBack }) {
                 </DialogContent>
                 <DialogActions sx={{ p: 2, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <Button onClick={() => setFormulaHelpOpen(false)} variant="contained" disableElevation sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>UNDERSTOOD</Button>
+                </DialogActions>
+            </Dialog>
+
+            {/* 🔥 SMART RESTORE RESOLUTION DIALOG 🔥 */}
+            <Dialog open={isRestoreOpen} onClose={() => setIsRestoreOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '14px' }}>
+                    MASTER DATA RESTORE RESOLUTION
+                </DialogTitle>
+                <DialogContent sx={{ pt: 3 }}>
+                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 3, color: '#ccc', fontSize: '12px' }}>
+                        How would you like to process the Master Data (Regions, Resources, Databook) from this backup file? <strong>Your active projects will not be affected.</strong>
+                    </Typography>
+                    
+                    <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+                        <Button variant="outlined" color="info" onClick={() => handleRestore('append')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px', textAlign: 'left' }}>
+                            <strong>[APPEND]</strong>&nbsp;&nbsp;Add newly discovered items only. Existing items are strictly preserved.
+                        </Button>
+                        <Button variant="outlined" color="warning" onClick={() => handleRestore('merge')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px', textAlign: 'left' }}>
+                            <strong>[MERGE]</strong>&nbsp;&nbsp;&nbsp;Update existing items with backup data, and add new ones.
+                        </Button>
+                        <Button variant="outlined" color="error" onClick={() => handleRestore('replace')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px', textAlign: 'left' }}>
+                            <strong>[REPLACE]</strong>&nbsp;Wipe current master data entirely and use backup data.
+                        </Button>
+                    </Box>
+                </DialogContent>
+                <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)', p: 2 }}>
+                    <Button onClick={() => setIsRestoreOpen(false)} sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#ccc', fontSize: '12px' }}>CANCEL</Button>
                 </DialogActions>
             </Dialog>
         </Box>

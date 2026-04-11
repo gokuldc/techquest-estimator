@@ -6,24 +6,42 @@ import {
 import { tableInputActiveStyle } from '../../styles';
 
 export default function ResourceTrackerTab({ project, renderedProjectBoq, resources, updateProject }) {
-    const trackingMode = project.resourceTrackingMode || 'manual';
+    // Safely parse tracking mode
+    const trackingMode = project?.resourceTrackingMode || 'manual';
 
     const toggleMode = async () => {
         await updateProject("resourceTrackingMode", trackingMode === 'manual' ? 'auto' : 'manual');
     };
 
+    // Safely parse daily logs to ensure we don't try to loop over a string
+    const safeDailyLogs = useMemo(() => {
+        if (!project?.dailyLogs) return [];
+        if (typeof project.dailyLogs === 'string') {
+            try { return JSON.parse(project.dailyLogs); } catch { return []; }
+        }
+        return project.dailyLogs;
+    }, [project?.dailyLogs]);
+
     const autoActuals = useMemo(() => {
         const totals = {};
-        (project.dailyLogs || []).forEach(log => {
-            const key = `${log.phase}_${log.resourceId}`;
-            totals[key] = (totals[key] || 0) + Number(log.qty);
+        safeDailyLogs.forEach(log => {
+            if (!log.resourceId) return; // Skip invalid logs
+            const key = `${log.phase || 'General'}_${log.resourceId}`;
+            totals[key] = (totals[key] || 0) + Number(log.qty || 0);
         });
         return totals;
-    }, [project.dailyLogs]);
+    }, [safeDailyLogs]);
 
     const resourceTracker = useMemo(() => {
         const tracker = {};
-        const manualActuals = project.actualResources || {};
+        
+        // Safely parse actualResources
+        let manualActuals = {};
+        if (typeof project?.actualResources === 'string') {
+            try { manualActuals = JSON.parse(project.actualResources); } catch { }
+        } else if (project?.actualResources) {
+            manualActuals = project.actualResources;
+        }
 
         // Pass 1: Add all estimated resources from the BOQ recipes
         renderedProjectBoq.forEach(item => {
@@ -31,7 +49,11 @@ export default function ResourceTrackerTab({ project, renderedProjectBoq, resour
             if (!tracker[phase]) tracker[phase] = {};
 
             if (item.masterBoq && item.masterBoq.components) {
-                item.masterBoq.components.forEach(comp => {
+                const components = typeof item.masterBoq.components === 'string' 
+                    ? JSON.parse(item.masterBoq.components) 
+                    : item.masterBoq.components;
+
+                components.forEach(comp => {
                     if (comp.itemType === 'resource') {
                         const resId = comp.itemId;
                         const resourceData = resources.find(r => r.id === resId);
@@ -56,7 +78,8 @@ export default function ResourceTrackerTab({ project, renderedProjectBoq, resour
         });
 
         // Pass 2: Inject any custom resources added via Daily Logs that were NOT in the BOQ
-        (project.dailyLogs || []).forEach(log => {
+        safeDailyLogs.forEach(log => {
+            if (!log.resourceId) return;
             const phase = log.phase || "General";
             const resId = log.resourceId;
             if (!tracker[phase]) tracker[phase] = {};
@@ -76,11 +99,18 @@ export default function ResourceTrackerTab({ project, renderedProjectBoq, resour
         });
 
         return tracker;
-    }, [renderedProjectBoq, resources, project.actualResources, trackingMode, autoActuals, project.dailyLogs]);
+    }, [renderedProjectBoq, resources, project?.actualResources, trackingMode, autoActuals, safeDailyLogs]);
 
     const updateActualResource = async (phase, resourceId, val) => {
         if (trackingMode === 'auto') return;
-        const currentActuals = project.actualResources || {};
+        
+        let currentActuals = {};
+        if (typeof project?.actualResources === 'string') {
+            try { currentActuals = JSON.parse(project.actualResources); } catch { }
+        } else if (project?.actualResources) {
+            currentActuals = { ...project.actualResources };
+        }
+
         currentActuals[`${phase}_${resourceId}`] = Number(val);
         await updateProject("actualResources", currentActuals);
     };

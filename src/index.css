@@ -42,6 +42,8 @@ body {
   margin: 0;
   background: var(--blueprint-bg);
   color: var(--blueprint-text);
+  /* 🔥 ELECTRON FIX: Prevents the background from intercepting clicks */
+  -webkit-app-region: no-drag; 
 }
 
 #root {
@@ -116,44 +118,6 @@ code {
   border: 1px solid var(--blueprint-border);
 }
 
-/* Blueprint custom scrollbar */
-::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-::-webkit-scrollbar-track {
-  background: var(--blueprint-bg-dark);
-  border: 1px solid var(--blueprint-border);
-}
-
-::-webkit-scrollbar-thumb {
-  background: linear-gradient(180deg, #1e3a5f 0%, #2563eb 100%);
-  border-radius: 6px;
-  border: 2px solid var(--blueprint-bg-dark);
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
-  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
-}
-
-::-webkit-scrollbar-thumb:active {
-  background: linear-gradient(180deg, #60a5fa 0%, #93c5fd 100%);
-  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
-}
-
-::-webkit-scrollbar-corner {
-  background: var(--blueprint-bg-dark);
-  border: 1px solid var(--blueprint-border);
-}
-
-/* Firefox scrollbar */
-* {
-  scrollbar-width: thin;
-  scrollbar-color: var(--blueprint-accent) var(--blueprint-bg-dark);
-}
-
 /* Blueprint selection */
 ::selection {
   background: var(--blueprint-accent-glow);
@@ -167,33 +131,33 @@ code {
 /* Webkit (Chrome, Edge, Safari, Electron) */
 ::-webkit-scrollbar {
   width: 10px;
-  /* Width for vertical scrollbars */
   height: 10px;
-  /* Height for horizontal scrollbars */
 }
 
 ::-webkit-scrollbar-track {
   background: rgba(13, 31, 60, 0.3);
-  /* Matches the dark panel backgrounds */
   border-radius: 4px;
+  border: 1px solid var(--blueprint-border);
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(59, 130, 246, 0.4);
-  /* Subtle blue matching the primary theme */
-  border-radius: 4px;
+  background: linear-gradient(180deg, #1e3a5f 0%, #2563eb 100%);
+  border-radius: 6px;
   border: 2px solid rgba(13, 31, 60, 0.8);
-  /* Creates a padded effect inside the track */
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(59, 130, 246, 0.8);
-  /* Brightens when hovered */
+  background: linear-gradient(180deg, #3b82f6 0%, #60a5fa 100%);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.4);
+}
+
+::-webkit-scrollbar-thumb:active {
+  background: linear-gradient(180deg, #60a5fa 0%, #93c5fd 100%);
+  box-shadow: 0 0 12px rgba(59, 130, 246, 0.6);
 }
 
 ::-webkit-scrollbar-corner {
   background: transparent;
-  /* Hides the ugly square where horizontal and vertical meet */
 }
 
 /* Firefox Support */
@@ -211,4 +175,19 @@ code {
   font-size: 13px;
   color: inherit;
   opacity: 0.6;
+}
+
+/* ========================================================
+   🔥 ELECTRON INPUT & CURSOR FIX 
+   ======================================================== */
+input, 
+textarea, 
+select, 
+.MuiInputBase-input, 
+[contenteditable="true"] {
+    -webkit-user-select: text !important;
+    user-select: text !important;
+    cursor: text !important;
+    -webkit-app-region: no-drag !important;
+    pointer-events: auto !important;
 }

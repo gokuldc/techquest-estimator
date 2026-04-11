@@ -11,7 +11,7 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { tableInputActiveStyle } from '../../styles';
 import * as XLSX from 'xlsx';
 
-export default function SubcontractorBidTab({ project, renderedProjectBoq, updateProject, crmContacts = [] }) {
+export default function SubcontractorBidTab({ project, renderedProjectBoq, updateProject, crmContacts = [], loadData }) {
     const [newSubName, setNewSubName] = useState("");
     const fileInputRef = useRef(null);
 
@@ -31,7 +31,33 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
     const addSubcontractor = async () => {
         if (!newSubName) return;
-        const subs = [...(project.subcontractors || []), { id: crypto.randomUUID(), name: newSubName, rates: {} }];
+        const cleanName = newSubName.trim();
+
+        // Check if this subcontractor is already in the CRM Database
+        const existsInCrm = crmContacts.some(c => 
+            c.name?.toLowerCase().trim() === cleanName.toLowerCase() || 
+            c.company?.toLowerCase().trim() === cleanName.toLowerCase() ||
+            `${c.company} (${c.name})`.toLowerCase().trim() === cleanName.toLowerCase()
+        );
+
+        // If not in CRM, silently create a new profile in the Directory!
+        if (!existsInCrm) {
+            const newCrmContact = {
+                id: crypto.randomUUID(),
+                name: cleanName, 
+                company: "", 
+                type: "Subcontractor", 
+                status: "Active", 
+                email: "", 
+                phone: "", 
+                createdAt: Date.now()
+            };
+            await window.api.db.saveCrmContact(newCrmContact);
+            if (loadData) await loadData(); // Refresh the workspace CRM lists instantly
+        }
+
+        // Add to Project Subcontractors list
+        const subs = [...(project.subcontractors || []), { id: crypto.randomUUID(), name: cleanName, rates: {} }];
         await updateProject("subcontractors", subs);
         setNewSubName("");
     };
@@ -49,8 +75,9 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
     const saveEditedSubcontractor = async () => {
         if (!editSubName) return alert("Subcontractor name cannot be empty.");
+        const cleanEditName = editSubName.trim();
         const subs = (project.subcontractors || []).map(s =>
-            s.id === editingSubId ? { ...s, name: editSubName } : s
+            s.id === editingSubId ? { ...s, name: cleanEditName } : s
         );
         await updateProject("subcontractors", subs);
         setEditingSubId(null);
@@ -89,6 +116,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
+        
         reader.onload = async (evt) => {
             try {
                 const data = new Uint8Array(evt.target.result);
@@ -98,26 +126,60 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                 if (jsonData.length === 0) return;
 
                 let subs = [...(project.subcontractors || [])];
-                const existingSubNames = subs.map(s => s.name);
+                const existingSubNames = subs.map(s => s.name.trim().toLowerCase());
 
                 const standardCols = ["BOQ_ID", "Description", "Quantity", "Unit", "In-House Rate"];
                 const allCols = Object.keys(jsonData[0]);
                 const subCols = allCols.filter(c => !standardCols.includes(c));
 
-                // Add any newly discovered subcontractors from headers
-                subCols.forEach(subName => {
-                    if (!existingSubNames.includes(subName)) {
+                let addedToCrm = false;
+
+                // 🔥 THE FIX: Safe sequential loop + .trim() applied
+                for (const rawSubName of subCols) {
+                    const subName = rawSubName.trim();
+                    if (!subName) continue;
+
+                    // Add to Project List if missing
+                    if (!existingSubNames.includes(subName.toLowerCase())) {
                         subs.push({ id: crypto.randomUUID(), name: subName, rates: {} });
+                        existingSubNames.push(subName.toLowerCase()); // Cache to prevent duplicates
                     }
-                });
+                        
+                    // Add to Global CRM Directory if missing
+                    const existsInCrm = crmContacts.some(c => 
+                        c.name?.toLowerCase().trim() === subName.toLowerCase() || 
+                        c.company?.toLowerCase().trim() === subName.toLowerCase() ||
+                        `${c.company} (${c.name})`.toLowerCase().trim() === subName.toLowerCase()
+                    );
+                    
+                    if (!existsInCrm) {
+                        await window.api.db.saveCrmContact({
+                            id: crypto.randomUUID(), 
+                            name: subName, 
+                            company: "", 
+                            type: "Subcontractor", 
+                            status: "Active", 
+                            email: "", 
+                            phone: "", 
+                            createdAt: Date.now()
+                        });
+                        addedToCrm = true;
+                    }
+                }
+                
+                // Wait for all new CRM entries to be pulled from SQLite back to the UI
+                if (addedToCrm && loadData) {
+                    await loadData(); 
+                }
 
                 // Parse matrix rates
                 jsonData.forEach(row => {
                     const boqId = row["BOQ_ID"];
                     if (boqId) {
-                        subCols.forEach(subName => {
-                            const rate = Number(row[subName]) || 0;
-                            const subIndex = subs.findIndex(s => s.name === subName);
+                        subCols.forEach(rawSubName => {
+                            const subName = rawSubName.trim();
+                            const rate = Number(row[rawSubName]) || 0;
+                            const subIndex = subs.findIndex(s => s.name.toLowerCase() === subName.toLowerCase());
                             if (subIndex > -1) {
                                 subs[subIndex].rates[boqId] = rate;
                             }
@@ -128,6 +190,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                 await updateProject("subcontractors", subs);
                 alert("Subcontractor bids imported successfully!");
             } catch (err) {
+                console.error("Excel Parsing Error:", err);
                 alert("Failed to parse Subcontractor Bid Excel.");
             }
         };
@@ -164,7 +227,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                                 {...params}
                                 size="small"
                                 label="SUBCONTRACTOR_NAME (CRM)"
-                                placeholder="Search or type new..."
+                                placeholder="Search Directory or type new..."
                                 InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                             />
                         )}

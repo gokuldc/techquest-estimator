@@ -1,6 +1,4 @@
-import React, { useState, useMemo } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../db';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
     Box, Typography, Button, Paper, Tabs, Tab, Grid, Avatar, 
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, 
@@ -13,7 +11,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
 import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
-import BusinessIcon from '@mui/icons-material/Business';
 import BadgeIcon from '@mui/icons-material/Badge';
 import EngineeringIcon from '@mui/icons-material/Engineering';
 import GroupsIcon from '@mui/icons-material/Groups';
@@ -24,9 +21,27 @@ export default function Directory({ onBack }) {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editId, setEditId] = useState(null);
 
-    // --- DATABASE QUERIES ---
-    const crmContacts = useLiveQuery(() => db.crmContacts.orderBy('createdAt').reverse().toArray()) || [];
-    const orgStaff = useLiveQuery(() => db.orgStaff.orderBy('createdAt').reverse().toArray()) || [];
+    // 🔥 SQLite State
+    const [crmContacts, setCrmContacts] = useState([]);
+    const [orgStaff, setOrgStaff] = useState([]);
+
+    const loadData = async () => {
+        try {
+            const [contacts, staff] = await Promise.all([
+                window.api.db.getCrmContacts(),
+                window.api.db.getOrgStaff()
+            ]);
+            // Sort by newest first
+            setCrmContacts((contacts || []).sort((a, b) => b.createdAt - a.createdAt));
+            setOrgStaff((staff || []).sort((a, b) => b.createdAt - a.createdAt));
+        } catch (error) {
+            console.error("Failed to load directory data:", error);
+        }
+    };
+
+    useEffect(() => {
+        loadData();
+    }, []);
 
     // --- KPI CALCULATIONS ---
     const stats = useMemo(() => {
@@ -47,24 +62,37 @@ export default function Directory({ onBack }) {
             setEditId(null);
             setFormData(tab === 'crm' 
                 ? { name: "", company: "", type: "Client", status: "Active", email: "", phone: "" }
-                : { name: "", designation: "", department: "Operations", status: "Active", email: "" }
+                : { name: "", designation: "", department: "Operations", status: "Active", email: "", phone: "" }
             );
         }
         setIsDialogOpen(true);
     };
 
+    // 🔥 Updated Save Logic
     const handleSave = async () => {
         if (!formData.name) return;
         const payload = { ...formData, id: editId || crypto.randomUUID(), createdAt: formData.createdAt || Date.now() };
-        if (tab === 'crm') await db.crmContacts.put(payload);
-        else await db.orgStaff.put(payload);
+        
+        if (tab === 'crm') {
+            await window.api.db.saveCrmContact(payload);
+        } else {
+            await window.api.db.saveOrgStaff(payload);
+        }
+        
+        loadData();
         setIsDialogOpen(false);
     };
 
+    // 🔥 Updated Delete Logic
     const handleDelete = async (id) => {
         if (!window.confirm("CRITICAL: Delete this record permanently?")) return;
-        if (tab === 'crm') await db.crmContacts.delete(id);
-        else await db.orgStaff.delete(id);
+        
+        if (tab === 'crm') {
+            await window.api.db.deleteCrmContact(id);
+        } else {
+            await window.api.db.deleteOrgStaff(id);
+        }
+        loadData();
     };
 
     const MetricCard = ({ title, value, icon, color }) => (

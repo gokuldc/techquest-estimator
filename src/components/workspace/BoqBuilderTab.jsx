@@ -12,20 +12,10 @@ import SearchIcon from '@mui/icons-material/Search';
 import { tableInputStyle } from "../../styles";
 
 export default function BoqBuilderTab({
-    projectId,
-    projectBoqItems,
-    masterBoqs,
-    renderedProjectBoq,
-    totalAmount,
-    handleAddMasterItem,
-    handleAddCustomItem,
-    updateBoqQtyManual,
-    deleteProjectBoq,
-    openEditDialog,
-    setFormulaHelpOpen,
-    handleDragStart, handleDragOver, handleDrop, draggedId
+    projectId, projectBoqItems, masterBoqs, renderedProjectBoq, totalAmount,
+    handleAddMasterItem, handleAddCustomItem, updateBoqQtyManual, deleteProjectBoq,
+    openEditDialog, setFormulaHelpOpen, handleDragStart, handleDragOver, handleDrop, draggedId
 }) {
-    // Local UI State for the inputs
     const [addMode, setAddMode] = useState("master");
     const [searchCode, setSearchCode] = useState("");
     const [searchDesc, setSearchDesc] = useState("");
@@ -39,8 +29,9 @@ export default function BoqBuilderTab({
     const [customQty, setCustomQty] = useState("");
 
     const [focusedQtyId, setFocusedQtyId] = useState(null);
+    // 🔥 Lag Fix: Cache keystrokes locally before sending to SQLite
+    const [localFormulas, setLocalFormulas] = useState({}); 
 
-    // --- DYNAMIC PHASES STATE ---
     const [activePhase, setActivePhase] = useState("General");
 
     const availablePhases = useMemo(() => {
@@ -49,7 +40,6 @@ export default function BoqBuilderTab({
         return Array.from(phases);
     }, [projectBoqItems]);
 
-    // --- GROUP BOQ ITEMS BY PHASE ---
     const groupedBoq = useMemo(() => {
         const groups = {};
         (renderedProjectBoq || []).forEach(item => {
@@ -98,8 +88,6 @@ export default function BoqBuilderTab({
                             {filteredMasterBoqs.map(b => <MenuItem key={b.id} value={b.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', textAlign: 'left' }}>{b.itemCode ? `[${b.itemCode}] ` : ''}{b.description}</MenuItem>)}
                         </TextField>
                         <TextField size="small" type="text" label="QTY OR FORMULA" value={addBoqQty} onChange={e => setAddBoqQty(e.target.value)} placeholder="e.g. 50 or =#1*10" sx={{ width: 140 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-
-                        {/* DYNAMIC AUTOCOMPLETE PHASE SELECTOR */}
                         <Autocomplete
                             freeSolo
                             options={availablePhases}
@@ -107,11 +95,8 @@ export default function BoqBuilderTab({
                             onChange={(event, newValue) => setActivePhase(newValue || "General")}
                             onInputChange={(event, newInputValue) => setActivePhase(newInputValue || "General")}
                             sx={{ width: 180 }}
-                            renderInput={(params) => (
-                                <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            )}
+                            renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />}
                         />
-
                         <Button variant="contained" onClick={submitMaster} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD</Button>
                     </Box>
                 ) : (
@@ -121,8 +106,6 @@ export default function BoqBuilderTab({
                         <TextField size="small" label="UNIT" value={customUnit} onChange={e => setCustomUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                         <TextField size="small" type="number" label="RATE" value={customRate} onChange={e => setCustomRate(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                         <TextField size="small" type="text" label="QTY OR FORMULA" value={customQty} onChange={e => setCustomQty(e.target.value)} placeholder="e.g. 50 or =#1*10" sx={{ width: 140 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-
-                        {/* DYNAMIC AUTOCOMPLETE PHASE SELECTOR */}
                         <Autocomplete
                             freeSolo
                             options={availablePhases}
@@ -130,11 +113,8 @@ export default function BoqBuilderTab({
                             onChange={(event, newValue) => setActivePhase(newValue || "General")}
                             onInputChange={(event, newInputValue) => setActivePhase(newInputValue || "General")}
                             sx={{ width: 180 }}
-                            renderInput={(params) => (
-                                <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            )}
+                            renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />}
                         />
-
                         <Button variant="contained" color="secondary" onClick={submitCustom} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD_CUSTOM</Button>
                     </Box>
                 )}
@@ -163,11 +143,9 @@ export default function BoqBuilderTab({
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {/* --- RENDER ITEMS GROUPED BY PHASE WITH DIVIDER ROWS --- */}
                         {Object.keys(groupedBoq).length > 0 ? (
                             Object.entries(groupedBoq).map(([phaseName, phaseItems]) => (
                                 <React.Fragment key={`phase-${phaseName}`}>
-                                    {/* PHASE DIVIDER ROW */}
                                     <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.1)' }}>
                                         <TableCell colSpan={9} sx={{ py: 1.5, borderBottom: '1px solid rgba(59, 130, 246, 0.3)' }}>
                                             <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
@@ -176,7 +154,6 @@ export default function BoqBuilderTab({
                                         </TableCell>
                                     </TableRow>
 
-                                    {/* ITEMS IN THIS PHASE */}
                                     {phaseItems.map(item => {
                                         const isFormula = String(item.formulaStr || "").trim().startsWith("=");
                                         const isFocused = focusedQtyId === item.id;
@@ -191,14 +168,23 @@ export default function BoqBuilderTab({
                                                 <TableCell sx={{ fontWeight: 'bold', color: item.isCustom ? 'secondary.main' : 'inherit', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayCode || "-"}</TableCell>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayDesc}</TableCell>
                                                 <TableCell>
+                                                    {/* 🔥 THE FIX: Saves to local state instantly, pushes to DB only when clicked away */}
                                                     <input
                                                         type="text"
-                                                        value={item.hasMBook
-                                                            ? Number(item.computedQty || 0).toFixed(2)
-                                                            : (isFocused ? (item.formulaStr !== undefined ? item.formulaStr : item.qty) : Number(item.computedQty || 0).toFixed(2))
-                                                        }
-                                                        onFocus={() => setFocusedQtyId(item.id)} onBlur={() => setFocusedQtyId(null)}
-                                                        onChange={e => updateBoqQtyManual(item.id, e.target.value)}
+                                                        value={item.hasMBook 
+                                                            ? Number(item.computedQty || 0).toFixed(2) 
+                                                            : (isFocused ? (localFormulas[item.id] !== undefined ? localFormulas[item.id] : (item.formulaStr !== undefined ? item.formulaStr : item.qty)) : Number(item.computedQty || 0).toFixed(2))}
+                                                        onFocus={() => {
+                                                            setLocalFormulas(prev => ({ ...prev, [item.id]: item.formulaStr !== undefined ? item.formulaStr : item.qty }));
+                                                            setFocusedQtyId(item.id);
+                                                        }}
+                                                        onBlur={() => {
+                                                            setFocusedQtyId(null);
+                                                            if (localFormulas[item.id] !== undefined && localFormulas[item.id] !== item.formulaStr) {
+                                                                updateBoqQtyManual(item.id, localFormulas[item.id]);
+                                                            }
+                                                        }}
+                                                        onChange={e => setLocalFormulas(prev => ({ ...prev, [item.id]: e.target.value }))}
                                                         disabled={item.hasMBook} placeholder="e.g. =#1 * 125"
                                                         style={{ ...tableInputStyle, background: item.hasMBook ? "var(--mui-palette-action-disabledBackground)" : tableInputStyle.background }}
                                                     />
