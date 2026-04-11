@@ -8,7 +8,7 @@ export default function About({ isPopup }) {
         <Box sx={{ p: isPopup ? 1 : 4 }}>
             <Box display="flex" justifyContent="space-between" alignItems="center" mb={1}>
                 <Typography variant="h4" fontWeight="bold" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
-                    SYSTEM_INFO: v2.0.0
+                    SYSTEM_INFO: v1.9.9
                 </Typography>
                 <Link 
                     href="https://github.com/gokuldc/OpenPrix" 
@@ -43,7 +43,7 @@ export default function About({ isPopup }) {
                     <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', lineHeight: 1.8 }}>
                         • Multi-Region Pricing Logic<br/>
                         • Dynamic BOQ Formula Parsing Engine<br/>
-                        • Dexie.js IndexedDB Offline Architecture<br/>
+                        • SQLite Native Database Architecture<br/>
                         • React 18 / Material-UI Blueprint UI
                     </Typography>
                 </Grid>
