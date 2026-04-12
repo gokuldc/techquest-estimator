@@ -27,7 +27,8 @@ export function initDatabase() {
             code TEXT UNIQUE,
             description TEXT,
             unit TEXT,
-            rates TEXT 
+            rates TEXT,
+            rateHistory TEXT 
         );
         CREATE TABLE IF NOT EXISTS master_boq (
             id TEXT PRIMARY KEY,
@@ -69,6 +70,16 @@ export function initDatabase() {
             id TEXT PRIMARY KEY,
             name TEXT, designation TEXT, department TEXT, status TEXT, email TEXT, phone TEXT, createdAt INTEGER
         );
+        CREATE TABLE IF NOT EXISTS project_documents (
+                id TEXT PRIMARY KEY,
+                projectId TEXT,
+                name TEXT,
+                category TEXT,
+                filePath TEXT,
+                fileType TEXT,
+                addedAt INTEGER,
+                FOREIGN KEY(projectId) REFERENCES projects(id)
+            );
     `;
     db.exec(initSql);
 
@@ -80,6 +91,7 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN purchaseOrders TEXT;"); } catch (err) {}
     try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) {}
     try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) {}
+    try { db.exec("ALTER TABLE resources ADD COLUMN rateHistory TEXT;"); } catch(e) {}
 
     return db;
 }

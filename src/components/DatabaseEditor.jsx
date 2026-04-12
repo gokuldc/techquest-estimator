@@ -32,7 +32,7 @@ export default function DatabaseEditor({ onBack }) {
                 try { return JSON.parse(str); } catch { return fallback; }
             };
 
-            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}) }));
+            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}),rateHistory: parseSafe(r.rateHistory, []) }));
             const safeMBoqs = (boqs || []).map(b => ({ ...b, components: parseSafe(b.components, []) }));
 
             setRegions(reg || []);

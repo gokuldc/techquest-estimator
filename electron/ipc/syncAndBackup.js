@@ -24,7 +24,8 @@ export function registerSyncAndBackupIpc(db, mainWindow) {
                     projectLead TEXT, siteSupervisor TEXT, pmc TEXT, architect TEXT, 
                     structuralEngineer TEXT, isPriceLocked INTEGER DEFAULT 0,
                     dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, 
-                    subcontractors TEXT, phaseAssignments TEXT, dailySchedules TEXT, resourceTrackingMode TEXT DEFAULT 'manual', createdAt INTEGER
+                    subcontractors TEXT, phaseAssignments TEXT, dailySchedules TEXT, resourceTrackingMode TEXT DEFAULT 'manual', createdAt INTEGER,
+                    raBills TEXT, purchaseOrders TEXT, materialRequests TEXT, grns TEXT
                 );
             `);
 
@@ -39,9 +40,14 @@ export function registerSyncAndBackupIpc(db, mainWindow) {
             }
 
             const pData = { ...currentProject };
+            // Apply Export Filters based on frontend UI checkboxes
             if (!options.dailyLogs) { pData.dailyLogs = "[]"; pData.actualResources = "{}"; pData.dailySchedules = "[]"; }
-            if (!options.gantt) { pData.ganttTasks = "[]"; }
+            if (!options.schedule_and_tasks) { pData.ganttTasks = "[]"; }
             if (!options.subcontractors) { pData.subcontractors = "[]"; }
+            if (!options.inventory_grns) { pData.grns = "[]"; }
+            if (!options.procurement_pos) { pData.purchaseOrders = "[]"; pData.materialRequests = "[]"; }
+            if (!options.financial_billing) { pData.raBills = "[]"; }
+            
             if (!options.details) {
                 const minimal = { id: pData.id, name: pData.name, code: pData.code };
                 Object.keys(pData).forEach(key => { if (!minimal[key]) pData[key] = null; });
@@ -84,7 +90,8 @@ export function registerSyncAndBackupIpc(db, mainWindow) {
                     projectLead TEXT, siteSupervisor TEXT, pmc TEXT, architect TEXT, 
                     structuralEngineer TEXT, isPriceLocked INTEGER DEFAULT 0,
                     dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, 
-                    subcontractors TEXT, phaseAssignments TEXT, dailySchedules TEXT, resourceTrackingMode TEXT DEFAULT 'manual', createdAt INTEGER
+                    subcontractors TEXT, phaseAssignments TEXT, dailySchedules TEXT, resourceTrackingMode TEXT DEFAULT 'manual', createdAt INTEGER,
+                    raBills TEXT, purchaseOrders TEXT, materialRequests TEXT, grns TEXT
                 );
                 CREATE TABLE IF NOT EXISTS project_boq (
                     id TEXT PRIMARY KEY, projectId TEXT, masterBoqId TEXT, slNo INTEGER, isCustom INTEGER DEFAULT 0,
@@ -211,6 +218,11 @@ export function registerSyncAndBackupIpc(db, mainWindow) {
                     subcontractors: parseSafe(incomingProject.subcontractors),
                     dailySchedules: parseSafe(incomingProject.dailySchedules),
                     phaseAssignments: parseSafeObj(incomingProject.phaseAssignments),
+                    // 🔥 NEW MODULES 🔥
+                    grns: parseSafe(incomingProject.grns),
+                    raBills: parseSafe(incomingProject.raBills),
+                    purchaseOrders: parseSafe(incomingProject.purchaseOrders),
+                    materialRequests: parseSafe(incomingProject.materialRequests)
                 },
                 projectBoq: incomingBoqs.map(b => ({ ...b, isCustom: b.isCustom === 1, measurements: parseSafe(b.measurements) }))
             };
@@ -242,18 +254,24 @@ export function registerSyncAndBackupIpc(db, mainWindow) {
 
                 let finalLogs = parseSafe(currentProject.dailyLogs); let finalSchedules = parseSafe(currentProject.dailySchedules); let finalTasks = parseSafe(currentProject.ganttTasks);
                 let finalSubs = parseSafe(currentProject.subcontractors); let finalActuals = parseSafeObj(currentProject.actualResources);
+                let finalGrns = parseSafe(currentProject.grns); let finalRaBills = parseSafe(currentProject.raBills); 
+                let finalPOs = parseSafe(currentProject.purchaseOrders); let finalMRs = parseSafe(currentProject.materialRequests);
 
                 if (mode === 'replace') {
                     finalLogs = pd.dailyLogs; finalSchedules = pd.dailySchedules; finalTasks = pd.ganttTasks; finalSubs = pd.subcontractors; finalActuals = pd.actualResources;
+                    finalGrns = pd.grns; finalRaBills = pd.raBills; finalPOs = pd.purchaseOrders; finalMRs = pd.materialRequests;
                 } else if (mode === 'merge') {
                     finalLogs = mergeArrays(finalLogs, pd.dailyLogs); finalSchedules = mergeArrays(finalSchedules, pd.dailySchedules); finalTasks = mergeArrays(finalTasks, pd.ganttTasks); finalSubs = mergeArrays(finalSubs, pd.subcontractors); finalActuals = { ...finalActuals, ...pd.actualResources };
+                    finalGrns = mergeArrays(finalGrns, pd.grns); finalRaBills = mergeArrays(finalRaBills, pd.raBills); finalPOs = mergeArrays(finalPOs, pd.purchaseOrders); finalMRs = mergeArrays(finalMRs, pd.materialRequests);
                 } else if (mode === 'append') {
                     finalLogs = appendArrays(finalLogs, pd.dailyLogs); finalSchedules = appendArrays(finalSchedules, pd.dailySchedules); finalTasks = appendArrays(finalTasks, pd.ganttTasks); finalSubs = appendArrays(finalSubs, pd.subcontractors);
                     for (const [key, qty] of Object.entries(pd.actualResources)) { finalActuals[key] = (finalActuals[key] || 0) + Number(qty); }
+                    finalGrns = appendArrays(finalGrns, pd.grns); finalRaBills = appendArrays(finalRaBills, pd.raBills); finalPOs = appendArrays(finalPOs, pd.purchaseOrders); finalMRs = appendArrays(finalMRs, pd.materialRequests);
                 }
 
                 detailsToUpdate.dailyLogs = JSON.stringify(finalLogs); detailsToUpdate.dailySchedules = JSON.stringify(finalSchedules); detailsToUpdate.ganttTasks = JSON.stringify(finalTasks);
                 detailsToUpdate.subcontractors = JSON.stringify(finalSubs); detailsToUpdate.actualResources = JSON.stringify(finalActuals); detailsToUpdate.phaseAssignments = JSON.stringify(pd.phaseAssignments || parseSafeObj(currentProject.phaseAssignments));
+                detailsToUpdate.grns = JSON.stringify(finalGrns); detailsToUpdate.raBills = JSON.stringify(finalRaBills); detailsToUpdate.purchaseOrders = JSON.stringify(finalPOs); detailsToUpdate.materialRequests = JSON.stringify(finalMRs);
 
                 const fields = Object.keys(detailsToUpdate).map(k => `${k} = ?`).join(', ');
                 db.prepare(`UPDATE projects SET ${fields} WHERE id = ?`).run(...Object.values(detailsToUpdate), targetProjectId);

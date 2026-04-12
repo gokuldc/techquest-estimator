@@ -17,7 +17,8 @@ import ProcurementTab from "./workspace/ProcurementTab";
 import ClientBillingTab from "./workspace/ClientBillingTab"; 
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
 import FormulaGuideDialog from "./workspace/FormulaGuideDialog";
-import InventoryTab from "./workspace/InventoryTab"; 
+import InventoryTab from "./workspace/InventoryTab";
+import DocumentsTab from "./workspace/DocumentsTab";
 
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -33,8 +34,10 @@ const CATEGORIES = {
         label: "01_PLANNING_&_SETUP",
         children: [
             { id: "details", label: "Project Details" },
+            { id: "documents", label: "Docs & Drawings" },
             { id: "boq", label: "Master BOQ" },
-            { id: "schedule", label: "Gantt Schedule" }
+            { id: "schedule", label: "Gantt Schedule" },
+            { id: "subcontractors", label: "Subcontractors" }
         ]
     },
     execution: {
@@ -52,8 +55,7 @@ const CATEGORIES = {
         children: [
             { id: "inventory", label: "Stock Inventory" },
             { id: "resources", label: "Resource Deficits" },
-            { id: "procurement", label: "Procurement (POs)" },
-            { id: "subcontractors", label: "Subcontractors" }
+            { id: "procurement", label: "Procurement (POs)" }
         ]
     },
     financials: {
@@ -76,7 +78,16 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [syncProjectName, setSyncProjectName] = useState("");
     const [isSyncResolveOpen, setIsSyncResolveOpen] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
-    const [exportOpts, setExportOpts] = useState({ details: true, boq: true, kanban: true, dailyLogs: true, subcontractors: true, gantt: true });
+    const [exportOpts, setExportOpts] = useState({ 
+    details: true, 
+    boq: true, 
+    schedule_and_tasks: true, 
+    dailyLogs: true, 
+    subcontractors: true, 
+    inventory_grns: true, 
+    procurement_pos: true, 
+    financial_billing: true 
+    });
 
     const [project, setProject] = useState("loading");
     const [regions, setRegions] = useState([]);
@@ -104,7 +115,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 try { return JSON.parse(str); } catch { return fallback; }
             };
 
-            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}) }));
+            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}),rateHistory: parseSafe(r.rateHistory, []) }));
             const safeMBoqs = (mBoqs || []).map(b => ({ ...b, components: parseSafe(b.components, []) }));
             const safePBoqs = (pBoqs || []).map(b => ({ ...b, measurements: parseSafe(b.measurements, []) }));
 
@@ -308,6 +319,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             {/* 🔥 RENDER ACTIVE TAB COMPONENT 🔥 */}
             <Box sx={{ minHeight: '60vh' }}>
                 {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
+                {activeTab === "documents" && (<DocumentsTab projectId={projectId} />)}
                 {activeTab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={(item) => setEditorItem(item)} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}
                 {activeTab === "mbook" && (<MeasurementBookTab renderedProjectBoq={renderedProjectBoq} setFormulaHelpOpen={setFormulaHelpOpen} loadData={loadData} />)}
                 {activeTab === "schedule" && (<GanttScheduleTab project={project} projectBoqItems={projectBoqItems} updateProject={updateProject} />)}

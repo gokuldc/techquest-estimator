@@ -40,6 +40,11 @@ contextBridge.exposeInMainWorld('api', {
         deleteProjectBoq: (id) => ipcRenderer.invoke('db:delete-project-boq', id),
         bulkPutProjectBoqs: (dataArray) => ipcRenderer.invoke('db:bulk-put-project-boqs', dataArray),
 
+        // --- NEW: PROJECT DOCUMENTS (DATABASE LINKS) ---
+        getProjectDocuments: (projectId) => ipcRenderer.invoke('db:get-project-documents', projectId),
+        saveProjectDocument: (data) => ipcRenderer.invoke('db:save-project-document', data),
+        deleteProjectDocument: (id) => ipcRenderer.invoke('db:delete-project-document', id),
+
         // --- DIRECTORY (CRM & STAFF) ---
         getCrmContacts: () => ipcRenderer.invoke('db:get-crm-contacts'),
         saveCrmContact: (data) => ipcRenderer.invoke('db:save-crm-contact', data),
@@ -51,18 +56,24 @@ contextBridge.exposeInMainWorld('api', {
         // --- KANBAN ---
         getKanbanTasks: (projectId) => ipcRenderer.invoke('db:get-kanban-tasks', projectId),
 
-        // 🔥 NATIVE BACKUP & RESTORE (Master Database Management)
+        // 🔥 NATIVE BACKUP & RESTORE
         backupDatabase: () => ipcRenderer.invoke('db:backup-database'),
         restoreDatabase: (mode) => ipcRenderer.invoke('db:restore-database', mode),
 
-        // 🔥 NATIVE PROJECT SYNC (Workspace Management)
+        // 🔥 NATIVE PROJECT SYNC
         exportProjectSqlite: (id, options) => ipcRenderer.invoke('db:export-project-sqlite', id, options),
         selectSyncFile: () => ipcRenderer.invoke('db:select-sync-file'),
         executeProjectSync: (targetId, filePath, mode) => ipcRenderer.invoke('db:execute-project-sync', targetId, filePath, mode),
 
-        // 🔥 FULL PROJECT ARCHIVE (SQLite)
+        // 🔥 FULL PROJECT ARCHIVE
         exportAllProjectsSqlite: () => ipcRenderer.invoke('db:export-all-projects-sqlite'),
         importProjectsSqlite: (filePath, mode) => ipcRenderer.invoke('db:import-projects-sqlite', filePath, mode),
         selectArchiveFile: () => ipcRenderer.invoke('db:select-archive-file'),
+    },
+
+    // 🔥 NEW: OS NATIVE OPERATIONS (Files & Shell)
+    os: {
+        pickFile: () => ipcRenderer.invoke('os:pick-file'),
+        openFile: (filePath) => ipcRenderer.invoke('os:open-file', filePath)
     }
 });

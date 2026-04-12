@@ -1,4 +1,4 @@
-import { app, BrowserWindow } from 'electron';
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'; // Added ipcMain, dialog, shell
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -38,6 +38,32 @@ function createWindow() {
     mainWindow.on('closed', () => { mainWindow = null; });
 }
 
+// --- NATIVE OS HANDLERS ---
+function registerOsHandlers() {
+    // 1. Trigger the System File Picker
+    ipcMain.handle('os:pick-file', async () => {
+        const result = await dialog.showOpenDialog(mainWindow, {
+            title: 'Select Construction Document',
+            properties: ['openFile'],
+            filters: [
+                { name: 'Drawings & Docs', extensions: ['pdf', 'dwg', 'dxf', 'jpg', 'png', 'xlsx', 'docx'] },
+                { name: 'All Files', extensions: ['*'] }
+            ]
+        });
+        
+        if (result.canceled) return null;
+        return result.filePaths[0]; // Returns absolute path
+    });
+
+    // 2. Launch file in default System Viewer (CAD, PDF reader, etc.)
+    ipcMain.handle('os:open-file', async (event, filePath) => {
+        if (!filePath) return { success: false, error: 'No path provided' };
+        const error = await shell.openPath(filePath);
+        if (error) return { success: false, error };
+        return { success: true };
+    });
+}
+
 app.whenReady().then(() => {
     // 1. Boot up the SQLite database
     db = initDatabase();
@@ -49,6 +75,9 @@ app.whenReady().then(() => {
     registerMasterDataIpc(db, mainWindow);
     registerProjectsIpc(db);
     registerSyncAndBackupIpc(db, mainWindow);
+    
+    // 4. Register Native OS Utilities
+    registerOsHandlers();
 });
 
 app.on('window-all-closed', () => {

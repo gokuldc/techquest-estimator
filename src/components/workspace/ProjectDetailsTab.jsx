@@ -1,235 +1,322 @@
 import React, { useMemo } from 'react';
-import {
-    Box, Paper, Typography, Grid, TextField, MenuItem, Switch, Divider, Avatar, Autocomplete, Chip
-} from '@mui/material';
-import AttachMoneyIcon from '@mui/icons-material/AttachMoney';
-import EventIcon from '@mui/icons-material/Event';
-import FlagIcon from '@mui/icons-material/Flag';
-import EngineeringIcon from '@mui/icons-material/Engineering';
+import { Box, Typography, Paper, Grid, TextField, MenuItem, Button, Chip } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
-import AssignmentIndIcon from '@mui/icons-material/AssignmentInd';
-import ArchitectureIcon from '@mui/icons-material/Architecture';
-import FoundationIcon from '@mui/icons-material/Foundation';
-import BusinessIcon from '@mui/icons-material/Business';
+import SaveIcon from '@mui/icons-material/Save';
+import TrendingUpIcon from '@mui/icons-material/TrendingUp';
+import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
+import AssignmentIcon from '@mui/icons-material/Assignment';
+import LocalShippingIcon from '@mui/icons-material/LocalShipping';
+import ReportProblemIcon from '@mui/icons-material/ReportProblem'; // New icon for inflation
+import { 
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area 
+} from 'recharts';
 
-export default function ProjectDetailsTab({
-    project, updateProject, regions, totalAmount, projectBoqItems, togglePriceLock, 
-    crmContacts = [], orgStaff = [] // Accepting both directories
-}) {
+const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+export default function ProjectDetailsTab({ project, updateProject, regions, resources, totalAmount, projectBoqItems, togglePriceLock, crmContacts, orgStaff }) {
     
-    // --- 1. DIRECTORY MAPPING LOGIC ---
+    // --- 1. KPI DATA AGGREGATION ---
+    const totalBilled = Array.isArray(project?.raBills) ? project.raBills.reduce((sum, bill) => sum + Number(bill.subTotal || 0), 0) : 0;
+    const activeTasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks.filter(t => t.status !== 'Completed').length : 0;
+    const totalGrns = Array.isArray(project?.grns) ? project.grns.length : 0;
 
-    // Strictly Internal Staff (Project Leads, Site Engineers)
-    const internalStaffOptions = useMemo(() => {
-        return orgStaff.map(s => s.name);
-    }, [orgStaff]);
+    // 🔥 NEW: INFLATION RISK ENGINE
+    const inflationRisk = useMemo(() => {
+        let totalExposure = 0;
+        (projectBoqItems || []).forEach(item => {
+            // Find the Master Resource by code
+            const res = resources?.find(r => r.code === item.itemCode);
+            if (res && Array.isArray(res.rateHistory) && res.rateHistory.length > 0) {
+                // Get the latest price from history
+                const sortedHistory = [...res.rateHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
+                const currentMarketRate = Number(sortedHistory[0].rate || 0);
+                const budgetedRate = Number(item.rate || 0);
 
-    // External Clients / Leads
-    const clientOptions = useMemo(() => {
-        return crmContacts
-            .filter(c => {
-                const type = c.type ? c.type.toLowerCase() : "";
-                return type === 'client' || type === 'lead';
-            })
-            .map(c => c.company ? `${c.company} (${c.name})` : c.name);
-    }, [crmContacts]);
+                if (currentMarketRate > budgetedRate) {
+                    const priceDiff = currentMarketRate - budgetedRate;
+                    const totalQty = Number(item.computedQty || 0);
+                    totalExposure += (priceDiff * totalQty);
+                }
+            }
+        });
+        return totalExposure;
+    }, [projectBoqItems, resources]);
 
-    // Hybrid Options: Could be Internal (Org) or External (Consultant CRM)
-    const hybridConsultantOptions = useMemo(() => {
-        const external = crmContacts
-            .filter(c => (c.type || "").toLowerCase() === 'consultant')
-            .map(c => `${c.name} [EXT]`);
+    // --- 2. COST BREAKDOWN BY PHASE (PIE CHART) ---
+    const costByPhaseData = useMemo(() => {
+        const phases = {};
+        (projectBoqItems || []).forEach(item => {
+            const phase = item.phase || "General";
+            phases[phase] = (phases[phase] || 0) + Number(item.amount || 0);
+        });
+        return Object.entries(phases)
+            .map(([name, value]) => ({ name: name.toUpperCase(), value }))
+            .filter(item => item.value > 0)
+            .sort((a, b) => b.value - a.value);
+    }, [projectBoqItems]);
+
+    // --- 3. TIME SERIES ENGINE (S-CURVE & CASH FLOW) ---
+    const timeSeriesData = useMemo(() => {
+        const months = {};
         
-        const internal = orgStaff
-            .map(s => `${s.name} [INT]`);
+        const getMonthKey = (dateStr) => {
+            if (!dateStr) return null;
+            const d = new Date(dateStr);
+            if (isNaN(d)) return null;
+            return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+        };
 
-        return [...internal, ...external];
-    }, [crmContacts, orgStaff]);
-
-    const crmSubcontractors = useMemo(() => {
-        return crmContacts.filter(c => {
-            const type = c.type ? c.type.toLowerCase() : "";
-            return type === 'subcontractor' || type === 'supplier';
+        const bills = Array.isArray(project?.raBills) ? project.raBills : [];
+        bills.forEach(bill => {
+            const key = getMonthKey(bill.date);
+            if (key) {
+                if (!months[key]) months[key] = { name: key, planned: 0, actual: 0 };
+                months[key].actual += Number(bill.subTotal || 0);
+            }
         });
-    }, [crmContacts]);
 
-    // --- DASHBOARD CALCULATIONS ---
-    const tasks = project.ganttTasks || [];
-
-    const { minDate, maxDate, currentPhase } = useMemo(() => {
-        if (tasks.length === 0) return { minDate: null, maxDate: null, currentPhase: "No Schedule" };
-        let min = new Date(tasks[0].startDate);
-        let max = new Date(tasks[0].endDate);
-        const activePhases = new Set();
-        let allCompleted = true;
-        let anyStarted = false;
-
+        const tasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks : [];
         tasks.forEach(task => {
-            const sDate = new Date(task.startDate);
-            const eDate = new Date(task.endDate);
-            if (sDate < min) min = sDate;
-            if (eDate > max) max = eDate;
-            if (task.status === "In Progress") activePhases.add(task.phase);
-            if (task.status !== "Completed") allCompleted = false;
-            if (task.status === "In Progress" || task.status === "Completed") anyStarted = true;
+            const key = getMonthKey(task.createdAt || task.actualStart || project.createdAt);
+            if (key) {
+                if (!months[key]) months[key] = { name: key, planned: 0, actual: 0 };
+                months[key].planned += (totalAmount / (tasks.length || 1)); 
+            }
         });
 
-        let active = "Not Started";
-        if (activePhases.size > 0) active = Array.from(activePhases).join(", ");
-        else if (allCompleted && tasks.length > 0) active = "Project Completed";
-        else if (anyStarted) active = "Between Active Phases";
+        let cumulativePlanned = 0;
+        let cumulativeActual = 0;
+        
+        return Object.values(months).sort((a, b) => a.name.localeCompare(b.name)).map(month => {
+            cumulativePlanned += month.planned;
+            cumulativeActual += month.actual;
+            return {
+                name: month.name,
+                MonthlyBilled: month.actual,
+                MonthlyPlanned: month.planned,
+                CumulativePlanned: cumulativePlanned,
+                CumulativeActual: cumulativeActual
+            };
+        });
+    }, [project, totalAmount]);
 
-        return { minDate: min, maxDate: max, currentPhase: active };
-    }, [tasks]);
-
-    const availablePhases = useMemo(() => {
-        const phases = new Set((projectBoqItems || []).map(item => item.phase).filter(Boolean));
-        tasks.forEach(t => { if (t.phase) phases.add(t.phase); });
-        return phases.size === 0 ? ["General"] : Array.from(phases);
-    }, [projectBoqItems, tasks]);
-
-    const phaseAssignments = project.phaseAssignments || {};
-
-    const handlePhaseAssignment = async (phase, subId) => {
-        const newAssignments = { ...phaseAssignments, [phase]: subId };
-        await updateProject("phaseAssignments", newAssignments);
+    const handleChange = (field, value) => {
+        updateProject(field, value);
     };
 
-    const MetricCard = ({ title, value, icon, color }) => (
-        <Paper sx={{ p: 2.5, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', alignItems: 'center', gap: 2 }}>
-            <Avatar sx={{ bgcolor: `${color}.main`, width: 48, height: 48 }}>{icon}</Avatar>
-            <Box>
-                <Typography variant="caption" color="text.secondary" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px' }}>{title}</Typography>
-                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", lineHeight: 1.2 }}>{value}</Typography>
-            </Box>
-        </Paper>
-    );
+    const formatCurrency = (value) => `₹ ${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
 
     return (
-        <Box display="flex" flexDirection="column" gap={3}>
-
-            {/* --- TOP DASHBOARD METRICS --- */}
-            <Grid container spacing={3}>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="ESTIMATED COST" value={`₹ ${(totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`} icon={<AttachMoneyIcon />} color="success" />
+        <Box display="flex" flexDirection="column" gap={4}>
+            
+            {/* TIER 1: KPI CARDS */}
+            <Grid container spacing={2}>
+                <Grid item xs={12} md={2.4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #3b82f6' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>TOTAL CONTRACT</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+                            ₹{Number(totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </Typography>
+                    </Paper>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="START DATE" value={minDate ? minDate.toLocaleDateString() : "TBD"} icon={<EventIcon />} color="info" />
+                <Grid item xs={12} md={2.4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #10b981' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>BILLED TO DATE</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'success.main' }}>
+                            ₹{Number(totalBilled || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </Typography>
+                    </Paper>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="EST. END DATE" value={maxDate ? maxDate.toLocaleDateString() : "TBD"} icon={<EventIcon />} color="warning" />
+                {/* 🔥 NEW INFLATION KPI CARD */}
+                <Grid item xs={12} md={2.4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(239, 68, 68, 0.05)', borderTop: '4px solid #ef4444' }}>
+                        <Typography variant="caption" color="error.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>INFLATION RISK</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
+                            <ReportProblemIcon fontSize="small" /> +₹{Number(inflationRisk).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                        </Typography>
+                    </Paper>
                 </Grid>
-                <Grid item xs={12} sm={6} md={3}>
-                    <MetricCard title="CURRENT PHASE" value={currentPhase ? currentPhase.toUpperCase() : "-"} icon={<FlagIcon />} color="secondary" />
+                <Grid item xs={12} md={2.4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #f59e0b' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>PENDING TASKS</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'warning.main' }}>
+                            {activeTasks} Tasks
+                        </Typography>
+                    </Paper>
+                </Grid>
+                <Grid item xs={12} md={2.4}>
+                    <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #8b5cf6' }}>
+                        <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>GRNs LOGGED</Typography>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'info.main' }}>
+                            {totalGrns} Inward
+                        </Typography>
+                    </Paper>
                 </Grid>
             </Grid>
 
+            {/* TIER 2: PROJECT METADATA FORM */}
+            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>PROJECT CORE METADATA</Typography>
+                    <Box display="flex" gap={2}>
+                        <Button 
+                            variant={project?.isPriceLocked ? "outlined" : "contained"} 
+                            color={project?.isPriceLocked ? "success" : "warning"}
+                            onClick={togglePriceLock} 
+                            startIcon={project?.isPriceLocked ? <LockIcon /> : <LockOpenIcon />}
+                            sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRadius: 50 }}
+                        >
+                            {project?.isPriceLocked ? "PRICING LOCKED (SAFE)" : "LOCK PROJECT PRICING"}
+                        </Button>
+                    </Box>
+                </Box>
+                
+                <Grid container spacing={3}>
+                    <Grid item xs={12} md={4}>
+                        <TextField fullWidth label="PROJECT NAME" value={project?.name || ''} onChange={(e) => handleChange('name', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <TextField fullWidth label="PROJECT CODE" value={project?.code || ''} onChange={(e) => handleChange('code', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <TextField fullWidth select label="REGION / COST ZONE" value={project?.region || ''} onChange={(e) => handleChange('region', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <TextField fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <TextField fullWidth select label="PROJECT STATUS" value={project?.status || ''} onChange={(e) => handleChange('status', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            {['Planning', 'Active', 'On Hold', 'Completed'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <TextField fullWidth select label="PROJECT LEAD" value={project?.projectLead || ''} onChange={(e) => handleChange('projectLead', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            <MenuItem value="">Unassigned</MenuItem>
+                            {orgStaff.map(s => <MenuItem key={s.id} value={s.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <TextField fullWidth select label="SITE SUPERVISOR" value={project?.siteSupervisor || ''} onChange={(e) => handleChange('siteSupervisor', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            <MenuItem value="">Unassigned</MenuItem>
+                            {orgStaff.map(s => <MenuItem key={s.id} value={s.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <TextField fullWidth select label="ARCHITECT" value={project?.architect || ''} onChange={(e) => handleChange('architect', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            <MenuItem value="">Unassigned</MenuItem>
+                            {crmContacts.filter(c => c.type === 'Architect').map(c => <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <TextField fullWidth select label="STRUCTURAL ENGINEER" value={project?.structuralEngineer || ''} onChange={(e) => handleChange('structuralEngineer', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                            <MenuItem value="">Unassigned</MenuItem>
+                            {crmContacts.filter(c => c.type === 'Consultant' || c.type === 'Architect').map(c => <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                </Grid>
+            </Paper>
+
+            {/* TIER 3: ADVANCED ANALYTICS DASHBOARD */}
             <Grid container spacing={3}>
+                
+                {/* THE S-CURVE */}
                 <Grid item xs={12} md={8}>
-                    <Paper sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', height: '100%' }}>
-                        <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>
-                            PROJECT_CONFIGURATION
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', height: 400 }}>
+                        <Typography variant="subtitle2" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>
+                            PROJECT S-CURVE (CUMULATIVE PLANNED VS. ACTUAL)
                         </Typography>
-
-                        <Grid container spacing={3}>
-                            <Grid item xs={12} md={6}>
-                                <TextField label="PROJECT_NAME" value={project.name || ""} onChange={e => updateProject("name", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            </Grid>
-                            <Grid item xs={12} md={6}>
-                                <TextField label="PROJECT_CODE" value={project.code || ""} onChange={e => updateProject("code", e.target.value)} fullWidth helperText="Unique code for this project" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
-                            </Grid>
-
-                            <Grid item xs={12} md={6}>
-                                <Autocomplete freeSolo openOnFocus disablePortal options={clientOptions} value={project.clientName || ""} onInputChange={(e, newVal) => updateProject("clientName", newVal)} sx={{ '& .MuiInputBase-input': { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} renderInput={(params) => (<TextField {...params} label="CLIENT_NAME (CRM)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />)} />
-                            </Grid>
-
-                            <Grid item xs={12} md={6}>
-                                <TextField select label="RATES_REGION" value={regions.some(r => r.name === project.region) ? project.region : ""} onChange={e => updateProject("region", e.target.value)} fullWidth helperText="Leave empty for default" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} FormHelperTextProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}>
-                                    <MenuItem value="">-- AUTO_DETECT --</MenuItem>
-                                    {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{r.name}</MenuItem>)}
-                                </TextField>
-                            </Grid>
-
-                            <Grid item xs={12}><Divider sx={{ borderColor: 'rgba(255,255,255,0.1)' }} /></Grid>
-
-                            {/* IN-HOUSE STAFF (Strictly Org) */}
-                            <Grid item xs={12} md={4}>
-                                <TextField select label="PROJECT_STATUS" value={project.status || "Draft"} onChange={e => updateProject("status", e.target.value)} fullWidth InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                                    {['Draft', 'In Progress', 'On Hold', 'Completed', 'Archived'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{s}</MenuItem>)}
-                                </TextField>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <AssignmentIndIcon color="action" />
-                                    <Autocomplete freeSolo openOnFocus disablePortal options={internalStaffOptions} value={project.projectLead || ""} onInputChange={(e, newVal) => updateProject("projectLead", newVal)} fullWidth renderInput={(params) => <TextField {...params} label="PROJECT_LEAD (INT)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} />
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <EngineeringIcon color="action" />
-                                    <Autocomplete freeSolo openOnFocus disablePortal options={internalStaffOptions} value={project.siteSupervisor || ""} onInputChange={(e, newVal) => updateProject("siteSupervisor", newVal)} fullWidth renderInput={(params) => <TextField {...params} label="SITE_ENGINEER (INT)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} />
-                                </Box>
-                            </Grid>
-
-                            {/* HYBRID ROLES (Staff or CRM Consultants) */}
-                            <Grid item xs={12} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <BusinessIcon color="action" />
-                                    <Autocomplete freeSolo openOnFocus disablePortal options={hybridConsultantOptions} value={project.pmc || ""} onInputChange={(e, newVal) => updateProject("pmc", newVal)} fullWidth renderInput={(params) => <TextField {...params} label="PMC (INT/EXT)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} />
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <ArchitectureIcon color="action" />
-                                    <Autocomplete freeSolo openOnFocus disablePortal options={hybridConsultantOptions} value={project.architect || ""} onInputChange={(e, newVal) => updateProject("architect", newVal)} fullWidth renderInput={(params) => <TextField {...params} label="ARCHITECT (INT/EXT)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} />
-                                </Box>
-                            </Grid>
-                            <Grid item xs={12} md={4}>
-                                <Box display="flex" alignItems="center" gap={1}>
-                                    <FoundationIcon color="action" />
-                                    <Autocomplete freeSolo openOnFocus disablePortal options={hybridConsultantOptions} value={project.structuralEngineer || ""} onInputChange={(e, newVal) => updateProject("structuralEngineer", newVal)} fullWidth renderInput={(params) => <TextField {...params} label="STRUCTURAL (INT/EXT)" InputLabelProps={{ ...params.InputLabelProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />} />
-                                </Box>
-                            </Grid>
-                        </Grid>
+                        {timeSeriesData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="85%">
+                                <AreaChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                                    <defs>
+                                        <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                        </linearGradient>
+                                    </defs>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
+                                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
+                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={(val) => `₹${(val/100000).toFixed(1)}L`} />
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                                        formatter={formatCurrency}
+                                    />
+                                    <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
+                                    <Area type="monotone" dataKey="CumulativeActual" name="Actual Progress (Billed)" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
+                                    <Line type="monotone" dataKey="CumulativePlanned" name="Baseline (Planned)" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
+                                </AreaChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <Box display="flex" height="100%" alignItems="center" justifyContent="center">
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '12px' }}>NOT ENOUGH DATA TO PLOT S-CURVE</Typography>
+                            </Box>
+                        )}
                     </Paper>
                 </Grid>
 
+                {/* COST BREAKDOWN BY PHASE */}
                 <Grid item xs={12} md={4}>
-                    <Box display="flex" flexDirection="column" gap={3} height="100%">
-                        <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: project.isPriceLocked ? 'success.main' : 'divider', bgcolor: project.isPriceLocked ? 'rgba(16, 185, 129, 0.05)' : 'rgba(0,0,0,0.2)' }}>
-                            <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                                <Box pr={2}>
-                                    <Typography variant="subtitle1" fontWeight="bold" color={project.isPriceLocked ? 'success.main' : 'text.primary'} sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 1 }}>
-                                        {project.isPriceLocked ? <LockIcon fontSize="small" /> : <LockOpenIcon fontSize="small" />} PRICE_LOCK
-                                    </Typography>
-                                    <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', mt: 1, lineHeight: 1.5 }}>
-                                        {project.isPriceLocked ? "Prices frozen." : "Live Mode."}
-                                    </Typography>
-                                </Box>
-                                <Switch checked={!!project.isPriceLocked} onChange={togglePriceLock} color="success" />
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', height: 400 }}>
+                        <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>
+                            BUDGET DISTRIBUTION BY PHASE
+                        </Typography>
+                        {costByPhaseData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="90%">
+                                <PieChart>
+                                    <Pie data={costByPhaseData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={2} dataKey="value" stroke="none">
+                                        {costByPhaseData.map((entry, index) => (
+                                            <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
+                                        ))}
+                                    </Pie>
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                                        formatter={formatCurrency}
+                                    />
+                                    <Legend layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
+                                </PieChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <Box display="flex" height="100%" alignItems="center" justifyContent="center">
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '12px' }}>ADD BOQ ITEMS TO SEE DISTRIBUTION</Typography>
                             </Box>
-                        </Paper>
+                        )}
+                    </Paper>
+                </Grid>
 
-                        <Paper sx={{ p: 3, flex: 1, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                            <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px' }}>PHASE_AWARDS</Typography>
-                            <Box display="flex" flexDirection="column" gap={2}>
-                                {availablePhases.map(phase => (
-                                    <Box key={phase} display="flex" justifyContent="space-between" alignItems="center" p={1.5} borderRadius={1} bgcolor="rgba(0,0,0,0.2)" border="1px solid" borderColor="divider">
-                                        <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold' }}>{phase.toUpperCase()}</Typography>
-                                        <TextField select size="small" value={phaseAssignments[phase] || ""} onChange={e => handlePhaseAssignment(phase, e.target.value)} sx={{ minWidth: 150 }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 30 } }}>
-                                            <MenuItem value="" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontStyle: 'italic' }}>In-House</MenuItem>
-                                            {crmSubcontractors.map(sub => (
-                                                <MenuItem key={sub.id} value={sub.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>{sub.company ? `${sub.company} (${sub.name})` : sub.name}</MenuItem>
-                                            ))}
-                                        </TextField>
-                                    </Box>
-                                ))}
+                {/* MONTHLY CASH FLOW (BAR CHART) */}
+                <Grid item xs={12}>
+                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', height: 350 }}>
+                        <Typography variant="subtitle2" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>
+                            MONTHLY REVENUE / CASH FLOW
+                        </Typography>
+                        {timeSeriesData.length > 0 ? (
+                            <ResponsiveContainer width="100%" height="85%">
+                                <BarChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                                    <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
+                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={(val) => `₹${(val/100000).toFixed(1)}L`} />
+                                    <Tooltip 
+                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
+                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                                        formatter={formatCurrency}
+                                    />
+                                    <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
+                                    <Bar dataKey="MonthlyBilled" name="Actual Revenue (Billed)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                                </BarChart>
+                            </ResponsiveContainer>
+                        ) : (
+                            <Box display="flex" height="100%" alignItems="center" justifyContent="center">
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '12px' }}>NO CASH FLOW DATA TO DISPLAY</Typography>
                             </Box>
-                        </Paper>
-                    </Box>
+                        )}
+                    </Paper>
                 </Grid>
             </Grid>
+
         </Box>
     );
 }

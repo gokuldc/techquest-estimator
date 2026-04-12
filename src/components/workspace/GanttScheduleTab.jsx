@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     Box, Paper, Typography, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, TextField, Button, Autocomplete, IconButton, MenuItem
+    TableHead, TableRow, TextField, Button, Autocomplete, IconButton, MenuItem, Chip
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -9,14 +9,16 @@ import ZoomInIcon from '@mui/icons-material/ZoomIn';
 import ZoomOutIcon from '@mui/icons-material/ZoomOut';
 import DragIndicatorIcon from '@mui/icons-material/DragIndicator';
 import DownloadIcon from '@mui/icons-material/Download';
+import AccountTreeIcon from '@mui/icons-material/AccountTree';
+import TimelineIcon from '@mui/icons-material/Timeline';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
+import { tableInputActiveStyle } from '../../styles';
 
-// Opaque background required for sticky columns so scrolling Gantt bars don't bleed through
 const STICKY_BG = '#0b172d';
 
 export default function GanttScheduleTab({ project, projectBoqItems, updateProject }) {
-    const tasks = project.ganttTasks || [];
+    const tasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks : [];
 
     // --- FORM STATE ---
     const [taskName, setTaskName] = useState("");
@@ -53,7 +55,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         let iterations = 0;
         let currentTasks = [...taskList];
 
-        // Loop until dependencies resolve (prevents infinite circular loops)
         while (changed && iterations < 10) {
             changed = false;
             iterations++;
@@ -64,14 +65,14 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 const pred = currentTasks.find(t => t.id === task.dependency.taskId);
                 if (!pred) return task;
 
-                const newStart = new Date(task.startDate);
-                const newEnd = new Date(task.endDate);
+                const newStart = new Date(task.startDate || task.actualStart);
+                const newEnd = new Date(task.endDate || task.actualEnd);
                 const duration = Math.max(0, (newEnd - newStart) / 86400000);
                 const isMilestone = task.type === 'Milestone';
                 const lag = Number(task.dependency.lag) || 0;
 
-                const predStart = new Date(pred.startDate);
-                const predEnd = new Date(pred.endDate);
+                const predStart = new Date(pred.startDate || pred.actualStart);
+                const predEnd = new Date(pred.endDate || pred.actualEnd);
 
                 let expectedStart = new Date(newStart);
                 let expectedEnd = new Date(newEnd);
@@ -101,9 +102,9 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 const expectedStartStr = expectedStart.toISOString().split('T')[0];
                 const expectedEndStr = expectedEnd.toISOString().split('T')[0];
 
-                if (task.startDate !== expectedStartStr || task.endDate !== expectedEndStr) {
+                if ((task.startDate || task.actualStart) !== expectedStartStr || (task.endDate || task.actualEnd) !== expectedEndStr) {
                     changed = true;
-                    return { ...task, startDate: expectedStartStr, endDate: expectedEndStr };
+                    return { ...task, startDate: expectedStartStr, endDate: expectedEndStr, actualStart: expectedStartStr, actualEnd: expectedEndStr };
                 }
                 return task;
             });
@@ -125,7 +126,9 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         const newTask = {
             id: crypto.randomUUID(), name: taskName, type: taskType,
             phase: activePhase || "General", startDate, endDate: finalEndDate,
-            dependency: predecessorId ? { taskId: predecessorId, type: dependencyType, lag: Number(dependencyLag) } : null
+            actualStart: startDate, actualEnd: finalEndDate, status: "Not Started", priority: "Medium",
+            dependency: predecessorId ? { taskId: predecessorId, type: dependencyType, lag: Number(dependencyLag) } : null,
+            createdAt: new Date().toISOString()
         };
 
         await saveTasks([...tasks, newTask]);
@@ -144,10 +147,15 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         const updatedTasks = tasks.map(t => {
             if (t.id === id) {
                 const updated = { ...t, [field]: value };
+                if (field === "startDate") updated.actualStart = value;
+                if (field === "endDate") updated.actualEnd = value;
+                
                 if (updated.type === "Milestone" && field !== "name") {
                     updated.endDate = updated.startDate;
+                    updated.actualEnd = updated.actualStart;
                 } else if (updated.startDate && updated.endDate && new Date(updated.endDate) < new Date(updated.startDate)) {
                     updated.endDate = updated.startDate;
+                    updated.actualEnd = updated.actualStart;
                 }
                 return updated;
             }
@@ -181,12 +189,12 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
     // --- TIMELINE VISUALIZATION MATH ---
     const { minDate, maxDate, totalDays } = useMemo(() => {
         if (tasks.length === 0) return { minDate: null, maxDate: null, totalDays: 0 };
-        let min = new Date(tasks[0].startDate);
-        let max = new Date(tasks[0].endDate);
+        let min = new Date(tasks[0].startDate || tasks[0].actualStart);
+        let max = new Date(tasks[0].endDate || tasks[0].actualEnd);
 
         tasks.forEach(task => {
-            const sDate = new Date(task.startDate);
-            const eDate = new Date(task.endDate);
+            const sDate = new Date(task.startDate || task.actualStart);
+            const eDate = new Date(task.endDate || task.actualEnd);
             if (sDate < min) min = sDate;
             if (eDate > max) max = eDate;
         });
@@ -200,26 +208,31 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
     const ganttColumnWidth = totalDays > 0 ? Math.max(400, totalDays * baseDayWidth * zoomLevel) : 400;
     const pixelsPerDay = totalDays > 0 ? ganttColumnWidth / totalDays : 0;
 
-    const getBarStyles = (task) => {
-        if (!task.startDate || !task.endDate || !minDate || totalDays === 0) return { display: 'none' };
+    const getBarColor = (status) => {
+        switch(status) {
+            case 'Completed': return 'success.main';
+            case 'In Progress': return 'info.main';
+            case 'Pending Procurement': return 'warning.main';
+            case 'Quality Check': return 'secondary.main';
+            default: return 'rgba(158, 158, 158, 0.5)';
+        }
+    };
 
-        const start = new Date(task.startDate);
-        const end = new Date(task.endDate);
+    const getBarStyles = (task) => {
+        if (!task.startDate && !task.actualStart) return { display: 'none' };
+        if (totalDays === 0) return { display: 'none' };
+
+        const start = new Date(task.startDate || task.actualStart);
+        const end = new Date(task.endDate || task.actualEnd);
         const startOffsetDays = Math.floor((start - minDate) / (1000 * 60 * 60 * 24));
         const durationDays = Math.max(1, Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1);
 
-        // --- NEW: DYNAMIC COLORING BASED ON EXECUTION STATUS ---
-        let barColor = 'rgba(158, 158, 158, 0.5)'; // Default Gray for "Not Started"
-        if (task.status === "In Progress") barColor = 'info.main'; // Blue
-        if (task.status === "Completed") barColor = 'success.main'; // Green
+        const barColor = getBarColor(task.status);
 
         if (task.type === 'Milestone') {
             let offsetModifier = 0;
             if (task.dependency && (task.dependency.type === 'FS' || task.dependency.type === 'FF')) offsetModifier = 1;
-
-            // Milestones default to Orange, turn Green when completed
             const diamondColor = task.status === "Completed" ? 'success.main' : 'warning.main';
-
             return { left: `${((startOffsetDays + offsetModifier) / totalDays) * 100}%`, width: `0%`, display: 'block', bgcolor: diamondColor };
         } else {
             return { left: `${Math.max(0, (startOffsetDays / totalDays) * 100)}%`, width: `${Math.min(100, (durationDays / totalDays) * 100)}%`, display: 'block', bgcolor: barColor };
@@ -236,7 +249,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         return groups;
     }, [tasks]);
 
-    // --- DYNAMIC HEADER RENDERING ---
     const renderTimelineHeader = () => {
         if (!minDate || totalDays <= 0) return null;
         const daysArray = [];
@@ -256,7 +268,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 {daysArray.map((d, idx) => {
                     const isMon = d.getDay() === 1;
                     const isFirst = d.getDate() === 1;
-
                     let label = "";
                     if (scaleMode === 'days') label = d.getDate();
                     else if (scaleMode === 'weeks' && isMon) label = `W${Math.ceil(d.getDate() / 7)}`;
@@ -276,10 +287,8 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         );
     };
 
-    // --- EXCEL GANTT EXPORT ENGINE ---
     const exportGanttToExcel = async () => {
         if (!minDate || tasks.length === 0) return alert("No schedule data to export.");
-
         const workbook = new ExcelJS.Workbook();
         const worksheet = workbook.addWorksheet('Project Schedule');
 
@@ -318,14 +327,14 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
 
                 const row = worksheet.addRow({
                     name: task.name + (task.type === "Milestone" ? " ◆" : ""),
-                    start: task.startDate,
-                    end: task.endDate,
+                    start: task.startDate || task.actualStart,
+                    end: task.endDate || task.actualEnd,
                     dep: depLabel,
                     phase: task.phase
                 });
 
-                const tStart = new Date(task.startDate).setHours(0, 0, 0, 0);
-                const tEnd = new Date(task.endDate).setHours(0, 0, 0, 0);
+                const tStart = new Date(task.startDate || task.actualStart).setHours(0, 0, 0, 0);
+                const tEnd = new Date(task.endDate || task.actualEnd).setHours(0, 0, 0, 0);
 
                 daysArray.forEach((dayTime, index) => {
                     if (dayTime >= tStart && dayTime <= tEnd) {
@@ -348,22 +357,18 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
     return (
         <Box display="flex" flexDirection="column" gap={4}>
 
-            {/* --- TASK CREATION FORM --- */}
+            {/* --- 1. TASK CREATION FORM --- */}
             <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
                     ADD_SCHEDULE_ITEM
                 </Typography>
                 <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-
                     <TextField select size="small" label="TYPE" value={taskType} onChange={e => setTaskType(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                         <MenuItem value="Task" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Task</MenuItem>
                         <MenuItem value="Milestone" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Milestone</MenuItem>
                     </TextField>
-
                     <TextField size="small" label="NAME" value={taskName} onChange={e => setTaskName(e.target.value)} sx={{ flex: 2, minWidth: 200 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-
                     <Autocomplete freeSolo options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} sx={{ flex: 1, minWidth: 150 }} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
-
                     <TextField type="date" size="small" label="START" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                     <TextField type="date" size="small" label="END" value={taskType === "Milestone" ? startDate : endDate} onChange={e => setEndDate(e.target.value)} disabled={taskType === "Milestone"} inputProps={{ min: startDate }} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
 
@@ -382,99 +387,57 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 </Box>
             </Paper>
 
-            {/* --- GANTT CHART MATRIX --- */}
-            <Paper elevation={0} sx={{ overflow: "hidden", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', flexWrap: 'wrap', gap: 2 }}>
-                    <Box display="flex" alignItems="center" gap={3}>
-                        <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px' }}>PROJECT_TIMELINE</Typography>
-                        <Box display="flex" alignItems="center" gap={0.5} bgcolor="rgba(0,0,0,0.3)" borderRadius={2} px={1}>
-                            <IconButton size="small" onClick={() => setZoomLevel(z => Math.max(0.2, z - 0.2))} color="primary"><ZoomOutIcon fontSize="small" /></IconButton>
-                            <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '40px', textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</Typography>
-                            <IconButton size="small" onClick={() => setZoomLevel(z => Math.min(4, z + 0.2))} color="primary"><ZoomInIcon fontSize="small" /></IconButton>
-                        </Box>
-
-                        <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={exportGanttToExcel} sx={{ ml: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
-                            EXPORT TO EXCEL
-                        </Button>
-                    </Box>
-                    <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                        DURATION: <Typography component="span" fontWeight="bold" color="success.main">{totalDays > 0 ? `${totalDays} DAYS` : "TBD"}</Typography>
+            {/* --- 2. THE WBS DATA TABLE --- */}
+            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+                    <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccountTreeIcon color="primary" fontSize="small" /> WORK BREAKDOWN STRUCTURE (WBS)
                     </Typography>
                 </Box>
 
-                <TableContainer sx={{ overflowX: 'auto', overflowY: 'hidden' }}>
-                    <Table size="small" sx={{ minWidth: 'max-content' }}>
-                        <TableHead sx={{ bgcolor: STICKY_BG }}>
+                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Table size="small">
+                        <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
-                                {/* STICKY COLUMNS */}
-                                <TableCell sx={{ width: 40, minWidth: 40, position: 'sticky', left: 0, zIndex: 20, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)' }}></TableCell>
-                                <TableCell sx={{ width: 250, minWidth: 250, position: 'sticky', left: 40, zIndex: 20, bgcolor: STICKY_BG, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>TASK / MILESTONE</TableCell>
-
-                                {/* SCROLLING COLUMNS */}
-                                <TableCell sx={{ width: 120, minWidth: 120, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>START</TableCell>
-                                <TableCell sx={{ width: 120, minWidth: 120, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>END</TableCell>
-                                <TableCell sx={{ width: 200, minWidth: 200, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DEPENDENCY</TableCell>
-
-                                <TableCell sx={{ width: ganttColumnWidth, minWidth: ganttColumnWidth, maxWidth: ganttColumnWidth, p: 0, verticalAlign: 'bottom' }}>
-                                    {renderTimelineHeader()}
-                                </TableCell>
-                                <TableCell align="center" sx={{ width: 40, minWidth: 40 }}></TableCell>
+                                <TableCell sx={{ width: 40 }}></TableCell>
+                                <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TASK NAME</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>START</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>END</TableCell>
+                                <TableCell sx={{ width: '20%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DEPENDENCY</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>STATUS</TableCell>
+                                <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {Object.keys(groupedTasks).length > 0 ? (
                                 Object.entries(groupedTasks).map(([phaseName, phaseTasks]) => (
-                                    <React.Fragment key={`gantt-phase-${phaseName}`}>
-                                        <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.1)' }}>
-                                            <TableCell sx={{ position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)' }}></TableCell>
-                                            <TableCell sx={{ py: 1.5, position: 'sticky', left: 40, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', whiteSpace: 'nowrap' }}>
-                                                    ❖ PHASE: {phaseName.toUpperCase()}
-                                                </Typography>
+                                    <React.Fragment key={`wbs-phase-${phaseName}`}>
+                                        <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.05)' }}>
+                                            <TableCell colSpan={7} sx={{ py: 1.5, borderBottom: '1px solid rgba(59, 130, 246, 0.2)' }}>
+                                                <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>◲ PHASE: {phaseName.toUpperCase()}</Typography>
                                             </TableCell>
-                                            <TableCell colSpan={5} sx={{ borderBottom: '1px solid rgba(59, 130, 246, 0.3)' }}></TableCell>
                                         </TableRow>
-
                                         {phaseTasks.map(task => {
-                                            const barStyles = getBarStyles(task);
                                             const isMilestone = task.type === "Milestone";
-
                                             const isStartLocked = task.dependency && (task.dependency.type === 'FS' || task.dependency.type === 'SS');
                                             const isEndLocked = isMilestone || (task.dependency && (task.dependency.type === 'FF' || task.dependency.type === 'SF'));
-
                                             const nativeSelectStyle = { background: 'transparent', color: 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', outline: 'none', borderBottom: '1px dotted rgba(255,255,255,0.3)', cursor: 'pointer' };
 
                                             return (
                                                 <TableRow key={task.id} hover draggable onDragStart={(e) => handleDragStart(e, task.id)} onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, task.id)} sx={{ opacity: draggedId === task.id ? 0.4 : 1, transition: 'opacity 0.2s' }}>
-
-                                                    {/* STICKY CELLS */}
-                                                    <TableCell sx={{ cursor: 'grab', py: 0, position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                                                        <DragIndicatorIcon color="action" fontSize="small" sx={{ verticalAlign: 'middle' }} />
-                                                    </TableCell>
-                                                    <TableCell sx={{ position: 'sticky', left: 40, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                                    <TableCell sx={{ cursor: 'grab', py: 0 }}><DragIndicatorIcon color="action" fontSize="small" sx={{ verticalAlign: 'middle' }} /></TableCell>
+                                                    <TableCell>
                                                         <Box display="flex" alignItems="center">
-                                                            <input
-                                                                type="text"
-                                                                value={task.name}
-                                                                onChange={e => updateTaskInline(task.id, "name", e.target.value)}
-                                                                style={{
-                                                                    background: 'transparent', color: 'inherit', border: 'none',
-                                                                    fontFamily: "'JetBrains Mono', monospace", fontSize: '13px',
-                                                                    fontWeight: 'bold', width: '100%', outline: 'none', textOverflow: 'ellipsis'
-                                                                }}
-                                                            />
+                                                            <input type="text" value={task.name} onChange={e => updateTaskInline(task.id, "name", e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold', width: '100%', outline: 'none' }} />
                                                             {isMilestone && <Typography component="span" color="warning.main" ml={0.5}>◆</Typography>}
                                                         </Box>
                                                     </TableCell>
-
-                                                    {/* SCROLLING CELLS */}
                                                     <TableCell>
-                                                        <input type="date" value={task.startDate} onChange={e => updateTaskInline(task.id, "startDate", e.target.value)} disabled={isStartLocked} style={{ background: 'transparent', color: isStartLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none', opacity: isStartLocked ? 0.5 : 1 }} />
+                                                        <input type="date" value={task.startDate || task.actualStart} onChange={e => updateTaskInline(task.id, "startDate", e.target.value)} disabled={isStartLocked} style={{ background: 'transparent', color: isStartLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none' }} />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <input type="date" value={task.endDate} onChange={e => updateTaskInline(task.id, "endDate", e.target.value)} min={task.startDate} disabled={isEndLocked} style={{ background: 'transparent', color: isEndLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none', opacity: isEndLocked ? 0.5 : 1 }} />
+                                                        <input type="date" value={task.endDate || task.actualEnd} onChange={e => updateTaskInline(task.id, "endDate", e.target.value)} disabled={isEndLocked} style={{ background: 'transparent', color: isEndLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none' }} />
                                                     </TableCell>
-
                                                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                                         <select value={task.dependency?.taskId || ""} onChange={e => updateDependency(task.id, e.target.value, task.dependency?.type || "FS", task.dependency?.lag || 0)} style={{ ...nativeSelectStyle, width: '80px', marginRight: '6px' }}>
                                                             <option value="" style={{ color: 'black' }}>- None -</option>
@@ -487,15 +450,14 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                                                         <input type="number" value={task.dependency?.lag || 0} onChange={e => updateDependency(task.id, task.dependency?.taskId, task.dependency?.type || "FS", e.target.value)} disabled={!task.dependency?.taskId} style={{ ...nativeSelectStyle, width: '40px', opacity: !task.dependency?.taskId ? 0.3 : 1 }} />
                                                         <Typography variant="caption" color="text.secondary" ml={0.5}>d</Typography>
                                                     </TableCell>
-
-                                                    <TableCell sx={{ position: 'relative', borderLeft: '1px dashed rgba(255,255,255,0.1)', p: 1, backgroundImage: totalDays > 0 ? `repeating-linear-gradient(to right, transparent, transparent calc(100% / ${totalDays} - 1px), rgba(255,255,255,0.05) calc(100% / ${totalDays}))` : 'none' }}>
-                                                        <Box sx={{ width: '100%', height: '24px', position: 'relative', borderRadius: 1 }}>
-                                                            {isMilestone ? (
-                                                                <Box sx={{ position: 'absolute', left: barStyles.left, width: '14px', height: '14px', bgcolor: 'warning.main', transform: 'translate(-50%, -50%) rotate(45deg)', top: '50%', boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)', zIndex: 2 }} />
-                                                            ) : (
-                                                                <Box sx={{ ...barStyles, position: 'absolute', height: '100%', borderRadius: 1, opacity: 0.9, boxShadow: '0 0 8px rgba(0,0,0,0.3)', transition: 'all 0.3s ease', '&:hover': { opacity: 1 } }} />
-                                                            )}
-                                                        </Box>
+                                                    <TableCell>
+                                                        <select value={task.status || "Not Started"} onChange={e => updateTaskInline(task.id, "status", e.target.value)} style={{ ...nativeSelectStyle, width: '100%' }}>
+                                                            <option value="Not Started" style={{ color: 'black' }}>Not Started</option>
+                                                            <option value="Pending Procurement" style={{ color: 'black' }}>Procurement</option>
+                                                            <option value="In Progress" style={{ color: 'black' }}>In Progress</option>
+                                                            <option value="Quality Check" style={{ color: 'black' }}>QA Check</option>
+                                                            <option value="Completed" style={{ color: 'black' }}>Completed</option>
+                                                        </select>
                                                     </TableCell>
                                                     <TableCell align="center"><IconButton size="small" color="error" onClick={() => deleteTask(task.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
                                                 </TableRow>
@@ -510,6 +472,93 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                     </Table>
                 </TableContainer>
             </Paper>
+
+            {/* --- 3. THE GANTT TIMELINE MATRIX --- */}
+            <Paper elevation={0} sx={{ overflow: "hidden", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', flexWrap: 'wrap', gap: 2 }}>
+                    <Box display="flex" alignItems="center" gap={3}>
+                        <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 1 }}>
+                            <TimelineIcon color="primary" fontSize="small" /> VISUAL GANTT MATRIX
+                        </Typography>
+                        <Box display="flex" alignItems="center" gap={0.5} bgcolor="rgba(0,0,0,0.3)" borderRadius={2} px={1}>
+                            <IconButton size="small" onClick={() => setZoomLevel(z => Math.max(0.2, z - 0.2))} color="primary"><ZoomOutIcon fontSize="small" /></IconButton>
+                            <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '40px', textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</Typography>
+                            <IconButton size="small" onClick={() => setZoomLevel(z => Math.min(4, z + 0.2))} color="primary"><ZoomInIcon fontSize="small" /></IconButton>
+                        </Box>
+                        <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={exportGanttToExcel} sx={{ ml: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                            EXPORT MATRIX
+                        </Button>
+                    </Box>
+                    <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                        DURATION: <Typography component="span" fontWeight="bold" color="success.main">{totalDays > 0 ? `${totalDays} DAYS` : "TBD"}</Typography>
+                    </Typography>
+                </Box>
+
+                <TableContainer sx={{ overflowX: 'auto', overflowY: 'hidden' }}>
+                    <Table size="small" sx={{ minWidth: 'max-content' }}>
+                        <TableHead sx={{ bgcolor: STICKY_BG }}>
+                            <TableRow>
+                                {/* STICKY TASK COLUMN */}
+                                <TableCell sx={{ width: 300, minWidth: 300, position: 'sticky', left: 0, zIndex: 20, bgcolor: STICKY_BG, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                    TASK / MILESTONE
+                                </TableCell>
+
+                                {/* SCROLLING TIMELINE HEADER */}
+                                <TableCell sx={{ width: ganttColumnWidth, minWidth: ganttColumnWidth, maxWidth: ganttColumnWidth, p: 0, verticalAlign: 'bottom' }}>
+                                    {renderTimelineHeader()}
+                                </TableCell>
+                            </TableRow>
+                        </TableHead>
+                        <TableBody>
+                            {Object.keys(groupedTasks).length > 0 ? (
+                                Object.entries(groupedTasks).map(([phaseName, phaseTasks]) => (
+                                    <React.Fragment key={`gantt-phase-${phaseName}`}>
+                                        <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.1)' }}>
+                                            <TableCell sx={{ py: 1.5, position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                                <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                                                    ❖ PHASE: {phaseName.toUpperCase()}
+                                                </Typography>
+                                            </TableCell>
+                                            <TableCell sx={{ borderBottom: '1px solid rgba(59, 130, 246, 0.3)' }}></TableCell>
+                                        </TableRow>
+
+                                        {phaseTasks.map(task => {
+                                            const barStyles = getBarStyles(task);
+                                            const isMilestone = task.type === "Milestone";
+
+                                            return (
+                                                <TableRow key={`matrix-${task.id}`} hover>
+                                                    {/* STICKY TASK NAME */}
+                                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold' }}>
+                                                        <Box display="flex" alignItems="center" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                            {task.name}
+                                                            {isMilestone && <Typography component="span" color="warning.main" ml={0.5}>◆</Typography>}
+                                                        </Box>
+                                                    </TableCell>
+
+                                                    {/* SCROLLING TIMELINE BAR */}
+                                                    <TableCell sx={{ position: 'relative', borderLeft: '1px dashed rgba(255,255,255,0.1)', p: 1, backgroundImage: totalDays > 0 ? `repeating-linear-gradient(to right, transparent, transparent calc(100% / ${totalDays} - 1px), rgba(255,255,255,0.05) calc(100% / ${totalDays}))` : 'none' }}>
+                                                        <Box sx={{ width: '100%', height: '24px', position: 'relative', borderRadius: 1 }}>
+                                                            {isMilestone ? (
+                                                                <Box sx={{ position: 'absolute', left: barStyles.left, width: '14px', height: '14px', bgcolor: barStyles.bgcolor, transform: 'translate(-50%, -50%) rotate(45deg)', top: '50%', boxShadow: '0 0 8px rgba(245, 158, 11, 0.6)', zIndex: 2 }} />
+                                                            ) : (
+                                                                <Box sx={{ ...barStyles, position: 'absolute', height: '100%', borderRadius: 1, opacity: 0.9, boxShadow: '0 0 8px rgba(0,0,0,0.3)', transition: 'all 0.3s ease', '&:hover': { opacity: 1 } }} />
+                                                            )}
+                                                        </Box>
+                                                    </TableCell>
+                                                </TableRow>
+                                            )
+                                        })}
+                                    </React.Fragment>
+                                ))
+                            ) : (
+                                <TableRow><TableCell colSpan={2} align="center" sx={{ py: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>NO_TASKS_SCHEDULED</TableCell></TableRow>
+                            )}
+                        </TableBody>
+                    </Table>
+                </TableContainer>
+            </Paper>
+
         </Box>
     );
 }

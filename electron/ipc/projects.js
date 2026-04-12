@@ -2,6 +2,7 @@ import { ipcMain } from 'electron';
 import crypto from 'crypto';
 
 export function registerProjectsIpc(db) {
+    // --- PROJECT HANDLERS ---
     ipcMain.handle('db:get-projects', () => db.prepare('SELECT * FROM projects').all());
     ipcMain.handle('db:get-project', (e, id) => db.prepare('SELECT * FROM projects WHERE id = ?').get(id));
 
@@ -22,6 +23,7 @@ export function registerProjectsIpc(db) {
         db.transaction(() => {
             db.prepare('DELETE FROM projects WHERE id = ?').run(id);
             db.prepare('DELETE FROM project_boq WHERE projectId = ?').run(id);
+            db.prepare('DELETE FROM project_documents WHERE projectId = ?').run(id); // Cascade delete docs
         })();
     });
 
@@ -29,6 +31,7 @@ export function registerProjectsIpc(db) {
         db.transaction(() => {
             db.prepare('DELETE FROM projects').run();
             db.prepare('DELETE FROM project_boq').run();
+            db.prepare('DELETE FROM project_documents').run(); // Clean all doc links
         })();
     });
 
@@ -45,6 +48,7 @@ export function registerProjectsIpc(db) {
         })();
     });
 
+    // --- PROJECT BOQ HANDLERS ---
     ipcMain.handle('db:get-project-boqs', (e, projectId) => db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(projectId));
 
     ipcMain.handle('db:add-project-boq', (e, data) => {
@@ -69,6 +73,23 @@ export function registerProjectsIpc(db) {
         })();
     });
 
+    // --- NEW: DOCUMENT MANAGEMENT HANDLERS ---
+    ipcMain.handle('db:get-project-documents', (e, projectId) => {
+        return db.prepare('SELECT * FROM project_documents WHERE projectId = ? ORDER BY addedAt DESC').all(projectId);
+    });
+
+    ipcMain.handle('db:save-project-document', (e, data) => {
+        const cols = Object.keys(data).join(', ');
+        const placeholders = Object.keys(data).map(() => '?').join(', ');
+        // Using INSERT OR REPLACE to handle potential updates to existing links
+        db.prepare(`INSERT OR REPLACE INTO project_documents (${cols}) VALUES (${placeholders})`).run(...Object.values(data));
+    });
+
+    ipcMain.handle('db:delete-project-document', (e, id) => {
+        db.prepare('DELETE FROM project_documents WHERE id = ?').run(id);
+    });
+
+    // --- CRM & STAFF HANDLERS ---
     ipcMain.handle('db:get-crm-contacts', () => db.prepare('SELECT * FROM crm_contacts').all());
     ipcMain.handle('db:save-crm-contact', (e, data) => {
         const cols = Object.keys(data).join(', ');
