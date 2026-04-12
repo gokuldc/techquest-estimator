@@ -197,8 +197,13 @@ export default function BoqBuilderTab({
                                                     ) : null}
                                                 </TableCell>
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayUnit}</TableCell>
-                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {item.rate.toFixed(2)}</TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {item.amount.toFixed(2)}</TableCell>
+                                                
+                                                {/* 🔥 BUG FIXED HERE: Added Number() cast */}
+                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(item.rate || 0).toFixed(2)}</TableCell>
+                                                
+                                                {/* 🔥 BUG FIXED HERE: Added Number() cast */}
+                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(item.amount || 0).toFixed(2)}</TableCell>
+                                                
                                                 <TableCell align="center">
                                                     <Box display="flex" gap={1} justifyContent="center">
                                                         <IconButton color="warning" onClick={() => openEditDialog(item)} size="small"><EditIcon fontSize="small" /></IconButton>
@@ -215,7 +220,10 @@ export default function BoqBuilderTab({
                         )}
                         <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                             <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', fontSize: '1rem', fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_ESTIMATE:</TableCell>
-                            <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>₹ {totalAmount.toFixed(2)}</TableCell>
+                            
+                            {/* 🔥 BUG FIXED HERE: Added Number() cast */}
+                            <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>₹ {Number(totalAmount || 0).toFixed(2)}</TableCell>
+                            
                             <TableCell></TableCell>
                         </TableRow>
                     </TableBody>

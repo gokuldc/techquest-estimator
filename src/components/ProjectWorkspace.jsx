@@ -3,11 +3,9 @@ import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { exportProjectExcel } from "../utils/exportExcel";
 import { exportProjectPdf } from "../utils/exportPdf";
 
-// --- IMPORT OUR NEW EXTRACTED FILES ---
 import { useProjectCalculations } from "../hooks/useProjectCalculations";
 import MasterBoqEditor from "./workspace/MasterBoqEditor";
 
-// --- MODULAR TAB COMPONENTS ---
 import ProjectDetailsTab from "./workspace/ProjectDetailsTab";
 import BoqBuilderTab from "./workspace/BoqBuilderTab";
 import MeasurementBookTab from "./workspace/MeasurementBookTab";
@@ -15,12 +13,11 @@ import GanttScheduleTab from "./workspace/GanttScheduleTab";
 import SubcontractorBidTab from "./workspace/SubcontractorBidTab";
 import DailyLogTab from "./workspace/DailyLogTab";
 import ResourceTrackerTab from "./workspace/ResourceTrackerTab";
-import ProcurementTab from "./workspace/ProcurementTab"; // 🔥 NEW
-import ClientBillingTab from "./workspace/ClientBillingTab"; // 🔥 NEW
+import ProcurementTab from "./workspace/ProcurementTab"; 
+import ClientBillingTab from "./workspace/ClientBillingTab"; 
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
 import FormulaGuideDialog from "./workspace/FormulaGuideDialog"; 
 
-// --- MUI COMPONENTS ---
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -28,18 +25,57 @@ import UploadIcon from '@mui/icons-material/Upload';
 import LockIcon from '@mui/icons-material/Lock';
 import SyncIcon from '@mui/icons-material/Sync';
 
+// 🔥 THE NEW HIERARCHY MAP 🔥
+const CATEGORIES = {
+    planning: {
+        id: "planning",
+        label: "01_PLANNING_&_SETUP",
+        children: [
+            { id: "details", label: "Project Details" },
+            { id: "boq", label: "Master BOQ" },
+            { id: "schedule", label: "Gantt Schedule" }
+        ]
+    },
+    execution: {
+        id: "execution",
+        label: "02_SITE_EXECUTION",
+        children: [
+            { id: "daily_log", label: "Daily Log" },
+            { id: "kanban", label: "Task Board" },
+            { id: "mbook", label: "Measurement Book" }
+        ]
+    },
+    supply_chain: {
+        id: "supply_chain",
+        label: "03_SUPPLY_CHAIN",
+        children: [
+            { id: "resources", label: "Resource Deficits" },
+            { id: "procurement", label: "Procurement (POs)" },
+            { id: "subcontractors", label: "Subcontractors" }
+        ]
+    },
+    financials: {
+        id: "financials",
+        label: "04_FINANCIALS",
+        children: [
+            { id: "billing", label: "Client RA Billing" }
+        ]
+    }
+};
+
 export default function ProjectWorkspace({ projectId, onBack }) {
-    const [tab, setTab] = useState("details");
+    // --- NEW TWO-TIER NAVIGATION STATE ---
+    const [activeCategory, setActiveCategory] = useState("planning");
+    const [activeTab, setActiveTab] = useState("details");
+
     const importFileRef = useRef(null);
 
-    // --- NATIVE SYNC & EXPORT STATE ---
     const [syncFilePath, setSyncFilePath] = useState(null);
     const [syncProjectName, setSyncProjectName] = useState("");
     const [isSyncResolveOpen, setIsSyncResolveOpen] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
     const [exportOpts, setExportOpts] = useState({ details: true, boq: true, kanban: true, dailyLogs: true, subcontractors: true, gantt: true });
 
-    // --- SQLITE STATE MANAGEMENT ---
     const [project, setProject] = useState("loading");
     const [regions, setRegions] = useState([]);
     const [resources, setResources] = useState([]);
@@ -80,7 +116,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 purchaseOrders: parseSafe(p.purchaseOrders, []),
                 raBills: parseSafe(p.raBills, []),
                 phaseAssignments: parseSafe(p.phaseAssignments, {}),
-                materialRequests: parseSafe(p.materialRequests, [])
+                materialRequests: parseSafe(p.materialRequests, []) 
             } : null;
 
             setProject(safeProject || null);
@@ -98,20 +134,15 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     useEffect(() => { loadData(); }, [projectId]);
 
-    // --- IMPORT OUR CUSTOM HOOK FOR MATH ---
     const { renderedProjectBoq, totalAmount, projectResourceMap } = useProjectCalculations(projectBoqItems, masterBoqs, resources, project);
 
-    // --- UI STATE ---
     const [draggedId, setDraggedId] = useState(null);
     const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
-
-    // 🔥 Editor Dialog State
     const [editorItem, setEditorItem] = useState(null);
 
     if (project === "loading") return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
     if (project === null) return <Box p={5} textAlign="center"><Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'error.main', mb: 2 }}>Error: Project Not Found</Typography><Button variant="outlined" onClick={onBack} startIcon={<ArrowBackIcon />}>Return to Dashboard</Button></Box>;
 
-    // --- DB MUTATION HANDLERS ---
     const updateProject = async (field, value) => {
         const valToSave = (typeof value === 'object' && value !== null) ? JSON.stringify(value) : value;
         await window.api.db.updateProject(projectId, { [field]: valToSave });
@@ -193,6 +224,12 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     const updateBoqQtyManual = async (id, val) => { await window.api.db.updateProjectBoq(id, { formulaStr: val }); loadData(); };
 
+    // 🔥 NEW NAV HANDLER: When category changes, auto-select its first child tab
+    const handleCategoryChange = (e, newCategory) => {
+        setActiveCategory(newCategory);
+        setActiveTab(CATEGORIES[newCategory].children[0].id);
+    };
+
     return (
         <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
@@ -202,7 +239,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                         <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
                             WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
                         </Typography>
-                        {/* 🔥 FIXED BOOLEAN RENDERING BUG HERE 🔥 */}
                         {Boolean(project.isPriceLocked) && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
                     </Box>
                 </Box>
@@ -215,32 +251,71 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Box>
             </Box>
 
-            <Paper sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
-                    {/* 🔥 ADDED NEW TABS TO THE MAP ARRAY 🔥 */}
-                    {["details", "boq", "mbook", "schedule", "subcontractors", "daily_log", "resources", "procurement", "billing", "kanban"].map((v, i) => (
-                        <Tab key={v} value={v} label={`${String(i + 1).padStart(2, '0')}_${v.toUpperCase()}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }} />
+            {/* 🔥 TIER 1: PARENT CATEGORIES 🔥 */}
+            <Paper sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.8)', mb: 1, overflow: 'hidden' }}>
+                <Tabs 
+                    value={activeCategory} 
+                    onChange={handleCategoryChange} 
+                    indicatorColor="primary" 
+                    textColor="primary" 
+                    variant="fullWidth" 
+                >
+                    {Object.values(CATEGORIES).map((cat) => (
+                        <Tab 
+                            key={cat.id} 
+                            value={cat.id} 
+                            label={cat.label} 
+                            sx={{ 
+                                fontWeight: 'bold', 
+                                fontFamily: "'JetBrains Mono', monospace", 
+                                fontSize: '13px',
+                                py: 2
+                            }} 
+                        />
                     ))}
                 </Tabs>
             </Paper>
 
-            <Box sx={{ minHeight: '60vh' }}>
-                {tab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
-                {tab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={(item) => setEditorItem(item)} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}
-                {tab === "mbook" && (<MeasurementBookTab renderedProjectBoq={renderedProjectBoq} setFormulaHelpOpen={setFormulaHelpOpen} loadData={loadData} />)}
-                {tab === "schedule" && (<GanttScheduleTab project={project} projectBoqItems={projectBoqItems} updateProject={updateProject} />)}
-                {tab === "subcontractors" && (<SubcontractorBidTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} crmContacts={crmContacts} loadData={loadData} />)}
-                {tab === "daily_log" && (<DailyLogTab project={project} projectBoqItems={projectBoqItems} resources={resources} updateProject={updateProject} loadData={loadData} />)}
-                {tab === "resources" && (<ResourceTrackerTab project={project} renderedProjectBoq={renderedProjectBoq} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} />)}
-                
-                {/* 🔥 RENDER NEW TABS HERE 🔥 */}
-                {tab === "procurement" && (<ProcurementTab project={project} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} crmContacts={crmContacts} />)}
-                {tab === "billing" && (<ClientBillingTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
-                
-                {tab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} />)}
+            {/* 🔥 TIER 2: CHILD SUB-TABS 🔥 */}
+            <Box sx={{ mb: 4, px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Tabs 
+                    value={activeTab} 
+                    onChange={(e, v) => setActiveTab(v)} 
+                    indicatorColor="secondary" 
+                    textColor="inherit" 
+                    variant="scrollable" 
+                    scrollButtons="auto"
+                >
+                    {CATEGORIES[activeCategory].children.map((child) => (
+                        <Tab 
+                            key={child.id} 
+                            value={child.id} 
+                            label={child.label} 
+                            sx={{ 
+                                fontFamily: "'JetBrains Mono', monospace", 
+                                fontSize: '11px',
+                                minHeight: '48px',
+                                color: activeTab === child.id ? '#3b82f6' : 'text.secondary'
+                            }} 
+                        />
+                    ))}
+                </Tabs>
             </Box>
 
-            {/* EXTRACTED EDITOR COMPONENT */}
+            {/* 🔥 RENDER ACTIVE TAB COMPONENT 🔥 */}
+            <Box sx={{ minHeight: '60vh' }}>
+                {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
+                {activeTab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={(item) => setEditorItem(item)} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}
+                {activeTab === "mbook" && (<MeasurementBookTab renderedProjectBoq={renderedProjectBoq} setFormulaHelpOpen={setFormulaHelpOpen} loadData={loadData} />)}
+                {activeTab === "schedule" && (<GanttScheduleTab project={project} projectBoqItems={projectBoqItems} updateProject={updateProject} />)}
+                {activeTab === "subcontractors" && (<SubcontractorBidTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} crmContacts={crmContacts} loadData={loadData} />)}
+                {activeTab === "daily_log" && (<DailyLogTab project={project} projectBoqItems={projectBoqItems} resources={resources} updateProject={updateProject} loadData={loadData} />)}
+                {activeTab === "resources" && (<ResourceTrackerTab project={project} renderedProjectBoq={renderedProjectBoq} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} />)}
+                {activeTab === "procurement" && (<ProcurementTab project={project} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} crmContacts={crmContacts} />)}
+                {activeTab === "billing" && (<ClientBillingTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
+                {activeTab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} updateProject={updateProject} />)}
+            </Box>
+
             <MasterBoqEditor
                 editorItem={editorItem}
                 onClose={() => setEditorItem(null)}

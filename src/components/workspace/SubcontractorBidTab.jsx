@@ -100,8 +100,9 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
         const wsData = [header];
         renderedProjectBoq.forEach(item => {
-            const row = [item.id, item.displayDesc, item.computedQty, item.displayUnit, item.rate];
-            subs.forEach(sub => row.push(sub.rates[item.id] || 0));
+            // 🔥 Wrapped in Number for export safety
+            const row = [item.id, item.displayDesc, Number(item.computedQty || 0), item.displayUnit, Number(item.rate || 0)];
+            subs.forEach(sub => row.push(Number(sub.rates[item.id] || 0)));
             wsData.push(row);
         });
 
@@ -134,7 +135,6 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
                 let addedToCrm = false;
 
-                // 🔥 THE FIX: Safe sequential loop + .trim() applied
                 for (const rawSubName of subCols) {
                     const subName = rawSubName.trim();
                     if (!subName) continue;
@@ -271,31 +271,42 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {renderedProjectBoq.map(item => (
-                                <TableRow key={item.id} hover>
-                                    <TableCell sx={{ minWidth: 250, maxWidth: 400, whiteSpace: 'normal', wordWrap: 'break-word', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                        {item.displayDesc}
-                                    </TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{Number(item.computedQty).toFixed(2)} {item.displayUnit}</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹{item.rate.toFixed(2)}</TableCell>
-                                    <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>₹{item.amount.toFixed(2)}</TableCell>
+                            {renderedProjectBoq.map(item => {
+                                // 🔥 Calculate Base Safe Values once per row
+                                const safeQty = Number(item.computedQty || 0);
+                                const safeRate = Number(item.rate || 0);
+                                const safeAmount = Number(item.amount || 0);
 
-                                    {(project.subcontractors || []).map(sub => {
-                                        const subRate = sub.rates[item.id] || 0;
-                                        const subAmount = subRate * item.computedQty;
-                                        return (
-                                            <React.Fragment key={`${sub.id}-${item.id}`}>
-                                                <TableCell>
-                                                    <input type="number" value={sub.rates[item.id] || ""} onChange={(e) => handleSubRateChange(sub.id, item.id, e.target.value)} style={tableInputActiveStyle} />
-                                                </TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold', color: subAmount > item.amount ? 'error.main' : 'success.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>
-                                                    ₹{subAmount.toFixed(2)}
-                                                </TableCell>
-                                            </React.Fragment>
-                                        )
-                                    })}
-                                </TableRow>
-                            ))}
+                                return (
+                                    <TableRow key={item.id} hover>
+                                        <TableCell sx={{ minWidth: 250, maxWidth: 400, whiteSpace: 'normal', wordWrap: 'break-word', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                            {item.displayDesc}
+                                        </TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{safeQty.toFixed(2)} {item.displayUnit}</TableCell>
+                                        
+                                        {/* 🔥 PROTECTED IN-HOUSE RATE/AMOUNT */}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹{safeRate.toFixed(2)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>₹{safeAmount.toFixed(2)}</TableCell>
+
+                                        {(project.subcontractors || []).map(sub => {
+                                            // 🔥 PROTECTED SUBCONTRACTOR RATE/AMOUNT
+                                            const subRate = Number(sub.rates[item.id] || 0);
+                                            const subAmount = subRate * safeQty;
+                                            
+                                            return (
+                                                <React.Fragment key={`${sub.id}-${item.id}`}>
+                                                    <TableCell>
+                                                        <input type="number" value={sub.rates[item.id] || ""} onChange={(e) => handleSubRateChange(sub.id, item.id, e.target.value)} style={tableInputActiveStyle} />
+                                                    </TableCell>
+                                                    <TableCell sx={{ fontWeight: 'bold', color: subAmount > safeAmount ? 'error.main' : 'success.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>
+                                                        ₹{Number(subAmount || 0).toFixed(2)}
+                                                    </TableCell>
+                                                </React.Fragment>
+                                            )
+                                        })}
+                                    </TableRow>
+                                )
+                            })}
                             {renderedProjectBoq.length === 0 && (
                                 <TableRow>
                                     <TableCell colSpan={4 + (project.subcontractors?.length || 0) * 2} align="center" sx={{ py: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>

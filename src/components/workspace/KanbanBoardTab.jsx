@@ -9,7 +9,6 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
-// 🔥 ALIGNED STATUSES: These now perfectly match the Gantt Chart and Daily Log outputs
 const COLUMNS = [
     { id: 'Not Started', label: '01_BACKLOG', color: '#94a3b8' },
     { id: 'Pending Procurement', label: '02_PROCUREMENT', color: '#f59e0b' },
@@ -20,7 +19,6 @@ const COLUMNS = [
 
 export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff, updateProject }) {
     
-    // 🔥 THE FIX: We now read from the unified SQLite array instead of Dexie
     const tasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks : [];
     
     const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -32,24 +30,21 @@ export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff, 
         if (updateProject) {
             await updateProject("ganttTasks", updatedTasks);
         } else {
-            // Fallback: If updateProject prop is missing, force SQLite update and refresh
-            await window.api.db.updateProject(project.id, { ganttTasks: JSON.stringify(updatedTasks) });
-            window.location.reload(); 
+            console.error("CRITICAL: updateProject prop is missing from ProjectWorkspace.jsx!");
+            alert("Save failed. Please check the console.");
         }
     };
 
     // --- DRAG AND DROP LOGIC ---
     const handleDragStart = (e, taskId) => {
-        // 🔥 SECRET PAYLOAD: The browser cannot read this as a URL or text
         e.dataTransfer.setData("application/x-openprix-task", taskId);
     };
 
     const handleOnDrop = async (e, newStatus) => {
-        e.preventDefault(); // THIS IS THE MAGIC SHIELD
+        e.preventDefault(); 
 
-        // 🔥 READ SECRET PAYLOAD
         const taskId = e.dataTransfer.getData("application/x-openprix-task");
-        if (!taskId) return; // Prevent errors if you accidentally drop a file instead of a task
+        if (!taskId) return; 
 
         const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
         await executeUpdate(updatedTasks);
@@ -75,7 +70,7 @@ export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff, 
         if (!formData.title) return;
         const payload = {
             ...formData,
-            name: formData.title, // Dual-save name/title so Gantt chart can read it too
+            name: formData.title, 
             id: editingTaskId || crypto.randomUUID(),
             createdAt: formData.createdAt || new Date().toISOString()
         };
