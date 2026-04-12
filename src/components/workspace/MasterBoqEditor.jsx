@@ -27,6 +27,9 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
     const [editBoqRows, setEditBoqRows] = useState([]);
     const [focusedQtyId, setFocusedQtyId] = useState(null);
 
+    // 🔥 THE FIX: Local Cache for buttery smooth 60fps typing
+    const [localRows, setLocalRows] = useState({});
+
     // Initialize State when dialog opens
     useEffect(() => {
         if (!editorItem) return;
@@ -196,18 +199,81 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                             <TableRow key={row.id}>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
                                                 <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
+                                                
+                                                {/* 🔥 CACHED CODE SEARCH 🔥 */}
                                                 <TableCell>
-                                                    <input list={`ws-codes-${row.id}`} value={row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "")} onChange={e => { const val = e.target.value; const matched = sourceList.find(s => (s.code || s.itemCode) === val); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc }) : r)); }} style={tableInputActiveStyle} />
+                                                    <input 
+                                                        list={`ws-codes-${row.id}`} 
+                                                        value={localRows[`${row.id}-code`] !== undefined ? localRows[`${row.id}-code`] : (row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || ""))} 
+                                                        onFocus={() => setLocalRows(prev => ({ ...prev, [`${row.id}-code`]: row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "") }))}
+                                                        onBlur={() => {
+                                                            const val = localRows[`${row.id}-code`];
+                                                            if (val !== undefined) {
+                                                                const matched = sourceList.find(s => (s.code || s.itemCode) === val);
+                                                                setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: val, tempDesc: r.tempDesc }) : r));
+                                                            }
+                                                        }}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setLocalRows(prev => ({ ...prev, [`${row.id}-code`]: val }));
+                                                            const matched = sourceList.find(s => (s.code || s.itemCode) === val);
+                                                            if (matched) {
+                                                                setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
+                                                            }
+                                                        }} 
+                                                        style={tableInputActiveStyle} 
+                                                    />
                                                     <datalist id={`ws-codes-${row.id}`}>{sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
                                                 </TableCell>
+
+                                                {/* 🔥 CACHED DESCRIPTION SEARCH 🔥 */}
                                                 <TableCell>
-                                                    <input list={`ws-descs-${row.id}`} value={row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || "")} onChange={e => { const val = e.target.value; const matched = sourceList.find(s => s.description === val); setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val }) : r)); }} style={tableInputActiveStyle} />
+                                                    <input 
+                                                        list={`ws-descs-${row.id}`} 
+                                                        value={localRows[`${row.id}-desc`] !== undefined ? localRows[`${row.id}-desc`] : (row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || ""))} 
+                                                        onFocus={() => setLocalRows(prev => ({ ...prev, [`${row.id}-desc`]: row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || "") }))}
+                                                        onBlur={() => {
+                                                            const val = localRows[`${row.id}-desc`];
+                                                            if (val !== undefined) {
+                                                                const matched = sourceList.find(s => s.description === val);
+                                                                setEditBoqRows(prev => prev.map(r => r.id === row.id ? (matched ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : { ...r, itemId: "", tempCode: r.tempCode, tempDesc: val }) : r));
+                                                            }
+                                                        }}
+                                                        onChange={e => {
+                                                            const val = e.target.value;
+                                                            setLocalRows(prev => ({ ...prev, [`${row.id}-desc`]: val }));
+                                                            const matched = sourceList.find(s => s.description === val);
+                                                            if (matched) {
+                                                                setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
+                                                            }
+                                                        }} 
+                                                        style={tableInputActiveStyle} 
+                                                    />
                                                     <datalist id={`ws-descs-${row.id}`}>{sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}</datalist>
                                                 </TableCell>
+
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
+                                                
+                                                {/* 🔥 CACHED FORMULA INPUT 🔥 */}
                                                 <TableCell>
-                                                    <input type="text" value={isFocused ? (row.formulaStr ?? row.qty ?? "") : Number(row.computedQty || 0).toFixed(4)} onFocus={() => setFocusedQtyId(row.id)} onBlur={() => setFocusedQtyId(null)} onChange={e => updateEditSpreadsheetRow(row.id, 'formulaStr', e.target.value)} style={tableInputActiveStyle} />
+                                                    <input 
+                                                        type="text" 
+                                                        value={isFocused ? (localRows[`${row.id}-qty`] !== undefined ? localRows[`${row.id}-qty`] : (row.formulaStr ?? row.qty ?? "")) : ((row.formulaStr === "" || row.formulaStr === undefined) ? "" : Number(row.computedQty || 0).toFixed(4))}
+                                                        onFocus={() => {
+                                                            setFocusedQtyId(row.id);
+                                                            setLocalRows(prev => ({ ...prev, [`${row.id}-qty`]: row.formulaStr ?? row.qty ?? "" }));
+                                                        }}
+                                                        onBlur={() => {
+                                                            setFocusedQtyId(null);
+                                                            if (localRows[`${row.id}-qty`] !== undefined && localRows[`${row.id}-qty`] !== (row.formulaStr ?? row.qty ?? "")) {
+                                                                updateEditSpreadsheetRow(row.id, 'formulaStr', localRows[`${row.id}-qty`]);
+                                                            }
+                                                        }}
+                                                        onChange={e => setLocalRows(prev => ({ ...prev, [`${row.id}-qty`]: e.target.value }))} 
+                                                        style={tableInputActiveStyle} 
+                                                    />
                                                 </TableCell>
+
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
                                                 <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>
                                                 <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>

@@ -15,8 +15,10 @@ import GanttScheduleTab from "./workspace/GanttScheduleTab";
 import SubcontractorBidTab from "./workspace/SubcontractorBidTab";
 import DailyLogTab from "./workspace/DailyLogTab";
 import ResourceTrackerTab from "./workspace/ResourceTrackerTab";
+import ProcurementTab from "./workspace/ProcurementTab"; // 🔥 NEW
+import ClientBillingTab from "./workspace/ClientBillingTab"; // 🔥 NEW
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
-import FormulaGuideDialog from "./workspace/FormulaGuideDialog"; // <- Your new detailed guide!
+import FormulaGuideDialog from "./workspace/FormulaGuideDialog"; 
 
 // --- MUI COMPONENTS ---
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
@@ -75,7 +77,10 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 actualResources: parseSafe(p.actualResources, {}),
                 ganttTasks: parseSafe(p.ganttTasks, []),
                 subcontractors: parseSafe(p.subcontractors, []),
-                phaseAssignments: parseSafe(p.phaseAssignments, {})
+                purchaseOrders: parseSafe(p.purchaseOrders, []),
+                raBills: parseSafe(p.raBills, []),
+                phaseAssignments: parseSafe(p.phaseAssignments, {}),
+                materialRequests: parseSafe(p.materialRequests, [])
             } : null;
 
             setProject(safeProject || null);
@@ -100,7 +105,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [draggedId, setDraggedId] = useState(null);
     const [formulaHelpOpen, setFormulaHelpOpen] = useState(false);
 
-    // 🔥 NEW: Editor Dialog State is now just a single object!
+    // 🔥 Editor Dialog State
     const [editorItem, setEditorItem] = useState(null);
 
     if (project === "loading") return <Box p={5} textAlign="center"><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>Loading workspace...</Typography></Box>;
@@ -195,8 +200,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px' }}>BACK</Button>
                     <Box>
                         <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                            PROJECT WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
+                            WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
                         </Typography>
+                        {/* 🔥 FIXED BOOLEAN RENDERING BUG HERE 🔥 */}
                         {Boolean(project.isPriceLocked) && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
                     </Box>
                 </Box>
@@ -211,7 +217,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
             <Paper sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
-                    {["details", "boq", "mbook", "schedule", "subcontractors", "daily_log", "resources", "kanban"].map((v, i) => (
+                    {/* 🔥 ADDED NEW TABS TO THE MAP ARRAY 🔥 */}
+                    {["details", "boq", "mbook", "schedule", "subcontractors", "daily_log", "resources", "procurement", "billing", "kanban"].map((v, i) => (
                         <Tab key={v} value={v} label={`${String(i + 1).padStart(2, '0')}_${v.toUpperCase()}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }} />
                     ))}
                 </Tabs>
@@ -225,6 +232,11 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 {tab === "subcontractors" && (<SubcontractorBidTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} crmContacts={crmContacts} loadData={loadData} />)}
                 {tab === "daily_log" && (<DailyLogTab project={project} projectBoqItems={projectBoqItems} resources={resources} updateProject={updateProject} loadData={loadData} />)}
                 {tab === "resources" && (<ResourceTrackerTab project={project} renderedProjectBoq={renderedProjectBoq} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} />)}
+                
+                {/* 🔥 RENDER NEW TABS HERE 🔥 */}
+                {tab === "procurement" && (<ProcurementTab project={project} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} crmContacts={crmContacts} />)}
+                {tab === "billing" && (<ClientBillingTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
+                
                 {tab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} />)}
             </Box>
 
@@ -255,10 +267,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </DialogActions>
             </Dialog>
 
-            {/* 🔥 THE FIX: Swapped out the old Dialog for the new FormulaGuideDialog component 🔥 */}
-            <FormulaGuideDialog
-                open={formulaHelpOpen}
-                onClose={() => setFormulaHelpOpen(false)}
+            <FormulaGuideDialog 
+                open={formulaHelpOpen} 
+                onClose={() => setFormulaHelpOpen(false)} 
             />
 
             <Dialog open={isSyncResolveOpen} onClose={() => setIsSyncResolveOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>

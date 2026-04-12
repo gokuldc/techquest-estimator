@@ -1,6 +1,4 @@
 import React, { useState } from 'react';
-import { useLiveQuery } from 'dexie-react-hooks';
-import { db } from '../../db';
 import { 
     Box, Typography, Paper, Grid, IconButton, Button, 
     Chip, Avatar, Dialog, DialogTitle, DialogContent, 
@@ -11,43 +9,64 @@ import EditIcon from '@mui/icons-material/Edit';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AccessTimeIcon from '@mui/icons-material/AccessTime';
 
+// 🔥 ALIGNED STATUSES: These now perfectly match the Gantt Chart and Daily Log outputs
 const COLUMNS = [
-    { id: 'BACKLOG', label: '01_BACKLOG', color: '#94a3b8' },
-    { id: 'PROCUREMENT', label: '02_PROCUREMENT', color: '#f59e0b' },
-    { id: 'ON_SITE', label: '03_IN_PROGRESS', color: '#3b82f6' },
-    { id: 'QA_CHECK', label: '04_QUALITY_CONTROL', color: '#8b5cf6' },
-    { id: 'DONE', label: '05_COMPLETED', color: '#10b981' }
+    { id: 'Not Started', label: '01_BACKLOG', color: '#94a3b8' },
+    { id: 'Pending Procurement', label: '02_PROCUREMENT', color: '#f59e0b' },
+    { id: 'In Progress', label: '03_IN_PROGRESS', color: '#3b82f6' },
+    { id: 'Quality Check', label: '04_QUALITY_CONTROL', color: '#8b5cf6' },
+    { id: 'Completed', label: '05_COMPLETED', color: '#10b981' }
 ];
 
-export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff }) {
-    const tasks = useLiveQuery(() => db.kanbanTasks.where({ projectId: project.id }).toArray()) || [];
+export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff, updateProject }) {
+    
+    // 🔥 THE FIX: We now read from the unified SQLite array instead of Dexie
+    const tasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks : [];
     
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editingTaskId, setEditingTaskId] = useState(null);
-    const [formData, setFormData] = useState({ title: '', status: 'BACKLOG', priority: 'Medium', boqItemId: '', assigneeId: '' });
+    const [formData, setFormData] = useState({ title: '', status: 'Not Started', priority: 'Medium', boqItemId: '', assigneeId: '' });
+
+    // --- ROBUST DB SAVE DISPATCHER ---
+    const executeUpdate = async (updatedTasks) => {
+        if (updateProject) {
+            await updateProject("ganttTasks", updatedTasks);
+        } else {
+            // Fallback: If updateProject prop is missing, force SQLite update and refresh
+            await window.api.db.updateProject(project.id, { ganttTasks: JSON.stringify(updatedTasks) });
+            window.location.reload(); 
+        }
+    };
 
     // --- DRAG AND DROP LOGIC ---
     const handleDragStart = (e, taskId) => {
-        e.dataTransfer.setData("taskId", taskId);
+        // 🔥 SECRET PAYLOAD: The browser cannot read this as a URL or text
+        e.dataTransfer.setData("application/x-openprix-task", taskId);
     };
 
     const handleOnDrop = async (e, newStatus) => {
-        const taskId = e.dataTransfer.getData("taskId");
-        await db.kanbanTasks.update(taskId, { status: newStatus });
+        e.preventDefault(); // THIS IS THE MAGIC SHIELD
+
+        // 🔥 READ SECRET PAYLOAD
+        const taskId = e.dataTransfer.getData("application/x-openprix-task");
+        if (!taskId) return; // Prevent errors if you accidentally drop a file instead of a task
+
+        const updatedTasks = tasks.map(t => t.id === taskId ? { ...t, status: newStatus } : t);
+        await executeUpdate(updatedTasks);
     };
 
     const handleDragOver = (e) => {
-        e.preventDefault(); // Necessary to allow drop
+        e.preventDefault(); 
     };
 
     // --- ACTIONS ---
     const handleOpenDialog = (task = null) => {
         if (task) {
             setEditingTaskId(task.id);
-            setFormData(task);
+            setFormData({ ...task, title: task.title || task.name || '' });
         } else {
             setEditingTaskId(null);
-            setFormData({ title: '', status: 'BACKLOG', priority: 'Medium', boqItemId: '', assigneeId: '' });
+            setFormData({ title: '', status: 'Not Started', priority: 'Medium', boqItemId: '', assigneeId: '' });
         }
         setIsDialogOpen(true);
     };
@@ -56,17 +75,26 @@ export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff }
         if (!formData.title) return;
         const payload = {
             ...formData,
+            name: formData.title, // Dual-save name/title so Gantt chart can read it too
             id: editingTaskId || crypto.randomUUID(),
-            projectId: project.id,
-            createdAt: formData.createdAt || Date.now()
+            createdAt: formData.createdAt || new Date().toISOString()
         };
-        await db.kanbanTasks.put(payload);
+
+        let updatedTasks;
+        if (editingTaskId) {
+            updatedTasks = tasks.map(t => t.id === editingTaskId ? payload : t);
+        } else {
+            updatedTasks = [...tasks, payload];
+        }
+        
+        await executeUpdate(updatedTasks);
         setIsDialogOpen(false);
     };
 
     const handleDeleteTask = async (id) => {
         if (window.confirm("Delete this task?")) {
-            await db.kanbanTasks.delete(id);
+            const updatedTasks = tasks.filter(t => t.id !== id);
+            await executeUpdate(updatedTasks);
         }
     };
 
@@ -83,7 +111,7 @@ export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff }
         >
             <Box display="flex" justifyContent="space-between" mb={1}>
                 <Chip 
-                    label={task.priority?.toUpperCase()} 
+                    label={task.priority?.toUpperCase() || 'MEDIUM'} 
                     size="small" 
                     sx={{ 
                         fontSize: '9px', height: 18, fontFamily: "'JetBrains Mono', monospace",
@@ -102,14 +130,14 @@ export default function KanbanBoardTab({ project, renderedProjectBoq, orgStaff }
             </Box>
             
             <Typography variant="body2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, color: 'text.primary' }}>
-                {task.title}
+                {task.title || task.name}
             </Typography>
 
             <Box display="flex" alignItems="center" justifyContent="space-between">
                 <Box display="flex" alignItems="center" gap={0.5} sx={{ opacity: 0.6 }}>
                     <AccessTimeIcon sx={{ fontSize: 12 }} />
                     <Typography sx={{ fontSize: '9px', fontFamily: "'JetBrains Mono', monospace" }}>
-                        {new Date(task.createdAt).toLocaleDateString()}
+                        {new Date(task.createdAt || Date.now()).toLocaleDateString()}
                     </Typography>
                 </Box>
                 <Avatar sx={{ width: 22, height: 22, fontSize: '10px', bgcolor: 'primary.dark', border: '1px solid #3b82f6', color: '#fff', fontFamily: "'JetBrains Mono', monospace" }}>

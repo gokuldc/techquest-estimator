@@ -45,7 +45,10 @@ export function initDatabase() {
             structuralEngineer TEXT, isPriceLocked INTEGER DEFAULT 0,
             dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, 
             subcontractors TEXT, phaseAssignments TEXT,
-            createdAt INTEGER
+            createdAt INTEGER,
+            raBills TEXT,
+            purchaseOrders TEXT,
+            materialRequests TEXT
         );
         CREATE TABLE IF NOT EXISTS project_boq (
             id TEXT PRIMARY KEY,
@@ -72,6 +75,9 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN createdAt INTEGER;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN dailySchedules TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN resourceTrackingMode TEXT DEFAULT 'manual';"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN raBills TEXT;"); } catch (err) {}
+    try { db.exec("ALTER TABLE projects ADD COLUMN purchaseOrders TEXT;"); } catch (err) {}
+    try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) {}
 
     return db;
 }

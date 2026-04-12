@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable'; // <-- CHANGED THIS IMPORT
+import autoTable from 'jspdf-autotable';
 
 export const exportProjectPdf = (project, boqItems, totalAmount) => {
     // Create a new PDF document in Landscape orientation
@@ -44,7 +44,7 @@ export const exportProjectPdf = (project, boqItems, totalAmount) => {
         tableRows.push(rowData);
     });
 
-    // --- CHANGED THIS FUNCTION CALL ---
+    
     autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
@@ -75,4 +75,174 @@ export const exportProjectPdf = (project, boqItems, totalAmount) => {
 
     // Save the PDF
     doc.save(`${project.code || 'Project'}_Estimate_Report.pdf`);
+};
+// Add this below your existing exportProjectPdf function
+export const exportRaBillPdf = (project, bill, boqItems) => {
+    const doc = new jsPDF('landscape');
+
+    // --- INVOICE HEADER ---
+    doc.setFontSize(18);
+    doc.setTextColor(11, 23, 45);
+    doc.text(`RUNNING ACCOUNT (RA) BILL: ${bill.billNo}`, 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+
+    // Left Column details
+    doc.text(`Project Name: ${project.name || 'Untitled Project'}`, 14, 32);
+    doc.text(`Project Code: ${project.code || 'N/A'}`, 14, 38);
+    doc.text(`Client: ${project.clientName || 'N/A'}`, 14, 44);
+
+    // Right Column details
+    doc.text(`Date of Issue: ${bill.date}`, 200, 32);
+    doc.text(`Status: ${bill.status}`, 200, 38);
+
+    // --- BILL TABLE ---
+    const tableColumn = ["Sl No", "Description", "Unit", "Rate (Rs)", "Prev Billed Qty", "Current Bill Qty", "Amount (Rs)"];
+    const tableRows = [];
+
+    bill.items.forEach((billedItem, index) => {
+        // Find the matching BOQ item to get its description and unit
+        const boqRef = boqItems.find(b => b.id === billedItem.boqId) || {};
+        
+        const rowData = [
+            index + 1,
+            boqRef.displayDesc || 'Unknown Item',
+            boqRef.displayUnit || '-',
+            Number(billedItem.rate || 0).toFixed(2),
+            Number(billedItem.prevQty || 0).toFixed(2),
+            Number(billedItem.currentQty || 0).toFixed(2),
+            Number(billedItem.amount || 0).toFixed(2)
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 55,
+        theme: 'grid',
+        headStyles: { fillColor: [13, 31, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4, textColor: [50, 50, 50] },
+        alternateRowStyles: { fillColor: [245, 248, 250] },
+        columnStyles: {
+            0: { cellWidth: 15, halign: 'center' },
+            1: { cellWidth: 'auto' }, // Description
+            2: { cellWidth: 20, halign: 'center' }, // Unit
+            3: { cellWidth: 30, halign: 'right' }, // Rate
+            4: { cellWidth: 30, halign: 'right' }, // Prev Qty
+            5: { cellWidth: 35, halign: 'right', fontStyle: 'bold', textColor: [16, 185, 129] }, // Current Qty
+            6: { cellWidth: 35, halign: 'right', fontStyle: 'bold' }, // Amount
+        }
+    });
+
+    // --- TOTALS CALCULATION ---
+    const finalY = doc.lastAutoTable.finalY || 50;
+    
+    doc.setFontSize(11);
+    doc.setTextColor(50, 50, 50);
+    
+    doc.text(`Subtotal: Rs. ${bill.subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 200, finalY + 10);
+    doc.text(`Tax (${bill.taxPercent}%): Rs. ${bill.taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 200, finalY + 16);
+    
+    doc.setFontSize(14);
+    doc.setTextColor(16, 185, 129); // Success Green
+    doc.text(`GRAND TOTAL: Rs. ${bill.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 200, finalY + 26);
+
+    // Save the PDF
+    doc.save(`${project.code || 'Project'}_${bill.billNo}.pdf`);
+};
+export const exportPoPdf = (project, po) => {
+    // Use portrait mode ('p') for standard A4 Purchase Orders
+    const doc = new jsPDF('p');
+
+    // --- PO HEADER ---
+    doc.setFontSize(22);
+    doc.setTextColor(11, 23, 45);
+    doc.text(`PURCHASE ORDER`, 14, 22);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100, 100, 100);
+
+    // Left Column: Supplier Details
+    doc.setFont(undefined, 'bold');
+    doc.text(`TO (SUPPLIER):`, 14, 34);
+    doc.setFont(undefined, 'normal');
+    doc.text(po.supplierName || 'Unknown Supplier', 14, 40);
+
+    // Right Column: PO Details
+    doc.setFont(undefined, 'bold');
+    doc.text(`PO Number:`, 130, 34);
+    doc.setFont(undefined, 'normal');
+    doc.text(po.poNumber, 160, 34);
+    
+    doc.setFont(undefined, 'bold');
+    doc.text(`Date:`, 130, 40);
+    doc.setFont(undefined, 'normal');
+    doc.text(po.date, 160, 40);
+
+    doc.setFont(undefined, 'bold');
+    doc.text(`Ship To Site:`, 130, 46);
+    doc.setFont(undefined, 'normal');
+    doc.text(project.name || 'Site', 160, 46);
+
+    // --- PO ITEMS TABLE ---
+    const tableColumn = ["Sl No", "Item Code", "Description", "Unit", "Qty", "Rate (Rs)", "Amount (Rs)"];
+    const tableRows = [];
+
+    po.items.forEach((item, index) => {
+        const rowData = [
+            index + 1,
+            item.code || '-',
+            item.description || '-',
+            item.unit || '-',
+            Number(item.qty || 0).toFixed(2),
+            Number(item.rate || 0).toFixed(2),
+            Number(item.amount || 0).toFixed(2)
+        ];
+        tableRows.push(rowData);
+    });
+
+    autoTable(doc, {
+        head: [tableColumn],
+        body: tableRows,
+        startY: 55,
+        theme: 'grid',
+        headStyles: { fillColor: [13, 31, 60], textColor: [255, 255, 255], fontStyle: 'bold' },
+        styles: { fontSize: 9, cellPadding: 4, textColor: [50, 50, 50] },
+        alternateRowStyles: { fillColor: [245, 248, 250] },
+        columnStyles: {
+            0: { cellWidth: 12, halign: 'center' },
+            1: { cellWidth: 25 }, 
+            2: { cellWidth: 'auto' }, 
+            3: { cellWidth: 15, halign: 'center' }, 
+            4: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }, 
+            5: { cellWidth: 25, halign: 'right' }, 
+            6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }, 
+        }
+    });
+
+    // --- TOTALS ---
+    const finalY = doc.lastAutoTable.finalY || 50;
+    
+    doc.setFontSize(10);
+    doc.setTextColor(50, 50, 50);
+    doc.text(`Subtotal: Rs. ${po.subTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 140, finalY + 10);
+    doc.text(`Tax (${po.taxPercent}%): Rs. ${po.taxAmount.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 140, finalY + 16);
+    
+    doc.setFontSize(12);
+    doc.setTextColor(11, 23, 45); 
+    doc.setFont(undefined, 'bold');
+    doc.text(`GRAND TOTAL: Rs. ${po.grandTotal.toLocaleString('en-IN', { minimumFractionDigits: 2 })}`, 140, finalY + 26);
+
+    // --- TERMS & CONDITIONS ---
+    doc.setFontSize(9);
+    doc.setTextColor(150, 150, 150);
+    doc.setFont(undefined, 'normal');
+    doc.text("Terms & Conditions:", 14, finalY + 40);
+    doc.text("1. Please deliver the materials to the site address mentioned above.", 14, finalY + 45);
+    doc.text("2. All materials must comply with the approved technical specifications.", 14, finalY + 50);
+    doc.text("3. This is an electronically generated Purchase Order.", 14, finalY + 55);
+
+    doc.save(`${project.code || 'Project'}_PO_${po.poNumber}.pdf`);
 };

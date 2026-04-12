@@ -11,6 +11,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import CheckCircleIcon from '@mui/icons-material/CheckCircle';
+import SendIcon from '@mui/icons-material/Send';
 
 export default function DailyLogTab({ project, projectBoqItems, resources, updateProject, loadData }) {
     const [date, setDate] = useState(new Date().toISOString().split('T')[0]);
@@ -22,6 +23,11 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
     const [customCode, setCustomCode] = useState("");
     const [customDesc, setCustomDesc] = useState("");
     const [customUnit, setCustomUnit] = useState("nos");
+
+    // --- REQUISITION STATE ---
+    const [reqItem, setReqItem] = useState("");
+    const [reqQty, setReqQty] = useState("");
+    const [reqUrgency, setReqUrgency] = useState("Normal");
 
     // --- DAILY SCHEDULE STATE ---
     const [scheduleDate, setScheduleDate] = useState(new Date().toISOString().split('T')[0]);
@@ -41,6 +47,58 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
     const validLogs = Array.isArray(project?.dailyLogs) ? project.dailyLogs.filter(l => l && l.id) : [];
     const validSchedules = Array.isArray(project?.dailySchedules) ? project.dailySchedules.filter(s => s && s.id) : [];
     const validTasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks.filter(t => t && t.id) : [];
+
+    // --- MATERIAL REQUISITION LOGIC ---
+    const submitMaterialRequest = async () => {
+        if (!reqItem || !reqQty) return alert("Please enter item name and quantity.");
+
+        try {
+            // 1. Fetch the absolute latest source-of-truth from the database (bypass React state)
+            const liveProject = await window.api.db.getProject(project.id);
+            const liveRequests = liveProject.materialRequests ? JSON.parse(liveProject.materialRequests) : [];
+            const liveTasks = liveProject.ganttTasks ? JSON.parse(liveProject.ganttTasks) : [];
+
+            // 2. Create the Request
+            const newReq = {
+                id: crypto.randomUUID(),
+                date: new Date().toISOString().split('T')[0],
+                item: reqItem,
+                qty: Number(reqQty),
+                urgency: reqUrgency,
+                status: "Pending Procurement"
+            };
+
+            // 3. Create the Kanban Task
+            const newTask = {
+                id: crypto.randomUUID(),
+                name: `ORDER: ${reqItem} (${reqQty})`, 
+                phase: "Procurement",
+                status: "Not Started",
+                columnId: "todo", 
+                priority: reqUrgency === "High" ? "High" : "Medium",
+                assignedTo: "Procurement Team",
+                description: `Site requested ${reqQty} of ${reqItem} on ${newReq.date}.`
+            };
+
+            // 4. Force the database to save both at the exact same time
+            await window.api.db.updateProject(project.id, {
+                materialRequests: JSON.stringify([...liveRequests, newReq]),
+                ganttTasks: JSON.stringify([...liveTasks, newTask])
+            });
+
+            // 5. Tell the UI to refresh
+            if (loadData) loadData();
+
+            setReqItem(""); 
+            setReqQty("");
+            alert("Requisition successfully submitted to Procurement & Kanban board!");
+            
+        } catch (error) {
+            console.error(error);
+            alert("Failed to save. Ensure your database has the materialRequests column.");
+        }
+    };
+
 
     // --- MATERIAL LOGGING LOGIC ---
     const addLog = async () => {
@@ -90,6 +148,7 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         const schedules = validSchedules.filter(s => s.id !== id);
         await updateProject("dailySchedules", schedules);
     };
+    
 
     // --- TASK TRACKING LOGIC ---
     const handleTaskStatusChange = async (taskId, newStatus) => {
@@ -136,7 +195,7 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
 
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
-        XLSX.utils.book_append_sheet(wb, ws, "Daily_Material_Logs");
+        XLS.utils.book_append_sheet(wb, ws, "Daily_Material_Logs");
         XLSX.writeFile(wb, `${project.name || 'Project'}_MaterialLogs.xlsx`); 
     };
 
@@ -213,6 +272,39 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                     IMPORT EXCEL
                 </Button>
             </Box>
+
+            {/* 🔥 NEW: SITE MATERIAL REQUISITION 🔥 */}
+            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'warning.main', bgcolor: 'rgba(245, 158, 11, 0.05)' }}>
+                <Typography variant="subtitle2" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <SendIcon fontSize="small" /> SITE MATERIAL REQUISITION (UNPLANNED)
+                </Typography>
+                <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
+                    <input 
+                        placeholder="Item Description (e.g., Extra PVC Pipes)" 
+                        value={reqItem} 
+                        onChange={e => setReqItem(e.target.value)} 
+                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', flex: 2, minWidth: '200px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }} 
+                    />
+                    <input 
+                        type="number" 
+                        placeholder="Qty" 
+                        value={reqQty} 
+                        onChange={e => setReqQty(e.target.value)} 
+                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', width: '100px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }} 
+                    />
+                    <select 
+                        value={reqUrgency} 
+                        onChange={e => setReqUrgency(e.target.value)} 
+                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}
+                    >
+                        <option value="Normal">Normal</option>
+                        <option value="High">Urgent</option>
+                    </select>
+                    <Button variant="contained" color="warning" onClick={submitMaterialRequest} sx={{ height: 42, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
+                        SEND REQUEST
+                    </Button>
+                </Box>
+            </Paper>
 
             {/* --- DAILY WORK SCHEDULE --- */}
             <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
