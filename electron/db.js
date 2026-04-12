@@ -48,7 +48,8 @@ export function initDatabase() {
             createdAt INTEGER,
             raBills TEXT,
             purchaseOrders TEXT,
-            materialRequests TEXT
+            materialRequests TEXT,
+            grns TEXT
         );
         CREATE TABLE IF NOT EXISTS project_boq (
             id TEXT PRIMARY KEY,
@@ -78,6 +79,7 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN raBills TEXT;"); } catch (err) {}
     try { db.exec("ALTER TABLE projects ADD COLUMN purchaseOrders TEXT;"); } catch (err) {}
     try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) {}
+    try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) {}
 
     return db;
 }

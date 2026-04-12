@@ -16,7 +16,8 @@ import ResourceTrackerTab from "./workspace/ResourceTrackerTab";
 import ProcurementTab from "./workspace/ProcurementTab"; 
 import ClientBillingTab from "./workspace/ClientBillingTab"; 
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
-import FormulaGuideDialog from "./workspace/FormulaGuideDialog"; 
+import FormulaGuideDialog from "./workspace/FormulaGuideDialog";
+import InventoryTab from "./workspace/InventoryTab"; 
 
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
@@ -49,6 +50,7 @@ const CATEGORIES = {
         id: "supply_chain",
         label: "03_SUPPLY_CHAIN",
         children: [
+            { id: "inventory", label: "Stock Inventory" },
             { id: "resources", label: "Resource Deficits" },
             { id: "procurement", label: "Procurement (POs)" },
             { id: "subcontractors", label: "Subcontractors" }
@@ -116,7 +118,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 purchaseOrders: parseSafe(p.purchaseOrders, []),
                 raBills: parseSafe(p.raBills, []),
                 phaseAssignments: parseSafe(p.phaseAssignments, {}),
-                materialRequests: parseSafe(p.materialRequests, []) 
+                materialRequests: parseSafe(p.materialRequests, []),
+                grns: parseSafe(p.grns, []) 
             } : null;
 
             setProject(safeProject || null);
@@ -314,6 +317,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 {activeTab === "procurement" && (<ProcurementTab project={project} projectResourceMap={projectResourceMap} resources={resources} updateProject={updateProject} crmContacts={crmContacts} />)}
                 {activeTab === "billing" && (<ClientBillingTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
                 {activeTab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} updateProject={updateProject} />)}
+                {activeTab === "inventory" && (<InventoryTab project={project} resources={resources} updateProject={updateProject} />)}
             </Box>
 
             <MasterBoqEditor

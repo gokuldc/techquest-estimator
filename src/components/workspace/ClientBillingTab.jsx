@@ -22,8 +22,9 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
     const [billingPhase, setBillingPhase] = useState("All Phases");
     const [currentBillItems, setCurrentBillItems] = useState({});
 
-    const totalContractValue = renderedProjectBoq.reduce((sum, item) => sum + (item.amount || 0), 0);
-    const totalBilled = bills.reduce((sum, bill) => sum + (bill.subTotal || 0), 0);
+    // 🔥 SAFE CALCULATIONS
+    const totalContractValue = renderedProjectBoq.reduce((sum, item) => sum + Number(item.amount || 0), 0);
+    const totalBilled = bills.reduce((sum, bill) => sum + Number(bill.subTotal || 0), 0);
     const unbilledAmount = totalContractValue - totalBilled;
 
     const handleCreateNewBill = () => {
@@ -39,10 +40,10 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
         targetItems.forEach(item => {
             const prevQty = bills.reduce((sum, b) => {
                 const billedItem = b.items.find(i => i.boqId === item.id);
-                return sum + (billedItem ? billedItem.currentQty : 0);
+                return sum + (billedItem ? Number(billedItem.currentQty || 0) : 0);
             }, 0);
 
-            const workDoneQty = item.computedQty || 0;
+            const workDoneQty = Number(item.computedQty || 0);
             let unbilledQty = workDoneQty - prevQty;
             if (unbilledQty < 0) unbilledQty = 0; 
 
@@ -50,7 +51,7 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                 prevQty: prevQty,
                 mbookQty: workDoneQty,
                 currentQty: unbilledQty,
-                rate: item.rate
+                rate: Number(item.rate || 0)
             };
         });
 
@@ -69,9 +70,10 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
     const { currentSubTotal, currentTax, currentGrandTotal } = useMemo(() => {
         let sub = 0;
         Object.values(currentBillItems).forEach(item => {
-            sub += (item.currentQty * item.rate);
+            // 🔥 SECURE INNER CALCULATION
+            sub += (Number(item.currentQty || 0) * Number(item.rate || 0));
         });
-        const tax = sub * (taxPercent / 100);
+        const tax = sub * (Number(taxPercent || 0) / 100);
         return { currentSubTotal: sub, currentTax: tax, currentGrandTotal: sub + tax };
     }, [currentBillItems, taxPercent]);
 
@@ -86,13 +88,13 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
             status: "Approved",
             items: Object.entries(currentBillItems).map(([boqId, data]) => ({
                 boqId,
-                prevQty: data.prevQty,
-                currentQty: data.currentQty,
-                rate: data.rate,
-                amount: data.currentQty * data.rate
+                prevQty: Number(data.prevQty || 0),
+                currentQty: Number(data.currentQty || 0),
+                rate: Number(data.rate || 0),
+                amount: Number(data.currentQty || 0) * Number(data.rate || 0)
             })),
             subTotal: currentSubTotal,
-            taxPercent: Number(taxPercent),
+            taxPercent: Number(taxPercent || 0),
             taxAmount: currentTax,
             grandTotal: currentGrandTotal
         };
@@ -149,14 +151,16 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.slNo}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.displayDesc}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.displayUnit}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{rowData.rate.toFixed(2)}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'info.light' }}>{rowData.mbookQty.toFixed(2)}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'warning.light' }}>{rowData.prevQty.toFixed(2)}</TableCell>
+                                        {/* 🔥 SECURE RATE FORMATTING */}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{Number(rowData.rate || 0).toFixed(2)}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'info.light' }}>{Number(rowData.mbookQty || 0).toFixed(2)}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'warning.light' }}>{Number(rowData.prevQty || 0).toFixed(2)}</TableCell>
                                         <TableCell>
                                             <input type="number" value={rowData.currentQty} onChange={(e) => updateCurrentQty(item.id, e.target.value)} style={tableInputActiveStyle} />
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                                            {(rowData.currentQty * rowData.rate).toFixed(2)}
+                                            {/* 🔥 SECURE ROW AMOUNT FORMATTING */}
+                                            {(Number(rowData.currentQty || 0) * Number(rowData.rate || 0)).toFixed(2)}
                                         </TableCell>
                                     </TableRow>
                                 );
@@ -167,12 +171,13 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
 
                 <Box display="flex" justifyContent="flex-end">
                     <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                        <Box display="flex" justifyContent="space-between" mb={2}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography><Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {currentSubTotal.toFixed(2)}</Typography></Box>
+                        {/* 🔥 SECURE SUBTOTAL FORMATTING */}
+                        <Box display="flex" justifyContent="space-between" mb={2}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography><Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(currentSubTotal || 0).toFixed(2)}</Typography></Box>
                         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="1px solid" borderColor="divider">
                             <Box display="flex" alignItems="center" gap={1}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>TAX (%):</Typography><input type="number" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} /></Box>
-                            <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {currentTax.toFixed(2)}</Typography>
+                            <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(currentTax || 0).toFixed(2)}</Typography>
                         </Box>
-                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main"><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>GRAND_TOTAL:</Typography><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {currentGrandTotal.toFixed(2)}</Typography></Box>
+                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main"><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>GRAND_TOTAL:</Typography><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {Number(currentGrandTotal || 0).toFixed(2)}</Typography></Box>
                         <Button variant="contained" color="success" fullWidth size="large" onClick={saveBill} startIcon={<SaveIcon />} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>APPROVE & SAVE RA BILL</Button>
                     </Paper>
                 </Box>
@@ -183,9 +188,10 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
     return (
         <Box>
             <Grid container spacing={3} mb={4}>
-                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>TOTAL_CONTRACT_VALUE</Typography><Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {totalContractValue.toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
-                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>CUMULATIVE_BILLED</Typography><Typography variant="h5" fontWeight="bold" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {totalBilled.toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
-                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>UNBILLED_BALANCE</Typography><Typography variant="h5" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {unbilledAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
+                {/* 🔥 SECURE SUMMARY CARDS */}
+                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>TOTAL_CONTRACT_VALUE</Typography><Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {Number(totalContractValue || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
+                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>CUMULATIVE_BILLED</Typography><Typography variant="h5" fontWeight="bold" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {Number(totalBilled || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
+                <Grid item xs={12} md={4}><Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}><Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>UNBILLED_BALANCE</Typography><Typography variant="h5" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>₹ {Number(unbilledAmount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</Typography></Paper></Grid>
             </Grid>
 
             <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
@@ -238,9 +244,10 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                                         <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#3b82f6' }}>{bill.billNo}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.phase || "All Phases"}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.date}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.subTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.taxAmount.toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main' }}>{bill.grandTotal.toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
+                                        {/* 🔥 SECURE LIST FORMATTING */}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{Number(bill.subTotal || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{Number(bill.taxAmount || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main' }}>{Number(bill.grandTotal || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
                                         <TableCell><Chip label={bill.status} color="success" size="small" icon={<CheckCircleIcon />} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} /></TableCell>
                                         <TableCell align="right">
                                             <IconButton size="small" color="info" onClick={() => exportRaBillPdf(project, bill, renderedProjectBoq)}><PictureAsPdfIcon fontSize="small" /></IconButton>
