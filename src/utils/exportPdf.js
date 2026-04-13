@@ -117,7 +117,7 @@ export const exportProjectPdf = async (project, boqItems, totalAmount) => {
     doc.setFont(undefined, 'bold');
     doc.setTextColor(16, 185, 129);
     const symbol = company?.currencySymbol || "Rs.";
-    doc.text(`Estimated Total: ${symbol} ${totalAmount.toLocaleString('en-IN')}`, rightEdge, startY + 2, { align: 'right' });
+    doc.text(`Estimated Total: ${symbol} ${totalAmount.toLocaleString(company?.currencyLocale || 'en-IN')}`, rightEdge, startY + 2, { align: 'right' });
 
     autoTable(doc, {
         head: [["Sl No", "Item Code", "Description", "Unit", "Total Qty", `Rate (${symbol})`, `Amount (${symbol})`]],
@@ -164,13 +164,13 @@ export const exportRaBillPdf = async (project, bill, boqItems) => {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(10);
     doc.setTextColor(50, 50, 50);
-    doc.text(`Subtotal: ${symbol} ${bill.subTotal.toLocaleString('en-IN')}`, rightEdge, finalY, { align: 'right' });
-    doc.text(`Tax (${bill.taxPercent}%): ${symbol} ${bill.taxAmount.toLocaleString('en-IN')}`, rightEdge, finalY + 6, { align: 'right' });
+    doc.text(`Subtotal: ${symbol} ${bill.subTotal.toLocaleString(company?.currencyLocale || 'en-IN')}`, rightEdge, finalY, { align: 'right' });
+    doc.text(`Tax (${bill.taxPercent}%): ${symbol} ${bill.taxAmount.toLocaleString(company?.currencyLocale || 'en-IN')}`, rightEdge, finalY + 6, { align: 'right' });
 
     doc.setFontSize(12);
     doc.setTextColor(13, 31, 60);
     doc.setFont(undefined, 'bold');
-    doc.text(`Grand Total: ${symbol} ${bill.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 14, { align: 'right' });
+    doc.text(`Grand Total: ${symbol} ${bill.grandTotal.toLocaleString(company?.currencyLocale || 'en-IN')}`, rightEdge, finalY + 14, { align: 'right' });
 
     doc.save(`${project.code}_${bill.billNo}.pdf`);
 };
@@ -211,7 +211,7 @@ export const exportPoPdf = async (project, po) => {
     doc.setFont(undefined, 'bold');
     doc.setFontSize(12);
     doc.setTextColor(11, 23, 45);
-    doc.text(`TOTAL PAYABLE: ${symbol} ${po.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 5, { align: 'right' });
+    doc.text(`TOTAL PAYABLE: ${symbol} ${po.grandTotal.toLocaleString(company?.currencyLocale || 'en-IN')}`, rightEdge, finalY + 5, { align: 'right' });
 
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);

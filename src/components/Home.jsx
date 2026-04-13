@@ -215,7 +215,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                         startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
                         sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px', borderColor: 'divider' }}
                     >
-                        COMPANY SETTINGS
+                        SETTINGS
                     </Button>
                     <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
                     <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>

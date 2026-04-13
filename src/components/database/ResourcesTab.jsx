@@ -1,7 +1,7 @@
 import { useState, useMemo } from "react";
-import { 
-    Box, Button, Typography, Paper, Grid, TextField, MenuItem, Table, 
-    TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, 
+import {
+    Box, Button, Typography, Paper, Grid, TextField, MenuItem, Table,
+    TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
     Chip, InputAdornment, Drawer, Pagination, Divider
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
@@ -14,7 +14,13 @@ import CloseIcon from '@mui/icons-material/Close';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { tableInputStyle, tableInputActiveStyle } from "../../styles";
 
+// 🔥 1. Import the global settings hook
+import { useSettings } from "../../context/SettingsContext";
+
 export default function ResourcesTab({ regions, resources, loadData }) {
+    // 🔥 2. Grab the format function from the "Radio Tower"
+    const { formatCurrency } = useSettings();
+
     const [searchTerm, setSearchTerm] = useState("");
     const [importRegion, setImportRegion] = useState("");
     const [newRegion, setNewRegion] = useState("");
@@ -31,8 +37,8 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
     // --- FILTER & PAGINATION LOGIC ---
     const filteredResources = useMemo(() => {
-        return resources.filter(r => 
-            (r.code || "").toLowerCase().includes(searchTerm.toLowerCase()) || 
+        return resources.filter(r =>
+            (r.code || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
             (r.description || "").toLowerCase().includes(searchTerm.toLowerCase())
         );
     }, [resources, searchTerm]);
@@ -42,7 +48,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
     const updateResourceRate = async (id, field, value, regionName = null) => {
         const res = resources.find(r => r.id === id);
-        
+
         if (field === 'rates' && regionName) {
             const currentHistory = Array.isArray(res.rateHistory) ? res.rateHistory : [];
             const updatedHistory = [
@@ -86,7 +92,8 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     <Box display="flex" gap={2} my={4}>
                         <Paper sx={{ p: 2, flex: 1, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                             <Typography variant="caption" color="text.secondary">LATEST_PRICE</Typography>
-                            <Typography variant="h6">₹{latest.toFixed(2)}</Typography>
+                            {/* 🔥 Replaced Hardcoded ₹ */}
+                            <Typography variant="h6">{formatCurrency(latest)}</Typography>
                         </Paper>
                         <Paper sx={{ p: 2, flex: 1, bgcolor: 'rgba(255,255,255,0.05)', border: trend >= 0 ? '1px solid #ef4444' : '1px solid #10b981' }}>
                             <Typography variant="caption" color="text.secondary">TREND</Typography>
@@ -101,9 +108,9 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={history}>
                                 <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" />
-                                <XAxis dataKey="date" tick={{fontSize: 10}} stroke="#555" />
-                                <YAxis domain={['auto', 'auto']} tick={{fontSize: 10}} stroke="#555" />
-                                <Tooltip contentStyle={{backgroundColor:'#0d1f3c', border:'1px solid #3b82f6'}} />
+                                <XAxis dataKey="date" tick={{ fontSize: 10 }} stroke="#555" />
+                                <YAxis domain={['auto', 'auto']} tick={{ fontSize: 10 }} stroke="#555" />
+                                <Tooltip contentStyle={{ backgroundColor: '#0d1f3c', border: '1px solid #3b82f6' }} formatter={(val) => formatCurrency(val)} />
                                 <Area type="monotone" dataKey="rate" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.2} />
                             </AreaChart>
                         </ResponsiveContainer>
@@ -142,16 +149,17 @@ export default function ResourcesTab({ regions, resources, loadData }) {
             {/* SEARCH & QUICK ADD */}
             <Paper sx={{ p: 3, mb: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Box display="flex" gap={2}>
-                    <TextField 
-                        placeholder="Search Materials..." 
+                    <TextField
+                        placeholder="Search Materials..."
                         size="small" sx={{ width: 300 }}
                         value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }} 
+                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
                     />
                     <Divider orientation="vertical" flexItem />
                     <Box display="flex" gap={1} flexGrow={1}>
                         <TextField size="small" label="CODE" value={resCode} onChange={e => setResCode(e.target.value)} sx={{ width: 100 }} />
                         <TextField size="small" label="DESCRIPTION" value={resDesc} onChange={e => setResDesc(e.target.value)} fullWidth />
+                        <TextField size="small" label="UNIT" value={resUnit} onChange={e => setResUnit(e.target.value)} sx={{ width: 100 }} />
                         <Button variant="contained" onClick={async () => { await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit }); loadData(); }}>ADD</Button>
                     </Box>
                 </Box>
@@ -162,11 +170,11 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     SHOWING {paginatedResources.length} OF {filteredResources.length} RESOURCES
                 </Typography>
-                <Pagination 
-                    count={totalPages} 
-                    page={currentPage} 
-                    onChange={(e, v) => setCurrentPage(v)} 
-                    color="primary" size="small" 
+                <Pagination
+                    count={totalPages}
+                    page={currentPage}
+                    onChange={(e, v) => setCurrentPage(v)}
+                    color="primary" size="small"
                 />
             </Box>
 
@@ -194,11 +202,11 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                                 <TableCell>{res.unit}</TableCell>
                                 {regions.map(r => (
                                     <TableCell key={r.id}>
-                                        <input 
-                                            type="number" 
-                                            value={res.rates[r.name] || ""} 
-                                            onChange={e => updateResourceRate(res.id, 'rates', { ...res.rates, [r.name]: Number(e.target.value) }, r.name)} 
-                                            style={tableInputActiveStyle} 
+                                        <input
+                                            type="number"
+                                            value={res.rates[r.name] || ""}
+                                            onChange={e => updateResourceRate(res.id, 'rates', { ...res.rates, [r.name]: Number(e.target.value) }, r.name)}
+                                            style={tableInputActiveStyle}
                                         />
                                     </TableCell>
                                 ))}

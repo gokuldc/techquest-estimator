@@ -1,21 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import {
     Dialog, DialogTitle, DialogContent, DialogActions,
-    Box, TextField, Button, Typography, Avatar, IconButton
+    Box, TextField, Button, Typography, Avatar, IconButton,
+    MenuItem, Divider // 🔥 Added MenuItem and Divider
 } from '@mui/material';
 import BusinessIcon from '@mui/icons-material/Business';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
 
+// 🔥 Import the global settings hook
+import { useSettings } from '../context/SettingsContext';
+
 export default function CompanySettingsDialog({ open, onClose }) {
+    // 1. Grab the refresh function from our global context
+    const { refreshSettings } = useSettings();
+
+    // 2. Add the new regional fields to the default state
     const [info, setInfo] = useState({
-        name: "", address: "", email: "", phone: "", taxId: "", logo: ""
+        name: "", address: "", email: "", phone: "", taxId: "", logo: "",
+        currencySymbol: "₹",
+        currencyLocale: "en-IN",
+        unitSystem: "Metric"
     });
 
     useEffect(() => {
         if (open) {
             window.api.db.getSettings('company_info').then(data => {
-                if (data) setInfo(data);
+                if (data) {
+                    setInfo(prev => ({
+                        ...prev,
+                        ...data,
+                        // Ensure fallbacks if older DB doesn't have these fields yet
+                        currencySymbol: data.currencySymbol || "₹",
+                        currencyLocale: data.currencyLocale || "en-IN",
+                        unitSystem: data.unitSystem || "Metric"
+                    }));
+                }
             });
         }
     }, [open]);
@@ -24,8 +44,6 @@ export default function CompanySettingsDialog({ open, onClose }) {
         const path = await window.api.os.pickFile();
         if (!path) return;
 
-        // 🔥 THE FIX: We ask the Electron backend to read the file,
-        // bypassing the browser's strict security blocks completely.
         const base64Data = await window.api.os.getBase64(path);
 
         if (base64Data) {
@@ -36,7 +54,10 @@ export default function CompanySettingsDialog({ open, onClose }) {
     };
 
     const handleSave = async () => {
+        // Save to SQLite
         await window.api.db.saveSettings('company_info', info);
+        // 🔥 Tell the whole app to re-render with the new currency!
+        await refreshSettings();
         onClose();
     };
 
@@ -75,6 +96,34 @@ export default function CompanySettingsDialog({ open, onClose }) {
                         <TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => setInfo({ ...info, phone: e.target.value })} size="small" />
                     </Box>
                     <TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => setInfo({ ...info, taxId: e.target.value })} size="small" />
+
+                    {/* 🔥 NEW: REGIONAL PREFERENCES SECTION */}
+                    <Divider sx={{ borderColor: 'rgba(255,255,255,0.1)', mt: 1 }} />
+                    <Typography variant="caption" color="secondary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                        REGIONAL_PREFERENCES
+                    </Typography>
+
+                    <Box display="flex" gap={2}>
+                        <TextField select fullWidth label="CURRENCY SYMBOL" value={info.currencySymbol} onChange={e => setInfo({ ...info, currencySymbol: e.target.value })} size="small">
+                            <MenuItem value="₹">INR (₹)</MenuItem>
+                            <MenuItem value="Rs.">INR (Rs.)</MenuItem>
+                            <MenuItem value="$">USD ($)</MenuItem>
+                            <MenuItem value="AED">AED</MenuItem>
+                            <MenuItem value="€">EUR (€)</MenuItem>
+                        </TextField>
+
+                        <TextField select fullWidth label="NUMBER FORMAT" value={info.currencyLocale} onChange={e => setInfo({ ...info, currencyLocale: e.target.value })} size="small">
+                            <MenuItem value="en-IN">Indian (1,00,000.00)</MenuItem>
+                            <MenuItem value="en-US">Western (100,000.00)</MenuItem>
+                            <MenuItem value="de-DE">European (100.000,00)</MenuItem>
+                        </TextField>
+
+                        <TextField select fullWidth label="UNIT SYSTEM" value={info.unitSystem} onChange={e => setInfo({ ...info, unitSystem: e.target.value })} size="small">
+                            <MenuItem value="Metric">Metric (m, kg)</MenuItem>
+                            <MenuItem value="Imperial">Imperial (ft, lb)</MenuItem>
+                        </TextField>
+                    </Box>
+
                 </Box>
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>

@@ -11,7 +11,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import { tableInputActiveStyle } from '../../styles';
 import * as XLSX from 'xlsx';
 
+// 🔥 1. Import the global settings hook
+import { useSettings } from '../../context/SettingsContext';
+
 export default function SubcontractorBidTab({ project, renderedProjectBoq, updateProject, crmContacts = [], loadData }) {
+
+    // 🔥 2. Grab the format function from the "Radio Tower"
+    const { formatCurrency } = useSettings();
+
     const [newSubName, setNewSubName] = useState("");
     const fileInputRef = useRef(null);
 
@@ -34,8 +41,8 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
         const cleanName = newSubName.trim();
 
         // Check if this subcontractor is already in the CRM Database
-        const existsInCrm = crmContacts.some(c => 
-            c.name?.toLowerCase().trim() === cleanName.toLowerCase() || 
+        const existsInCrm = crmContacts.some(c =>
+            c.name?.toLowerCase().trim() === cleanName.toLowerCase() ||
             c.company?.toLowerCase().trim() === cleanName.toLowerCase() ||
             `${c.company} (${c.name})`.toLowerCase().trim() === cleanName.toLowerCase()
         );
@@ -44,12 +51,12 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
         if (!existsInCrm) {
             const newCrmContact = {
                 id: crypto.randomUUID(),
-                name: cleanName, 
-                company: "", 
-                type: "Subcontractor", 
-                status: "Active", 
-                email: "", 
-                phone: "", 
+                name: cleanName,
+                company: "",
+                type: "Subcontractor",
+                status: "Active",
+                email: "",
+                phone: "",
                 createdAt: Date.now()
             };
             await window.api.db.saveCrmContact(newCrmContact);
@@ -100,7 +107,6 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
         const wsData = [header];
         renderedProjectBoq.forEach(item => {
-            // 🔥 Wrapped in Number for export safety
             const row = [item.id, item.displayDesc, Number(item.computedQty || 0), item.displayUnit, Number(item.rate || 0)];
             subs.forEach(sub => row.push(Number(sub.rates[item.id] || 0)));
             wsData.push(row);
@@ -117,7 +123,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
         const file = e.target.files[0];
         if (!file) return;
         const reader = new FileReader();
-        
+
         reader.onload = async (evt) => {
             try {
                 const data = new Uint8Array(evt.target.result);
@@ -144,32 +150,32 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                         subs.push({ id: crypto.randomUUID(), name: subName, rates: {} });
                         existingSubNames.push(subName.toLowerCase()); // Cache to prevent duplicates
                     }
-                        
+
                     // Add to Global CRM Directory if missing
-                    const existsInCrm = crmContacts.some(c => 
-                        c.name?.toLowerCase().trim() === subName.toLowerCase() || 
+                    const existsInCrm = crmContacts.some(c =>
+                        c.name?.toLowerCase().trim() === subName.toLowerCase() ||
                         c.company?.toLowerCase().trim() === subName.toLowerCase() ||
                         `${c.company} (${c.name})`.toLowerCase().trim() === subName.toLowerCase()
                     );
-                    
+
                     if (!existsInCrm) {
                         await window.api.db.saveCrmContact({
-                            id: crypto.randomUUID(), 
-                            name: subName, 
-                            company: "", 
-                            type: "Subcontractor", 
-                            status: "Active", 
-                            email: "", 
-                            phone: "", 
+                            id: crypto.randomUUID(),
+                            name: subName,
+                            company: "",
+                            type: "Subcontractor",
+                            status: "Active",
+                            email: "",
+                            phone: "",
                             createdAt: Date.now()
                         });
                         addedToCrm = true;
                     }
                 }
-                
+
                 // Wait for all new CRM entries to be pulled from SQLite back to the UI
                 if (addedToCrm && loadData) {
-                    await loadData(); 
+                    await loadData();
                 }
 
                 // Parse matrix rates
@@ -283,23 +289,23 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                                             {item.displayDesc}
                                         </TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{safeQty.toFixed(2)} {item.displayUnit}</TableCell>
-                                        
-                                        {/* 🔥 PROTECTED IN-HOUSE RATE/AMOUNT */}
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹{safeRate.toFixed(2)}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>₹{safeAmount.toFixed(2)}</TableCell>
+
+                                        {/* 🔥 PROTECTED IN-HOUSE RATE/AMOUNT WITH FORMATTER */}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(safeRate)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>{formatCurrency(safeAmount)}</TableCell>
 
                                         {(project.subcontractors || []).map(sub => {
-                                            // 🔥 PROTECTED SUBCONTRACTOR RATE/AMOUNT
+                                            // 🔥 PROTECTED SUBCONTRACTOR RATE/AMOUNT WITH FORMATTER
                                             const subRate = Number(sub.rates[item.id] || 0);
                                             const subAmount = subRate * safeQty;
-                                            
+
                                             return (
                                                 <React.Fragment key={`${sub.id}-${item.id}`}>
                                                     <TableCell>
                                                         <input type="number" value={sub.rates[item.id] || ""} onChange={(e) => handleSubRateChange(sub.id, item.id, e.target.value)} style={tableInputActiveStyle} />
                                                     </TableCell>
                                                     <TableCell sx={{ fontWeight: 'bold', color: subAmount > safeAmount ? 'error.main' : 'success.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>
-                                                        ₹{Number(subAmount || 0).toFixed(2)}
+                                                        {formatCurrency(subAmount)}
                                                     </TableCell>
                                                 </React.Fragment>
                                             )

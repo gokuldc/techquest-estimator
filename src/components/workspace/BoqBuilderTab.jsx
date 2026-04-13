@@ -11,11 +11,17 @@ import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import SearchIcon from '@mui/icons-material/Search';
 import { tableInputStyle } from "../../styles";
 
+// 🔥 1. Import the new Settings Hook
+import { useSettings } from '../../context/SettingsContext';
+
 export default function BoqBuilderTab({
     projectId, projectBoqItems, masterBoqs, renderedProjectBoq, totalAmount,
     handleAddMasterItem, handleAddCustomItem, updateBoqQtyManual, deleteProjectBoq,
     openEditDialog, setFormulaHelpOpen, handleDragStart, handleDragOver, handleDrop, draggedId
 }) {
+    // 🔥 2. Grab the format function from the "Radio Tower"
+    const { formatCurrency } = useSettings();
+
     const [addMode, setAddMode] = useState("master");
     const [searchCode, setSearchCode] = useState("");
     const [searchDesc, setSearchDesc] = useState("");
@@ -29,8 +35,7 @@ export default function BoqBuilderTab({
     const [customQty, setCustomQty] = useState("");
 
     const [focusedQtyId, setFocusedQtyId] = useState(null);
-    // 🔥 Lag Fix: Cache keystrokes locally before sending to SQLite
-    const [localFormulas, setLocalFormulas] = useState({}); 
+    const [localFormulas, setLocalFormulas] = useState({});
 
     const [activePhase, setActivePhase] = useState("General");
 
@@ -168,11 +173,10 @@ export default function BoqBuilderTab({
                                                 <TableCell sx={{ fontWeight: 'bold', color: item.isCustom ? 'secondary.main' : 'inherit', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayCode || "-"}</TableCell>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayDesc}</TableCell>
                                                 <TableCell>
-                                                    {/* 🔥 THE FIX: Saves to local state instantly, pushes to DB only when clicked away */}
                                                     <input
                                                         type="text"
-                                                        value={item.hasMBook 
-                                                            ? Number(item.computedQty || 0).toFixed(2) 
+                                                        value={item.hasMBook
+                                                            ? Number(item.computedQty || 0).toFixed(2)
                                                             : (isFocused ? (localFormulas[item.id] !== undefined ? localFormulas[item.id] : (item.formulaStr !== undefined ? item.formulaStr : item.qty)) : Number(item.computedQty || 0).toFixed(2))}
                                                         onFocus={() => {
                                                             setLocalFormulas(prev => ({ ...prev, [item.id]: item.formulaStr !== undefined ? item.formulaStr : item.qty }));
@@ -197,13 +201,17 @@ export default function BoqBuilderTab({
                                                     ) : null}
                                                 </TableCell>
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayUnit}</TableCell>
-                                                
-                                                {/* 🔥 BUG FIXED HERE: Added Number() cast */}
-                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(item.rate || 0).toFixed(2)}</TableCell>
-                                                
-                                                {/* 🔥 BUG FIXED HERE: Added Number() cast */}
-                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(item.amount || 0).toFixed(2)}</TableCell>
-                                                
+
+                                                {/* 🔥 Replaced Hardcoded ₹ */}
+                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                                    {formatCurrency(item.rate)}
+                                                </TableCell>
+
+                                                {/* 🔥 Replaced Hardcoded ₹ */}
+                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                                    {formatCurrency(item.amount)}
+                                                </TableCell>
+
                                                 <TableCell align="center">
                                                     <Box display="flex" gap={1} justifyContent="center">
                                                         <IconButton color="warning" onClick={() => openEditDialog(item)} size="small"><EditIcon fontSize="small" /></IconButton>
@@ -220,10 +228,12 @@ export default function BoqBuilderTab({
                         )}
                         <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                             <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', fontSize: '1rem', fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_ESTIMATE:</TableCell>
-                            
-                            {/* 🔥 BUG FIXED HERE: Added Number() cast */}
-                            <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>₹ {Number(totalAmount || 0).toFixed(2)}</TableCell>
-                            
+
+                            {/* 🔥 Replaced Hardcoded ₹ */}
+                            <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>
+                                {formatCurrency(totalAmount)}
+                            </TableCell>
+
                             <TableCell></TableCell>
                         </TableRow>
                     </TableBody>

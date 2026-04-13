@@ -7,7 +7,14 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { tableInputActiveStyle } from "../../styles";
 
+// 🔥 1. Import the global settings hook
+import { useSettings } from "../../context/SettingsContext";
+
 export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, project, regions, resources, masterBoqs, setFormulaHelpOpen }) {
+
+    // 🔥 2. Grab the format function
+    const { formatCurrency } = useSettings();
+
     // --- LOCAL EDITOR STATE ---
     const [isCustom, setIsCustom] = useState(false);
 
@@ -27,7 +34,7 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
     const [editBoqRows, setEditBoqRows] = useState([]);
     const [focusedQtyId, setFocusedQtyId] = useState(null);
 
-    // 🔥 THE FIX: Local Cache for buttery smooth 60fps typing
+    // Local Cache for buttery smooth 60fps typing
     const [localRows, setLocalRows] = useState({});
 
     // Initialize State when dialog opens
@@ -199,12 +206,12 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                             <TableRow key={row.id}>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
                                                 <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
-                                                
-                                                {/* 🔥 CACHED CODE SEARCH 🔥 */}
+
+                                                {/* CACHED CODE SEARCH */}
                                                 <TableCell>
-                                                    <input 
-                                                        list={`ws-codes-${row.id}`} 
-                                                        value={localRows[`${row.id}-code`] !== undefined ? localRows[`${row.id}-code`] : (row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || ""))} 
+                                                    <input
+                                                        list={`ws-codes-${row.id}`}
+                                                        value={localRows[`${row.id}-code`] !== undefined ? localRows[`${row.id}-code`] : (row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || ""))}
                                                         onFocus={() => setLocalRows(prev => ({ ...prev, [`${row.id}-code`]: row.tempCode ?? (sourceList.find(s => s.id === row.itemId)?.code || sourceList.find(s => s.id === row.itemId)?.itemCode || "") }))}
                                                         onBlur={() => {
                                                             const val = localRows[`${row.id}-code`];
@@ -220,17 +227,17 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                             if (matched) {
                                                                 setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
                                                             }
-                                                        }} 
-                                                        style={tableInputActiveStyle} 
+                                                        }}
+                                                        style={tableInputActiveStyle}
                                                     />
                                                     <datalist id={`ws-codes-${row.id}`}>{sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
                                                 </TableCell>
 
-                                                {/* 🔥 CACHED DESCRIPTION SEARCH 🔥 */}
+                                                {/* CACHED DESCRIPTION SEARCH */}
                                                 <TableCell>
-                                                    <input 
-                                                        list={`ws-descs-${row.id}`} 
-                                                        value={localRows[`${row.id}-desc`] !== undefined ? localRows[`${row.id}-desc`] : (row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || ""))} 
+                                                    <input
+                                                        list={`ws-descs-${row.id}`}
+                                                        value={localRows[`${row.id}-desc`] !== undefined ? localRows[`${row.id}-desc`] : (row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || ""))}
                                                         onFocus={() => setLocalRows(prev => ({ ...prev, [`${row.id}-desc`]: row.tempDesc ?? (sourceList.find(s => s.id === row.itemId)?.description || "") }))}
                                                         onBlur={() => {
                                                             const val = localRows[`${row.id}-desc`];
@@ -246,18 +253,18 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                             if (matched) {
                                                                 setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
                                                             }
-                                                        }} 
-                                                        style={tableInputActiveStyle} 
+                                                        }}
+                                                        style={tableInputActiveStyle}
                                                     />
                                                     <datalist id={`ws-descs-${row.id}`}>{sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}</datalist>
                                                 </TableCell>
 
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
-                                                
-                                                {/* 🔥 CACHED FORMULA INPUT 🔥 */}
+
+                                                {/* CACHED FORMULA INPUT */}
                                                 <TableCell>
-                                                    <input 
-                                                        type="text" 
+                                                    <input
+                                                        type="text"
                                                         value={isFocused ? (localRows[`${row.id}-qty`] !== undefined ? localRows[`${row.id}-qty`] : (row.formulaStr ?? row.qty ?? "")) : ((row.formulaStr === "" || row.formulaStr === undefined) ? "" : Number(row.computedQty || 0).toFixed(4))}
                                                         onFocus={() => {
                                                             setFocusedQtyId(row.id);
@@ -269,13 +276,14 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                                 updateEditSpreadsheetRow(row.id, 'formulaStr', localRows[`${row.id}-qty`]);
                                                             }
                                                         }}
-                                                        onChange={e => setLocalRows(prev => ({ ...prev, [`${row.id}-qty`]: e.target.value }))} 
-                                                        style={tableInputActiveStyle} 
+                                                        onChange={e => setLocalRows(prev => ({ ...prev, [`${row.id}-qty`]: e.target.value }))}
+                                                        style={tableInputActiveStyle}
                                                     />
                                                 </TableCell>
 
-                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.rate || 0).toFixed(2)}</TableCell>
-                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(row.amount || 0).toFixed(2)}</TableCell>
+                                                {/* 🔥 FORMATTED ROW RATES */}
+                                                <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(row.rate)}</TableCell>
+                                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(row.amount)}</TableCell>
                                                 <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
                                             </TableRow>
                                         )
@@ -287,27 +295,28 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
 
                         <Box display="flex" justifyContent="flex-end">
                             <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+                                {/* 🔥 FORMATTED SUMMARY FOOTERS */}
                                 <Box display="flex" justifyContent="space-between" mb={2}>
                                     <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
-                                    <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editSubTotal || 0).toFixed(2)}</Typography>
+                                    <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(editSubTotal)}</Typography>
                                 </Box>
                                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>OVERHEAD (%):</Typography>
                                         <input type="number" value={editBoqOH} onChange={e => setEditBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
                                     </Box>
-                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editOhAmount || 0).toFixed(2)}</Typography>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(editOhAmount)}</Typography>
                                 </Box>
                                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="2px solid" borderColor="divider">
                                     <Box display="flex" alignItems="center" gap={1}>
                                         <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>PROFIT (%):</Typography>
                                         <input type="number" value={editBoqProfit} onChange={e => setEditBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
                                     </Box>
-                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(editProfitAmount || 0).toFixed(2)}</Typography>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(editProfitAmount)}</Typography>
                                 </Box>
                                 <Box display="flex" justifyContent="space-between" mb={1} color="success.main">
                                     <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{editBoqUnit}:</Typography>
-                                    <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {Number(editGrandTotal || 0).toFixed(2)}</Typography>
+                                    <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>{formatCurrency(editGrandTotal)}</Typography>
                                 </Box>
                             </Paper>
                         </Box>

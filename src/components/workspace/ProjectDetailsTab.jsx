@@ -2,34 +2,33 @@ import React, { useMemo } from 'react';
 import { Box, Typography, Paper, Grid, TextField, MenuItem, Button, Chip } from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
-import SaveIcon from '@mui/icons-material/Save';
-import TrendingUpIcon from '@mui/icons-material/TrendingUp';
-import AccountBalanceWalletIcon from '@mui/icons-material/AccountBalanceWallet';
-import AssignmentIcon from '@mui/icons-material/Assignment';
-import LocalShippingIcon from '@mui/icons-material/LocalShipping';
-import ReportProblemIcon from '@mui/icons-material/ReportProblem'; // New icon for inflation
-import { 
-    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, 
-    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area 
+import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import {
+    LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
+    XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
+
+// 🔥 1. Import the new Settings Hook
+import { useSettings } from '../../context/SettingsContext';
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export default function ProjectDetailsTab({ project, updateProject, regions, resources, totalAmount, projectBoqItems, togglePriceLock, crmContacts, orgStaff }) {
-    
+
+    // 🔥 2. Grab the format function and raw settings from the "Radio Tower"
+    const { formatCurrency, settings } = useSettings();
+
     // --- 1. KPI DATA AGGREGATION ---
     const totalBilled = Array.isArray(project?.raBills) ? project.raBills.reduce((sum, bill) => sum + Number(bill.subTotal || 0), 0) : 0;
     const activeTasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks.filter(t => t.status !== 'Completed').length : 0;
     const totalGrns = Array.isArray(project?.grns) ? project.grns.length : 0;
 
-    // 🔥 NEW: INFLATION RISK ENGINE
+    // INFLATION RISK ENGINE
     const inflationRisk = useMemo(() => {
         let totalExposure = 0;
         (projectBoqItems || []).forEach(item => {
-            // Find the Master Resource by code
             const res = resources?.find(r => r.code === item.itemCode);
             if (res && Array.isArray(res.rateHistory) && res.rateHistory.length > 0) {
-                // Get the latest price from history
                 const sortedHistory = [...res.rateHistory].sort((a, b) => new Date(b.date) - new Date(a.date));
                 const currentMarketRate = Number(sortedHistory[0].rate || 0);
                 const budgetedRate = Number(item.rate || 0);
@@ -60,7 +59,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
     // --- 3. TIME SERIES ENGINE (S-CURVE & CASH FLOW) ---
     const timeSeriesData = useMemo(() => {
         const months = {};
-        
+
         const getMonthKey = (dateStr) => {
             if (!dateStr) return null;
             const d = new Date(dateStr);
@@ -82,13 +81,13 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
             const key = getMonthKey(task.createdAt || task.actualStart || project.createdAt);
             if (key) {
                 if (!months[key]) months[key] = { name: key, planned: 0, actual: 0 };
-                months[key].planned += (totalAmount / (tasks.length || 1)); 
+                months[key].planned += (totalAmount / (tasks.length || 1));
             }
         });
 
         let cumulativePlanned = 0;
         let cumulativeActual = 0;
-        
+
         return Object.values(months).sort((a, b) => a.name.localeCompare(b.name)).map(month => {
             cumulativePlanned += month.planned;
             cumulativeActual += month.actual;
@@ -106,18 +105,28 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         updateProject(field, value);
     };
 
-    const formatCurrency = (value) => `₹ ${Number(value).toLocaleString('en-IN', { maximumFractionDigits: 0 })}`;
+    // 🔥 3. SMART AXIS FORMATTER (Converts to Lakhs for India, K/M for Western)
+    const formatYAxis = (val) => {
+        if (settings.currencyLocale === 'en-IN') {
+            return `${settings.currencySymbol}${(val / 100000).toFixed(1)}L`; // Lakhs formatting
+        } else {
+            if (val >= 1000000) return `${settings.currencySymbol}${(val / 1000000).toFixed(1)}M`; // Millions
+            if (val >= 1000) return `${settings.currencySymbol}${(val / 1000).toFixed(1)}K`; // Thousands
+            return `${settings.currencySymbol}${val}`;
+        }
+    };
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
-            
+
             {/* TIER 1: KPI CARDS */}
             <Grid container spacing={2}>
                 <Grid item xs={12} md={2.4}>
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #3b82f6' }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>TOTAL CONTRACT</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            ₹{Number(totalAmount || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            {/* 🔥 Replaced Hardcoded Math */}
+                            {formatCurrency(totalAmount)}
                         </Typography>
                     </Paper>
                 </Grid>
@@ -125,16 +134,17 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #10b981' }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>BILLED TO DATE</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'success.main' }}>
-                            ₹{Number(totalBilled || 0).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            {/* 🔥 Replaced Hardcoded Math */}
+                            {formatCurrency(totalBilled)}
                         </Typography>
                     </Paper>
                 </Grid>
-                {/* 🔥 NEW INFLATION KPI CARD */}
                 <Grid item xs={12} md={2.4}>
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(239, 68, 68, 0.05)', borderTop: '4px solid #ef4444' }}>
                         <Typography variant="caption" color="error.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>INFLATION RISK</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-                            <ReportProblemIcon fontSize="small" /> +₹{Number(inflationRisk).toLocaleString('en-IN', { maximumFractionDigits: 0 })}
+                            {/* 🔥 Replaced Hardcoded Math */}
+                            <ReportProblemIcon fontSize="small" /> +{formatCurrency(inflationRisk)}
                         </Typography>
                     </Paper>
                 </Grid>
@@ -161,10 +171,10 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                 <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
                     <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>PROJECT CORE METADATA</Typography>
                     <Box display="flex" gap={2}>
-                        <Button 
-                            variant={project?.isPriceLocked ? "outlined" : "contained"} 
+                        <Button
+                            variant={project?.isPriceLocked ? "outlined" : "contained"}
                             color={project?.isPriceLocked ? "success" : "warning"}
-                            onClick={togglePriceLock} 
+                            onClick={togglePriceLock}
                             startIcon={project?.isPriceLocked ? <LockIcon /> : <LockOpenIcon />}
                             sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRadius: 50 }}
                         >
@@ -172,7 +182,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                         </Button>
                     </Box>
                 </Box>
-                
+
                 <Grid container spacing={3}>
                     <Grid item xs={12} md={4}>
                         <TextField fullWidth label="PROJECT NAME" value={project?.name || ''} onChange={(e) => handleChange('name', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} />
@@ -222,7 +232,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
 
             {/* TIER 3: ADVANCED ANALYTICS DASHBOARD */}
             <Grid container spacing={3}>
-                
+
                 {/* THE S-CURVE */}
                 <Grid item xs={12} md={8}>
                     <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', height: 400 }}>
@@ -234,16 +244,19 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                 <AreaChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
                                     <defs>
                                         <linearGradient id="colorActual" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
+                                            <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
+                                            <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
                                         </linearGradient>
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                                     <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
-                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={(val) => `₹${(val/100000).toFixed(1)}L`} />
-                                    <Tooltip 
+
+                                    {/* 🔥 Replaced Hardcoded ₹ and L with Smart Formatter */}
+                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} />
+
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
-                                        formatter={formatCurrency}
+                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
                                     />
                                     <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                     <Area type="monotone" dataKey="CumulativeActual" name="Actual Progress (Billed)" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
@@ -272,9 +285,9 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                             <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <Tooltip 
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
-                                        formatter={formatCurrency}
+                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
                                     />
                                     <Legend layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
                                 </PieChart>
@@ -298,11 +311,14 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                 <BarChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                     <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
-                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={(val) => `₹${(val/100000).toFixed(1)}L`} />
-                                    <Tooltip 
+
+                                    {/* 🔥 Replaced Hardcoded ₹ and L with Smart Formatter */}
+                                    <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} />
+
+                                    <Tooltip
                                         contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
                                         cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                        formatter={formatCurrency}
+                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
                                     />
                                     <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                     <Bar dataKey="MonthlyBilled" name="Actual Revenue (Billed)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />

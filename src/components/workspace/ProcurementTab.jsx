@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from "react";
-import { 
-    Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer, 
-    TableHead, TableRow, TextField, MenuItem, Chip, IconButton, Tooltip, Zoom 
+import {
+    Box, Typography, Button, Paper, Table, TableBody, TableCell, TableContainer,
+    TableHead, TableRow, TextField, MenuItem, Chip, IconButton, Tooltip, Zoom
 } from "@mui/material";
 import AddShoppingCartIcon from '@mui/icons-material/AddShoppingCart';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -10,14 +10,19 @@ import SaveIcon from '@mui/icons-material/Save';
 import LocalShippingIcon from '@mui/icons-material/LocalShipping';
 import AssignmentLateIcon from '@mui/icons-material/AssignmentLate';
 import AddIcon from '@mui/icons-material/Add';
-import TimelineIcon from '@mui/icons-material/Timeline'; // Added icon import
+import TimelineIcon from '@mui/icons-material/Timeline';
 import { exportPoPdf } from "../../utils/exportPdf";
 import { tableInputActiveStyle } from "../../styles";
 import { LineChart, Line, YAxis, ResponsiveContainer } from 'recharts';
 
+// 🔥 1. Import the global settings hook
+import { useSettings } from "../../context/SettingsContext";
+
 // --- MINI CHART COMPONENT ---
 const PriceInsight = ({ resource }) => {
-    // We sort history to ensure the line graph plots correctly chronologically
+    // 🔥 Grab the formatter for the mini-chart
+    const { formatCurrency } = useSettings();
+
     const history = useMemo(() => {
         return (resource?.rateHistory || []).sort((a, b) => new Date(a.date) - new Date(b.date));
     }, [resource]);
@@ -36,15 +41,19 @@ const PriceInsight = ({ resource }) => {
                 </LineChart>
             </ResponsiveContainer>
             <Box display="flex" justifyContent="space-between" mt={1}>
-                <Typography sx={{ fontSize: '9px', opacity: 0.6 }}>Old: ₹{history[0].rate}</Typography>
-                <Typography sx={{ fontSize: '9px', fontWeight: 'bold' }}>New: ₹{history[history.length - 1].rate}</Typography>
+                {/* 🔥 Replaced Hardcoded ₹ */}
+                <Typography sx={{ fontSize: '9px', opacity: 0.6 }}>Old: {formatCurrency(history[0].rate)}</Typography>
+                <Typography sx={{ fontSize: '9px', fontWeight: 'bold' }}>New: {formatCurrency(history[history.length - 1].rate)}</Typography>
             </Box>
         </Box>
     );
 };
 
 export default function ProcurementTab({ project, projectResourceMap, resources, updateProject, crmContacts }) {
-    
+
+    // 🔥 2. Grab the format function and raw settings
+    const { formatCurrency, settings } = useSettings();
+
     const pos = Array.isArray(project.purchaseOrders) ? project.purchaseOrders : [];
     const siteRequests = Array.isArray(project.materialRequests) ? project.materialRequests : [];
 
@@ -56,7 +65,6 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
 
     const suppliers = crmContacts.filter(c => c.type === 'Vendor' || c.type === 'Supplier' || c.type === 'Subcontractor');
 
-    // 1. Create a Standard PO from the Estimated BOQ
     const handleCreateNewPO = () => {
         const initialItems = {};
         Object.entries(projectResourceMap).forEach(([resId, data]) => {
@@ -69,7 +77,6 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
         setIsCreating(true);
     };
 
-    // 2. Create a PO directly from a Site Request
     const handleConvertRequestToPo = (req) => {
         const customId = `custom-${crypto.randomUUID()}`;
         setPoItems({
@@ -79,7 +86,6 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
         setIsCreating(true);
     };
 
-    // 3. Add a blank unplanned row manually
     const addUnplannedItem = () => {
         const customId = `custom-${crypto.randomUUID()}`;
         setPoItems(prev => ({
@@ -102,7 +108,7 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
     const savePurchaseOrder = async () => {
         if (!selectedSupplier) return alert("Please select a supplier.");
         if (currentSubTotal <= 0) return alert("Please enter quantities and rates to order.");
-        
+
         const activeItems = Object.entries(poItems)
             .filter(([id, data]) => data.orderQty > 0)
             .map(([id, data]) => ({
@@ -154,13 +160,14 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                                 <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
                                 <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'info.main' }}>EST. REQ.</TableCell>
                                 <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'success.main' }}>ORDER QTY</TableCell>
-                                <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE (₹)</TableCell>
-                                <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT (₹)</TableCell>
+
+                                {/* 🔥 Dynamic Table Headers */}
+                                <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE ({settings.currencySymbol})</TableCell>
+                                <TableCell sx={{ bgcolor: 'rgba(13, 31, 60, 1)', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT ({settings.currencySymbol})</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {Object.entries(poItems).map(([resId, rowData]) => {
-                                // Find master resource to pass history to chart
                                 const resource = !rowData.isCustom ? resources.find(r => r.id === resId) : null;
 
                                 return (
@@ -168,15 +175,15 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                                             <Box display="flex" alignItems="center">
                                                 {rowData.isCustom ? (
-                                                    <input value={rowData.description} placeholder="Type description..." onChange={(e) => updatePoItem(resId, 'description', e.target.value)} style={{...tableInputActiveStyle, width: '100%'}} />
+                                                    <input value={rowData.description} placeholder="Type description..." onChange={(e) => updatePoItem(resId, 'description', e.target.value)} style={{ ...tableInputActiveStyle, width: '100%' }} />
                                                 ) : (
                                                     <>
                                                         <strong>{rowData.code}</strong> - {rowData.description}
                                                         {resource && (
-                                                            <Tooltip 
-                                                                TransitionComponent={Zoom} 
-                                                                title={<PriceInsight resource={resource} />} 
-                                                                arrow 
+                                                            <Tooltip
+                                                                TransitionComponent={Zoom}
+                                                                title={<PriceInsight resource={resource} />}
+                                                                arrow
                                                                 placement="right"
                                                             >
                                                                 <IconButton size="small" color="primary" sx={{ ml: 1, p: 0.5, opacity: 0.7, '&:hover': { opacity: 1 } }}>
@@ -189,7 +196,7 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                                             </Box>
                                         </TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                                            {rowData.isCustom ? <input value={rowData.unit} placeholder="Unit" onChange={(e) => updatePoItem(resId, 'unit', e.target.value)} style={{...tableInputActiveStyle, width: '60px'}} /> : rowData.unit}
+                                            {rowData.isCustom ? <input value={rowData.unit} placeholder="Unit" onChange={(e) => updatePoItem(resId, 'unit', e.target.value)} style={{ ...tableInputActiveStyle, width: '60px' }} /> : rowData.unit}
                                         </TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'info.light' }}>
                                             {rowData.estRequired > 0 ? Number(rowData.estRequired || 0).toFixed(2) : '-'}
@@ -209,12 +216,15 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                 <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                     <Button variant="outlined" color="info" startIcon={<AddIcon />} onClick={addUnplannedItem} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>+ ADD UNPLANNED ITEM</Button>
                     <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                        <Box display="flex" justifyContent="space-between" mb={2}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography><Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(currentSubTotal || 0).toFixed(2)}</Typography></Box>
+
+                        {/* 🔥 Formatted Totals */}
+                        <Box display="flex" justifyContent="space-between" mb={2}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography><Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(currentSubTotal)}</Typography></Box>
                         <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="1px solid" borderColor="divider">
                             <Box display="flex" alignItems="center" gap={1}><Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>TAX (%):</Typography><input type="number" value={taxPercent} onChange={e => setTaxPercent(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} /></Box>
-                            <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {Number(currentTax || 0).toFixed(2)}</Typography>
+                            <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(currentTax)}</Typography>
                         </Box>
-                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main"><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>GRAND TOTAL:</Typography><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {Number(currentGrandTotal || 0).toFixed(2)}</Typography></Box>
+                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main"><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>GRAND TOTAL:</Typography><Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>{formatCurrency(currentGrandTotal)}</Typography></Box>
+
                         <Button variant="contained" color="success" fullWidth size="large" onClick={savePurchaseOrder} startIcon={<SaveIcon />} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>ISSUE PURCHASE ORDER</Button>
                     </Paper>
                 </Box>
@@ -283,7 +293,10 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DATE</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SUPPLIER</TableCell>
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ITEMS</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TOTAL (₹)</TableCell>
+
+                                    {/* 🔥 Dynamic Total Header */}
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TOTAL ({settings.currencySymbol})</TableCell>
+
                                     <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>STATUS</TableCell>
                                     <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTIONS</TableCell>
                                 </TableRow>
@@ -295,7 +308,10 @@ export default function ProcurementTab({ project, projectResourceMap, resources,
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{po.date}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{po.supplierName}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{po.items.length} items</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main' }}>{Number(po.grandTotal || 0).toLocaleString('en-IN', {minimumFractionDigits: 2})}</TableCell>
+
+                                        {/* 🔥 Formatted Grand Total */}
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main' }}>{formatCurrency(po.grandTotal, false)}</TableCell>
+
                                         <TableCell><Chip label={po.status} color="info" size="small" icon={<LocalShippingIcon />} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} /></TableCell>
                                         <TableCell align="right">
                                             <IconButton size="small" color="info" onClick={() => exportPoPdf(project, po)}><PictureAsPdfIcon fontSize="small" /></IconButton>
