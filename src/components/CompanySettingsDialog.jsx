@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { 
-    Dialog, DialogTitle, DialogContent, DialogActions, 
-    Box, TextField, Button, Typography, Avatar, IconButton 
+import {
+    Dialog, DialogTitle, DialogContent, DialogActions,
+    Box, TextField, Button, Typography, Avatar, IconButton
 } from '@mui/material';
 import BusinessIcon from '@mui/icons-material/Business';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
@@ -24,17 +24,14 @@ export default function CompanySettingsDialog({ open, onClose }) {
         const path = await window.api.os.pickFile();
         if (!path) return;
 
-        try {
-            // Read the local file and convert to Base64 for SQLite storage
-            const response = await fetch(`file://${path}`);
-            const blob = await response.blob();
-            const reader = new FileReader();
-            reader.onloadend = () => {
-                setInfo(prev => ({ ...prev, logo: reader.result }));
-            };
-            reader.readAsDataURL(blob);
-        } catch (err) {
-            alert("Error loading logo. Ensure it is a valid image file.");
+        // 🔥 THE FIX: We ask the Electron backend to read the file,
+        // bypassing the browser's strict security blocks completely.
+        const base64Data = await window.api.os.getBase64(path);
+
+        if (base64Data) {
+            setInfo(prev => ({ ...prev, logo: base64Data }));
+        } else {
+            alert("Could not process image file. Make sure it's a valid PNG/JPG.");
         }
     };
 
@@ -51,9 +48,9 @@ export default function CompanySettingsDialog({ open, onClose }) {
             <DialogContent dividers sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                 <Box display="flex" flexDirection="column" gap={2.5} pt={2}>
                     <Box display="flex" alignItems="center" gap={3}>
-                        <Avatar 
-                            src={info.logo} 
-                            variant="rounded" 
+                        <Avatar
+                            src={info.logo}
+                            variant="rounded"
                             sx={{ width: 80, height: 80, bgcolor: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(255,255,255,0.2)' }}
                         >
                             <BusinessIcon sx={{ fontSize: 40, opacity: 0.2 }} />
@@ -67,17 +64,17 @@ export default function CompanySettingsDialog({ open, onClose }) {
                             </Typography>
                         </Box>
                         {info.logo && (
-                            <IconButton color="error" onClick={() => setInfo({...info, logo: ""})}><DeleteIcon /></IconButton>
+                            <IconButton color="error" onClick={() => setInfo({ ...info, logo: "" })}><DeleteIcon /></IconButton>
                         )}
                     </Box>
 
-                    <TextField fullWidth label="COMPANY / FIRM NAME" value={info.name} onChange={e => setInfo({...info, name: e.target.value})} size="small" />
-                    <TextField fullWidth multiline rows={2} label="OFFICE ADDRESS" value={info.address} onChange={e => setInfo({...info, address: e.target.value})} size="small" />
+                    <TextField fullWidth label="COMPANY / FIRM NAME" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} size="small" />
+                    <TextField fullWidth multiline rows={2} label="OFFICE ADDRESS" value={info.address} onChange={e => setInfo({ ...info, address: e.target.value })} size="small" />
                     <Box display="flex" gap={2}>
-                        <TextField fullWidth label="OFFICIAL EMAIL" value={info.email} onChange={e => setInfo({...info, email: e.target.value})} size="small" />
-                        <TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => setInfo({...info, phone: e.target.value})} size="small" />
+                        <TextField fullWidth label="OFFICIAL EMAIL" value={info.email} onChange={e => setInfo({ ...info, email: e.target.value })} size="small" />
+                        <TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => setInfo({ ...info, phone: e.target.value })} size="small" />
                     </Box>
-                    <TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => setInfo({...info, taxId: e.target.value})} size="small" />
+                    <TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => setInfo({ ...info, taxId: e.target.value })} size="small" />
                 </Box>
             </DialogContent>
             <DialogActions sx={{ p: 2 }}>

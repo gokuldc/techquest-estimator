@@ -1,7 +1,7 @@
-import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron'; // Added ipcMain, dialog, shell
+import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
-
+import fs from 'fs';
 import { initDatabase } from './db.js';
 import { registerMasterDataIpc } from './ipc/masterData.js';
 import { registerProjectsIpc } from './ipc/projects.js';
@@ -51,7 +51,7 @@ function registerOsHandlers() {
                 { name: 'All Files', extensions: ['*'] }
             ]
         });
-        
+
         if (result.canceled) return null;
         return result.filePaths[0]; // Returns absolute path
     });
@@ -62,6 +62,24 @@ function registerOsHandlers() {
         const error = await shell.openPath(filePath);
         if (error) return { success: false, error };
         return { success: true };
+    });
+
+    // 🔥 3. Convert Local File to Base64 (Fixes the Logo Upload Error)
+    ipcMain.handle('os:get-base64', async (event, filePath) => {
+        try {
+            const buffer = fs.readFileSync(filePath);
+            const ext = path.extname(filePath).toLowerCase().replace('.', '');
+
+            // Map extension to MIME type
+            let mimeType = `image/${ext}`;
+            if (ext === 'svg') mimeType = 'image/svg+xml';
+            if (ext === 'jpg') mimeType = 'image/jpeg';
+
+            return `data:${mimeType};base64,${buffer.toString('base64')}`;
+        } catch (error) {
+            console.error("Base64 Conversion Error:", error);
+            return null;
+        }
     });
 }
 
@@ -77,7 +95,7 @@ app.whenReady().then(() => {
     registerProjectsIpc(db);
     registerSyncAndBackupIpc(db, mainWindow);
     registerSettingsIpc(db);
-    
+
     // 4. Register Native OS Utilities
     registerOsHandlers();
 });

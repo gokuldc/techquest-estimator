@@ -77,6 +77,7 @@ contextBridge.exposeInMainWorld('api', {
     // 🔥 NEW: OS NATIVE OPERATIONS (Files & Shell)
     os: {
         pickFile: () => ipcRenderer.invoke('os:pick-file'),
-        openFile: (filePath) => ipcRenderer.invoke('os:open-file', filePath)
+        openFile: (filePath) => ipcRenderer.invoke('os:open-file', filePath),
+        getBase64: (filePath) => ipcRenderer.invoke('os:get-base64', filePath)
     }
 });

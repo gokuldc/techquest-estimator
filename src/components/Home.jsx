@@ -208,14 +208,14 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap">
                     {/* 🔥 IDENTITY BUTTON */}
-                    <Button 
-                        onClick={() => setIsSettingsOpen(true)} 
-                        variant="outlined" 
-                        color="inherit" 
+                    <Button
+                        onClick={() => setIsSettingsOpen(true)}
+                        variant="outlined"
+                        color="inherit"
                         startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
                         sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px', borderColor: 'divider' }}
                     >
-                        IDENTITY
+                        COMPANY SETTINGS
                     </Button>
                     <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
                     <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>

@@ -2,17 +2,55 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
 /**
- * REUSABLE BRANDING HEADER
+ * HELPER: Get Image Aspect Ratio to prevent squishing
  */
-const drawHeader = (doc, company, title) => {
+const getImageAspectRatio = (base64) => {
+    return new Promise((resolve) => {
+        const img = new Image();
+        img.onload = () => resolve(img.width / img.height);
+        img.onerror = () => resolve(1); // Default to square if it fails to load
+        img.src = base64;
+    });
+};
+
+/**
+ * REUSABLE BRANDING HEADER
+ * (Now async to wait for image ratio calculation)
+ */
+const drawHeader = async (doc, company, title) => {
     const pageWidth = doc.internal.pageSize.width;
     const margin = 14;
     const rightEdge = pageWidth - 25; // 25mm safe zone for right-aligned text
 
-    // 1. Draw Company Logo
+    let logoBottomY = 10; // Track where the logo ends to push the line down
+
+    // 1. Draw Company Logo (Proportionally Scaled & Enlarged)
     if (company?.logo) {
         try {
-            doc.addImage(company.logo, 'PNG', margin, 10, 25, 25);
+            const ratio = await getImageAspectRatio(company.logo);
+
+            // 🔥 INCREASED LOGO LIMITS 🔥
+            const maxHeight = 35; // Increased from 25 to 35mm
+            const maxWidth = 70;  // Increased from 45 to 70mm
+
+            let imgWidth = maxHeight;
+            let imgHeight = maxHeight;
+
+            if (ratio > 1) {
+                // Landscape (Wide) Logo
+                imgWidth = Math.min(maxWidth, maxHeight * ratio);
+                imgHeight = imgWidth / ratio;
+            } else {
+                // Portrait or Square Logo
+                imgHeight = maxHeight;
+                imgWidth = maxHeight * ratio;
+            }
+
+            const yOffset = 10; // Always start exactly 10mm from the top edge
+            doc.addImage(company.logo, 'PNG', margin, yOffset, imgWidth, imgHeight);
+
+            // Record the bottom edge of the image
+            logoBottomY = yOffset + imgHeight;
         } catch (e) {
             console.error("PDF Logo Error:", e);
         }
@@ -22,33 +60,42 @@ const drawHeader = (doc, company, title) => {
     doc.setTextColor(11, 23, 45);
     doc.setFont(undefined, 'bold');
     doc.setFontSize(14);
-    // Use rightEdge for the anchor
     doc.text(company?.name || 'OPENPRIX CONSTRUCTIONS', rightEdge, 16, { align: 'right' });
 
     doc.setFont(undefined, 'normal');
     doc.setFontSize(8);
     doc.setTextColor(100, 100, 100);
-    
+
     const address = company?.address || "Registered Office Address Not Set";
     const contactInfo = `Email: ${company?.email || '-'} | Ph: ${company?.phone || '-'}`;
     const taxInfo = `GSTIN/TAX ID: ${company?.taxId || 'N/A'}`;
 
-    doc.text(address, rightEdge, 21, { align: 'right', maxWidth: 100 });
-    doc.text(contactInfo, rightEdge, 29, { align: 'right' });
-    doc.text(taxInfo, rightEdge, 33, { align: 'right' });
+    // Dynamic Height Calculation for Address
+    const splitAddress = doc.splitTextToSize(address, 100);
+    doc.text(splitAddress, rightEdge, 21, { align: 'right' });
 
-    // 3. Branding Separator Line
+    const addressBlockHeight = splitAddress.length * 3.5;
+    const contactY = 21 + addressBlockHeight + 1;
+    const taxY = contactY + 4;
+
+    doc.text(contactInfo, rightEdge, contactY, { align: 'right' });
+    doc.text(taxInfo, rightEdge, taxY, { align: 'right' });
+
+    // 3. Branding Separator Line 
+    // 🔥 NEW: Ensure the line clears BOTH the text block AND the enlarged logo
+    const lineY = Math.max(logoBottomY + 4, taxY + 4, 38);
+
     doc.setDrawColor(59, 130, 246);
     doc.setLineWidth(0.5);
-    doc.line(margin, 38, rightEdge, 38);
+    doc.line(margin, lineY, rightEdge, lineY);
 
     // 4. Report Title
     doc.setFontSize(18);
     doc.setTextColor(11, 23, 45);
     doc.setFont(undefined, 'bold');
-    doc.text(title.toUpperCase(), margin, 48);
+    doc.text(title.toUpperCase(), margin, lineY + 10);
 
-    return 52;
+    return lineY + 14;
 };
 
 /**
@@ -56,23 +103,24 @@ const drawHeader = (doc, company, title) => {
  */
 export const exportProjectPdf = async (project, boqItems, totalAmount) => {
     const company = await window.api.db.getSettings('company_info');
-    // Force units to mm to ensure consistency
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const startY = drawHeader(doc, company, `Project Estimate: ${project.name}`);
-    const rightEdge = doc.internal.pageSize.width - 25; 
+
+    // 🔥 Added 'await' here because drawHeader is now async
+    const startY = await drawHeader(doc, company, `Project Estimate: ${project.name}`);
+    const rightEdge = doc.internal.pageSize.width - 25;
 
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.setFont(undefined, 'normal');
     doc.text(`Code: ${project.code || 'N/A'}  |  Client: ${project.clientName || 'N/A'}`, 14, startY + 2);
-    
+
     doc.setFont(undefined, 'bold');
-    doc.setTextColor(16, 185, 129); 
-    // Switched ₹ to Rs. to fix width/alignment calculation bug
-    doc.text(`Estimated Total: Rs. ${totalAmount.toLocaleString('en-IN')}`, rightEdge, startY + 2, { align: 'right' });
+    doc.setTextColor(16, 185, 129);
+    const symbol = company?.currencySymbol || "Rs.";
+    doc.text(`Estimated Total: ${symbol} ${totalAmount.toLocaleString('en-IN')}`, rightEdge, startY + 2, { align: 'right' });
 
     autoTable(doc, {
-        head: [["Sl No", "Item Code", "Description", "Unit", "Total Qty", "Rate (Rs)", "Amount (Rs)"]],
+        head: [["Sl No", "Item Code", "Description", "Unit", "Total Qty", `Rate (${symbol})`, `Amount (${symbol})`]],
         body: boqItems.map(i => [i.slNo, i.displayCode || '-', i.displayDesc, i.displayUnit, Number(i.computedQty).toFixed(2), Number(i.rate).toFixed(2), Number(i.amount).toFixed(2)]),
         startY: startY + 8,
         margin: { left: 14, right: 25 },
@@ -90,15 +138,18 @@ export const exportProjectPdf = async (project, boqItems, totalAmount) => {
 export const exportRaBillPdf = async (project, bill, boqItems) => {
     const company = await window.api.db.getSettings('company_info');
     const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
-    const startY = drawHeader(doc, company, `RA Bill: ${bill.billNo}`);
+
+    // 🔥 Added 'await' here
+    const startY = await drawHeader(doc, company, `RA Bill: ${bill.billNo}`);
     const rightEdge = doc.internal.pageSize.width - 25;
+    const symbol = company?.currencySymbol || "Rs.";
 
     doc.setFontSize(9);
     doc.setTextColor(100, 100, 100);
     doc.text(`Project: ${project.name} (${project.code})  |  Date: ${bill.date}`, 14, startY + 2);
 
     autoTable(doc, {
-        head: [["Sl No", "Description", "Unit", "Rate (Rs)", "Prev Qty", "Curr Qty", "Amount (Rs)"]],
+        head: [["Sl No", "Description", "Unit", `Rate (${symbol})`, "Prev Qty", "Curr Qty", `Amount (${symbol})`]],
         body: bill.items.map((item, idx) => {
             const boq = boqItems.find(b => b.id === item.boqId) || {};
             return [idx + 1, boq.displayDesc, boq.displayUnit, Number(item.rate).toFixed(2), Number(item.prevQty).toFixed(2), Number(item.currentQty).toFixed(2), Number(item.amount).toFixed(2)];
@@ -113,13 +164,13 @@ export const exportRaBillPdf = async (project, bill, boqItems) => {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFontSize(10);
     doc.setTextColor(50, 50, 50);
-    doc.text(`Subtotal: Rs. ${bill.subTotal.toLocaleString('en-IN')}`, rightEdge, finalY, { align: 'right' });
-    doc.text(`Tax (${bill.taxPercent}%): Rs. ${bill.taxAmount.toLocaleString('en-IN')}`, rightEdge, finalY + 6, { align: 'right' });
-    
+    doc.text(`Subtotal: ${symbol} ${bill.subTotal.toLocaleString('en-IN')}`, rightEdge, finalY, { align: 'right' });
+    doc.text(`Tax (${bill.taxPercent}%): ${symbol} ${bill.taxAmount.toLocaleString('en-IN')}`, rightEdge, finalY + 6, { align: 'right' });
+
     doc.setFontSize(12);
     doc.setTextColor(13, 31, 60);
     doc.setFont(undefined, 'bold');
-    doc.text(`Grand Total: Rs. ${bill.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 14, { align: 'right' });
+    doc.text(`Grand Total: ${symbol} ${bill.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 14, { align: 'right' });
 
     doc.save(`${project.code}_${bill.billNo}.pdf`);
 };
@@ -130,8 +181,11 @@ export const exportRaBillPdf = async (project, bill, boqItems) => {
 export const exportPoPdf = async (project, po) => {
     const company = await window.api.db.getSettings('company_info');
     const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
-    const startY = drawHeader(doc, company, `Purchase Order: ${po.poNumber}`);
+
+    // 🔥 Added 'await' here
+    const startY = await drawHeader(doc, company, `Purchase Order: ${po.poNumber}`);
     const rightEdge = doc.internal.pageSize.width - 25;
+    const symbol = company?.currencySymbol || "Rs.";
 
     doc.setFontSize(10);
     doc.setFont(undefined, 'bold');
@@ -144,7 +198,7 @@ export const exportPoPdf = async (project, po) => {
     doc.text(`${project.name}\n${project.region || ''}`, 110, startY + 10);
 
     autoTable(doc, {
-        head: [["Sl No", "Code", "Description", "Unit", "Qty", "Rate (Rs)", "Amount (Rs)"]],
+        head: [["Sl No", "Code", "Description", "Unit", "Qty", `Rate (${symbol})`, `Amount (${symbol})`]],
         body: po.items.map((item, idx) => [idx + 1, item.code, item.description, item.unit, Number(item.qty).toFixed(2), Number(item.rate).toFixed(2), Number(item.amount).toFixed(2)]),
         startY: startY + 25,
         margin: { left: 14, right: 25 },
@@ -156,11 +210,12 @@ export const exportPoPdf = async (project, po) => {
     const finalY = doc.lastAutoTable.finalY + 10;
     doc.setFont(undefined, 'bold');
     doc.setFontSize(12);
-    doc.setTextColor(11, 23, 45); 
-    doc.text(`TOTAL PAYABLE: Rs. ${po.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 5, { align: 'right' });
+    doc.setTextColor(11, 23, 45);
+    doc.text(`TOTAL PAYABLE: ${symbol} ${po.grandTotal.toLocaleString('en-IN')}`, rightEdge, finalY + 5, { align: 'right' });
 
     doc.setFontSize(8);
     doc.setTextColor(150, 150, 150);
+    doc.setFont(undefined, 'normal');
     doc.text("Terms: 1. Subject to verification. 2. Quality check required. 3. System generated.", 14, finalY + 20);
 
     doc.save(`${project.code}_PO_${po.poNumber}.pdf`);
