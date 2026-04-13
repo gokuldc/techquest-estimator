@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('api', {
         exportAllProjectsSqlite: () => ipcRenderer.invoke('db:export-all-projects-sqlite'),
         importProjectsSqlite: (filePath, mode) => ipcRenderer.invoke('db:import-projects-sqlite', filePath, mode),
         selectArchiveFile: () => ipcRenderer.invoke('db:select-archive-file'),
+
+        getSettings: (key) => ipcRenderer.invoke('db:get-settings', key),
+        saveSettings: (key, value) => ipcRenderer.invoke('db:save-settings', key, value),
     },
 
     // 🔥 NEW: OS NATIVE OPERATIONS (Files & Shell)

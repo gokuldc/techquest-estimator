@@ -80,6 +80,10 @@ export function initDatabase() {
                 addedAt INTEGER,
                 FOREIGN KEY(projectId) REFERENCES projects(id)
             );
+            CREATE TABLE IF NOT EXISTS app_settings (
+                key TEXT PRIMARY KEY,
+                value TEXT
+            );
     `;
     db.exec(initSql);
 

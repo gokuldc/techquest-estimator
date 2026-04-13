@@ -6,6 +6,7 @@ import { initDatabase } from './db.js';
 import { registerMasterDataIpc } from './ipc/masterData.js';
 import { registerProjectsIpc } from './ipc/projects.js';
 import { registerSyncAndBackupIpc } from './ipc/syncAndBackup.js';
+import { registerSettingsIpc } from './ipc/settings.js';
 
 app.disableHardwareAcceleration();
 
@@ -75,6 +76,7 @@ app.whenReady().then(() => {
     registerMasterDataIpc(db, mainWindow);
     registerProjectsIpc(db);
     registerSyncAndBackupIpc(db, mainWindow);
+    registerSettingsIpc(db);
     
     // 4. Register Native OS Utilities
     registerOsHandlers();

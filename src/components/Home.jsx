@@ -22,12 +22,17 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 
+// Components
+import CompanySettingsDialog from "./CompanySettingsDialog";
+
 export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const fileInputRef = useRef(null);
 
-    // --- ARCHIVE STATE ---
+    // --- DIALOG & BRANDING STATE ---
+    const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [importData, setImportData] = useState(null);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+
 
     // --- SQLITE DATA STATE ---
     const [projects, setProjects] = useState([]);
@@ -75,14 +80,14 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const stats = useMemo(() => {
         let active = 0, completed = 0, draft = 0;
         projects.forEach(p => {
-            if (p.status === 'In Progress') active++;
+            if (p.status === 'In Progress' || p.status === 'Active') active++;
             else if (p.status === 'Completed') completed++;
             else draft++;
         });
 
         const suppliers = crmContacts.filter(c => {
             const type = (c.type || "").toLowerCase();
-            return type === 'subcontractor' || type === 'supplier';
+            return type === 'subcontractor' || type === 'supplier' || type === 'vendor';
         }).length;
 
         const clients = crmContacts.filter(c => {
@@ -141,64 +146,38 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
 
     const deleteProject = async (id, e) => {
         e.stopPropagation();
-        if (window.confirm("CRITICAL WARNING: Are you sure you want to delete this project?")) {
+        if (window.confirm("CRITICAL WARNING: Are you sure you want to delete this project? This will erase all BOQs and logs.")) {
             await window.api.db.deleteProject(id);
             loadData();
         }
     };
 
-    // --- IMPORT / EXPORT / PURGE LOGIC ---
     const handleExport = async () => {
-        try {
-            const res = await window.api.db.exportAllProjectsSqlite();
-            if (res.success) { alert("Project archive exported successfully!"); }
-            else if (!res.canceled) { alert("Export failed: " + res.error); }
-        } catch (error) {
-            console.error("Export failed:", error);
-            alert("Failed to export project archive.");
-        }
+        const res = await window.api.db.exportAllProjectsSqlite();
+        if (res.success) alert("Full project archive exported successfully.");
     };
 
     const handlePurge = async () => {
-        if (window.confirm("CRITICAL WARNING: Are you sure you want to permanently delete ALL projects? This cannot be undone.")) {
-            try {
-                await window.api.db.purgeProjects();
-                loadData();
-                alert("Project archive has been purged successfully.");
-            } catch (error) {
-                console.error("Purge failed:", error);
-                alert("Failed to purge project archive.");
-            }
+        if (window.confirm("CRITICAL: This will permanently delete ALL projects. Proceed?")) {
+            await window.api.db.purgeProjects();
+            loadData();
         }
     };
 
     const handleFileSelect = async () => {
-        try {
-            const res = await window.api.db.selectArchiveFile();
-            if (res.success) {
-                setImportData({ projects: res.projects, filePath: res.filePath });
-                setImportDialogOpen(true);
-            } else if (!res.canceled) {
-                alert("Failed to open archive file: " + res.error);
-            }
-        } catch (error) {
-            console.error("File selection failed:", error);
-            alert("Failed to select archive file.");
+        const res = await window.api.db.selectArchiveFile();
+        if (res.success) {
+            setImportData({ projects: res.projects, filePath: res.filePath });
+            setImportDialogOpen(true);
         }
     };
 
     const processImport = async (mode) => {
-        if (!importData || !importData.filePath) return;
-        try {
-            const res = await window.api.db.importProjectsSqlite(importData.filePath, mode);
-            if (res.success) { alert(`Project archive successfully imported (${mode.toUpperCase()} mode). ${res.count || 0} projects.`); loadData(); }
-            else { alert("Import failed: " + res.error); }
-        } catch (error) {
-            console.error("Import transaction failed:", error);
-            alert("Failed to import project archive.");
-        } finally {
+        const res = await window.api.db.importProjectsSqlite(importData.filePath, mode);
+        if (res.success) {
+            alert(`Archive imported successfully (${mode}).`);
+            loadData();
             setImportDialogOpen(false);
-            setImportData(null);
         }
     };
 
@@ -228,6 +207,16 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     </Typography>
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap">
+                    {/* 🔥 IDENTITY BUTTON */}
+                    <Button 
+                        onClick={() => setIsSettingsOpen(true)} 
+                        variant="outlined" 
+                        color="inherit" 
+                        startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
+                        sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px', borderColor: 'divider' }}
+                    >
+                        IDENTITY
+                    </Button>
                     <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
                     <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>
                     <Button onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>+ NEW_WORKSPACE</Button>
@@ -243,7 +232,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 <Grid item xs={6} md={3}><MetricCard title="Region_Markets" value={regions.length} subtitle="Active Prices" icon={<BusinessIcon />} color="secondary" /></Grid>
             </Grid>
 
-            {/* --- DIRECTORY STATS --- */}
+            {/* --- HUMAN RESOURCES --- */}
             <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, display: 'block', opacity: 0.5, letterSpacing: '2px' }}>HUMAN_RESOURCES</Typography>
             <Grid container spacing={2} sx={{ mb: 6 }}>
                 <Grid item xs={6} md={3}><MetricCard title="Internal_Staff" value={stats.totalStaff} subtitle="Firm Members" icon={<BadgeIcon />} color="secondary" /></Grid>
@@ -291,18 +280,21 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
             )}
 
+            {/* IDENTITY MODAL */}
+            <CompanySettingsDialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
             {/* IMPORT RESOLUTION DIALOG */}
             <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#fff', borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: '14px' }}>DATABASE IMPORT RESOLUTION</DialogTitle>
                 <DialogContent sx={{ pt: 3 }}>
                     <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 3, color: '#ccc', fontSize: '12px' }}>How would you like to process the imported projects?</Typography>
                     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                        <Button variant="outlined" color="info" onClick={() => processImport('append')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}><strong>[APPEND]</strong>&nbsp;&nbsp;Add as new entries.</Button>
-                        <Button variant="outlined" color="warning" onClick={() => processImport('merge')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}><strong>[MERGE]</strong>&nbsp;&nbsp;&nbsp;Overwrite matching IDs, keep others.</Button>
-                        <Button variant="outlined" color="error" onClick={() => processImport('replace')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', textTransform: 'none', py: 1.5, fontSize: '12px' }}><strong>[REPLACE]</strong>&nbsp;Delete current projects, use imported.</Button>
+                        <Button variant="outlined" color="info" onClick={() => processImport('append')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', py: 1.5, fontSize: '12px' }}>[APPEND] Add as new entries</Button>
+                        <Button variant="outlined" color="warning" onClick={() => processImport('merge')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', py: 1.5, fontSize: '12px' }}>[MERGE] Update matching IDs</Button>
+                        <Button variant="outlined" color="error" onClick={() => processImport('replace')} sx={{ fontFamily: "'JetBrains Mono', monospace", justifyContent: 'flex-start', py: 1.5, fontSize: '12px' }}>[REPLACE] Delete current, use imported</Button>
                     </Box>
                 </DialogContent>
-                <DialogActions sx={{ borderTop: '1px solid rgba(255,255,255,0.1)', p: 2 }}>
+                <DialogActions sx={{ p: 2 }}>
                     <Button onClick={() => setImportDialogOpen(false)} sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#ccc', fontSize: '12px' }}>CANCEL</Button>
                 </DialogActions>
             </Dialog>
