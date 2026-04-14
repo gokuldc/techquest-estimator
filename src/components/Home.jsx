@@ -21,18 +21,24 @@ import ArrowForwardIosIcon from '@mui/icons-material/ArrowForwardIos';
 import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
+import LogoutIcon from '@mui/icons-material/Logout';
 
 // Components
 import CompanySettingsDialog from "./CompanySettingsDialog";
 
+// 🔥 1. Import the Auth Hook
+import { useAuth } from "../context/AuthContext";
+
 export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const fileInputRef = useRef(null);
+
+    // 🔥 2. Grab user info, logout function, and the new CLEARANCE checker
+    const { currentUser, logout, hasClearance } = useAuth();
 
     // --- DIALOG & BRANDING STATE ---
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [importData, setImportData] = useState(null);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
-
 
     // --- SQLITE DATA STATE ---
     const [projects, setProjects] = useState([]);
@@ -53,7 +59,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 window.api.db.getOrgStaff()
             ]);
 
-            // Sort projects latest first
             const sortedProjects = (projData || []).sort((a, b) => b.createdAt - a.createdAt);
 
             setProjects(sortedProjects);
@@ -106,7 +111,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         };
     }, [projects, crmContacts, orgStaff]);
 
-    // --- FILTER & PAGINATION LOGIC ---
     const filteredProjects = useMemo(() => {
         if (!projects) return [];
         if (!searchQuery.trim()) return projects;
@@ -128,7 +132,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
 
     const paginatedProjects = filteredProjects.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
-    // --- SQLITE ACTIONS ---
     const createProject = async () => {
         const newProject = {
             id: crypto.randomUUID(),
@@ -203,23 +206,51 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                         {'// '}OPENPRIX_NEXUS
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1 }}>
-                        System Status: Operational. All modules linked.
+                        <span style={{ color: '#10b981' }}>●</span> Logged in as: <strong>{currentUser?.name}</strong> [L{currentUser?.accessLevel || 1}]
                     </Typography>
                 </Box>
-                <Box display="flex" gap={1.5} flexWrap="wrap">
-                    {/* 🔥 IDENTITY BUTTON */}
+                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+
+                    {/* 🔥 RESTRICTED: L5 (Root/Admins) */}
+                    {hasClearance(5) && (
+                        <Button
+                            onClick={() => setIsSettingsOpen(true)}
+                            variant="outlined"
+                            color="inherit"
+                            startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
+                            sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px', borderColor: 'divider' }}
+                        >
+                            SETTINGS
+                        </Button>
+                    )}
+
+                    {/* 🔥 RESTRICTED: L2+ (Standard Operations & Up) */}
+                    {hasClearance(2) && (
+                        <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
+                    )}
+
+                    {/* 🔥 RESTRICTED: L3+ (Department Leads & Up) - Lowered from L4 */}
+                    {hasClearance(3) && (
+                        <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>
+                    )}
+
+                    {/* 🔥 RESTRICTED: L3+ (Department Leads / Estimators) */}
+                    {hasClearance(3) && (
+                        <Button onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>+ NEW_WORKSPACE</Button>
+                    )}
+
+                    <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+
+                    {/* 🔥 LOGOUT BUTTON */}
                     <Button
-                        onClick={() => setIsSettingsOpen(true)}
+                        onClick={logout}
                         variant="outlined"
-                        color="inherit"
-                        startIcon={<BusinessIcon sx={{ fontSize: 16 }} />}
-                        sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px', borderColor: 'divider' }}
+                        color="error"
+                        startIcon={<LogoutIcon sx={{ fontSize: 16 }} />}
+                        sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}
                     >
-                        SETTINGS
+                        LOGOUT
                     </Button>
-                    <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
-                    <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>
-                    <Button onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>+ NEW_WORKSPACE</Button>
                 </Box>
             </Box>
 
@@ -248,9 +279,18 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     <TextField size="small" placeholder="Filter..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16 }} /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', borderRadius: 2, height: 32, bgcolor: 'rgba(0,0,0,0.2)', width: 200 } }} />
                 </Box>
                 <Box display="flex" gap={1}>
-                    <Button size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>EXPORT</Button>
-                    <Button size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={handleFileSelect} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>IMPORT</Button>
-                    <Button size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={handlePurge} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>PURGE</Button>
+                    {/* 🔥 L4+ required to export/import */}
+                    {hasClearance(4) && (
+                        <>
+                            <Button size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>EXPORT</Button>
+                            <Button size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={handleFileSelect} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>IMPORT</Button>
+                        </>
+                    )}
+
+                    {/* 🔥 L5 required to Purge the DB */}
+                    {hasClearance(5) && (
+                        <Button size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={handlePurge} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>PURGE</Button>
+                    )}
                 </Box>
             </Box>
 
@@ -266,7 +306,12 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                                 <Chip label={p.status || 'Draft'} size="small" variant="outlined" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '9px', height: 18 }} />
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
-                                <IconButton color="error" onClick={(e) => deleteProject(p.id, e)} size="small"><DeleteIcon sx={{ fontSize: 18 }} /></IconButton>
+                                <Box>
+                                    {/* 🔥 L4+ required to delete projects */}
+                                    {hasClearance(4) && (
+                                        <IconButton color="error" onClick={(e) => deleteProject(p.id, e)} size="small"><DeleteIcon sx={{ fontSize: 18 }} /></IconButton>
+                                    )}
+                                </Box>
                                 <Button variant="contained" disableElevation onClick={() => onOpenProject(p.id)} endIcon={<ArrowForwardIosIcon sx={{ fontSize: 10 }} />} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', height: 28 }}>ACCESS</Button>
                             </Box>
                         </Paper>

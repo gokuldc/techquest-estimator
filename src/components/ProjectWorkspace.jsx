@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import PictureAsPdfIcon from '@mui/icons-material/PictureAsPdf';
 import { exportProjectExcel } from "../utils/exportExcel";
 import { exportProjectPdf } from "../utils/exportPdf";
@@ -13,8 +13,8 @@ import GanttScheduleTab from "./workspace/GanttScheduleTab";
 import SubcontractorBidTab from "./workspace/SubcontractorBidTab";
 import DailyLogTab from "./workspace/DailyLogTab";
 import ResourceTrackerTab from "./workspace/ResourceTrackerTab";
-import ProcurementTab from "./workspace/ProcurementTab"; 
-import ClientBillingTab from "./workspace/ClientBillingTab"; 
+import ProcurementTab from "./workspace/ProcurementTab";
+import ClientBillingTab from "./workspace/ClientBillingTab";
 import KanbanBoardTab from "./workspace/KanbanBoardTab";
 import FormulaGuideDialog from "./workspace/FormulaGuideDialog";
 import InventoryTab from "./workspace/InventoryTab";
@@ -27,50 +27,78 @@ import UploadIcon from '@mui/icons-material/Upload';
 import LockIcon from '@mui/icons-material/Lock';
 import SyncIcon from '@mui/icons-material/Sync';
 
-// 🔥 THE NEW HIERARCHY MAP 🔥
-const CATEGORIES = {
+// 🔥 1. Import the Auth Hook
+import { useAuth } from "../context/AuthContext";
+
+// 🔥 2. ADDED CLEARANCE LEVELS TO THE HIERARCHY
+const RAW_CATEGORIES = {
     planning: {
-        id: "planning",
-        label: "01_PLANNING_&_SETUP",
+        id: "planning", label: "01_PLANNING_&_SETUP", minClearance: 1,
         children: [
-            { id: "details", label: "Project Details" },
-            { id: "documents", label: "Docs & Drawings" },
-            { id: "boq", label: "Master BOQ" },
-            { id: "schedule", label: "Gantt Schedule" },
-            { id: "subcontractors", label: "Subcontractors" }
+            { id: "details", label: "Project Details", minClearance: 1 },
+            { id: "documents", label: "Docs & Drawings", minClearance: 1 },
+            { id: "schedule", label: "Gantt Schedule", minClearance: 2 },
+            { id: "boq", label: "Master BOQ", minClearance: 3 }, // 🔥 L3+ Estimators/Leads
+            { id: "subcontractors", label: "Subcontractors", minClearance: 3 } // 🔥 L3+
         ]
     },
     execution: {
-        id: "execution",
-        label: "02_SITE_EXECUTION",
+        id: "execution", label: "02_SITE_EXECUTION", minClearance: 2, // 🔥 L2+ Site Engineers
         children: [
-            { id: "daily_log", label: "Daily Log" },
-            { id: "kanban", label: "Task Board" },
-            { id: "mbook", label: "Measurement Book" }
+            { id: "daily_log", label: "Daily Log", minClearance: 2 },
+            { id: "kanban", label: "Task Board", minClearance: 2 },
+            { id: "mbook", label: "Measurement Book", minClearance: 2 }
         ]
     },
     supply_chain: {
-        id: "supply_chain",
-        label: "03_SUPPLY_CHAIN",
+        id: "supply_chain", label: "03_SUPPLY_CHAIN", minClearance: 2,
         children: [
-            { id: "inventory", label: "Stock Inventory" },
-            { id: "resources", label: "Resource Deficits" },
-            { id: "procurement", label: "Procurement (POs)" }
+            { id: "inventory", label: "Stock Inventory", minClearance: 2 },
+            { id: "resources", label: "Resource Deficits", minClearance: 3 },
+            { id: "procurement", label: "Procurement (POs)", minClearance: 3 } // 🔥 L3+
         ]
     },
     financials: {
-        id: "financials",
-        label: "04_FINANCIALS",
+        id: "financials", label: "04_FINANCIALS", minClearance: 4, // 🔥 L4+ Management Only
         children: [
-            { id: "billing", label: "Client RA Billing" }
+            { id: "billing", label: "Client RA Billing", minClearance: 4 }
         ]
     }
 };
 
 export default function ProjectWorkspace({ projectId, onBack }) {
-    // --- NEW TWO-TIER NAVIGATION STATE ---
-    const [activeCategory, setActiveCategory] = useState("planning");
-    const [activeTab, setActiveTab] = useState("details");
+    // 🔥 Grab the Clearance Checker
+    const { hasClearance } = useAuth();
+
+    // 🔥 Dynamically filter tabs based on the user's clearance level
+    const ALLOWED_CATEGORIES = useMemo(() => {
+        const filtered = {};
+        for (const [key, cat] of Object.entries(RAW_CATEGORIES)) {
+            if (hasClearance(cat.minClearance)) {
+                const allowedChildren = cat.children.filter(child => hasClearance(child.minClearance));
+                if (allowedChildren.length > 0) {
+                    filtered[key] = { ...cat, children: allowedChildren };
+                }
+            }
+        }
+        return filtered;
+    }, [hasClearance]);
+
+    const defaultCategory = Object.keys(ALLOWED_CATEGORIES)[0] || "planning";
+    const defaultTab = ALLOWED_CATEGORIES[defaultCategory]?.children[0]?.id || "details";
+
+    const [activeCategory, setActiveCategory] = useState(defaultCategory);
+    const [activeTab, setActiveTab] = useState(defaultTab);
+
+    // Failsafe: Ensure current tab is valid if user changes (e.g. session update)
+    useEffect(() => {
+        if (!ALLOWED_CATEGORIES[activeCategory]) {
+            setActiveCategory(defaultCategory);
+            setActiveTab(defaultTab);
+        } else if (!ALLOWED_CATEGORIES[activeCategory].children.find(c => c.id === activeTab)) {
+            setActiveTab(ALLOWED_CATEGORIES[activeCategory].children[0].id);
+        }
+    }, [ALLOWED_CATEGORIES, activeCategory, activeTab, defaultCategory, defaultTab]);
 
     const importFileRef = useRef(null);
 
@@ -78,15 +106,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [syncProjectName, setSyncProjectName] = useState("");
     const [isSyncResolveOpen, setIsSyncResolveOpen] = useState(false);
     const [isExportOpen, setIsExportOpen] = useState(false);
-    const [exportOpts, setExportOpts] = useState({ 
-    details: true, 
-    boq: true, 
-    schedule_and_tasks: true, 
-    dailyLogs: true, 
-    subcontractors: true, 
-    inventory_grns: true, 
-    procurement_pos: true, 
-    financial_billing: true 
+    const [exportOpts, setExportOpts] = useState({
+        details: true, boq: true, schedule_and_tasks: true, dailyLogs: true,
+        subcontractors: true, inventory_grns: true, procurement_pos: true, financial_billing: true
     });
 
     const [project, setProject] = useState("loading");
@@ -115,7 +137,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 try { return JSON.parse(str); } catch { return fallback; }
             };
 
-            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}),rateHistory: parseSafe(r.rateHistory, []) }));
+            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}), rateHistory: parseSafe(r.rateHistory, []) }));
             const safeMBoqs = (mBoqs || []).map(b => ({ ...b, components: parseSafe(b.components, []) }));
             const safePBoqs = (pBoqs || []).map(b => ({ ...b, measurements: parseSafe(b.measurements, []) }));
 
@@ -130,7 +152,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 raBills: parseSafe(p.raBills, []),
                 phaseAssignments: parseSafe(p.phaseAssignments, {}),
                 materialRequests: parseSafe(p.materialRequests, []),
-                grns: parseSafe(p.grns, []) 
+                grns: parseSafe(p.grns, [])
             } : null;
 
             setProject(safeProject || null);
@@ -164,6 +186,8 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     };
 
     const togglePriceLock = async () => {
+        // 🔥 Extra security: Only L4+ can lock pricing
+        if (!hasClearance(4)) return alert("Access Denied: Level 4 Clearance required to lock project pricing.");
         await window.api.db.updateProject(projectId, { isPriceLocked: !(project.isPriceLocked || false) });
         loadData();
     };
@@ -238,10 +262,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     const updateBoqQtyManual = async (id, val) => { await window.api.db.updateProjectBoq(id, { formulaStr: val }); loadData(); };
 
-    // 🔥 NEW NAV HANDLER: When category changes, auto-select its first child tab
     const handleCategoryChange = (e, newCategory) => {
         setActiveCategory(newCategory);
-        setActiveTab(CATEGORIES[newCategory].children[0].id);
+        setActiveTab(ALLOWED_CATEGORIES[newCategory].children[0].id);
     };
 
     return (
@@ -257,9 +280,14 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     </Box>
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap">
-                    <input type="file" accept=".json" ref={importFileRef} style={{ display: 'none' }} onChange={handleImportData} />
-                    <Button variant="outlined" color="primary" startIcon={<UploadIcon />} onClick={() => importFileRef.current.click()} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>IMPORT</Button>
-                    <Button variant="outlined" color="primary" startIcon={<SyncIcon />} onClick={() => setIsExportOpen(true)} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>SYNC</Button>
+                    {/* 🔥 Hide Sync/Import from L1/L2 Staff */}
+                    {hasClearance(3) && (
+                        <>
+                            <input type="file" accept=".json" ref={importFileRef} style={{ display: 'none' }} onChange={handleImportData} />
+                            <Button variant="outlined" color="primary" startIcon={<UploadIcon />} onClick={() => importFileRef.current.click()} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>IMPORT</Button>
+                            <Button variant="outlined" color="primary" startIcon={<SyncIcon />} onClick={() => setIsExportOpen(true)} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>SYNC</Button>
+                        </>
+                    )}
                     <Button variant="outlined" color="error" startIcon={<PictureAsPdfIcon />} onClick={() => exportProjectPdf(project, renderedProjectBoq, totalAmount)} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>PDF</Button>
                     <Button variant="contained" color="success" startIcon={<DownloadIcon />} onClick={() => exportProjectExcel(project, renderedProjectBoq, masterBoqs, resources)} disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: '36px', px: 3 }}>EXCEL</Button>
                 </Box>
@@ -267,51 +295,18 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
             {/* 🔥 TIER 1: PARENT CATEGORIES 🔥 */}
             <Paper sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.8)', mb: 1, overflow: 'hidden' }}>
-                <Tabs 
-                    value={activeCategory} 
-                    onChange={handleCategoryChange} 
-                    indicatorColor="primary" 
-                    textColor="primary" 
-                    variant="fullWidth" 
-                >
-                    {Object.values(CATEGORIES).map((cat) => (
-                        <Tab 
-                            key={cat.id} 
-                            value={cat.id} 
-                            label={cat.label} 
-                            sx={{ 
-                                fontWeight: 'bold', 
-                                fontFamily: "'JetBrains Mono', monospace", 
-                                fontSize: '13px',
-                                py: 2
-                            }} 
-                        />
+                <Tabs value={activeCategory} onChange={handleCategoryChange} indicatorColor="primary" textColor="primary" variant="fullWidth">
+                    {Object.values(ALLOWED_CATEGORIES).map((cat) => (
+                        <Tab key={cat.id} value={cat.id} label={cat.label} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', py: 2 }} />
                     ))}
                 </Tabs>
             </Paper>
 
             {/* 🔥 TIER 2: CHILD SUB-TABS 🔥 */}
             <Box sx={{ mb: 4, px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Tabs 
-                    value={activeTab} 
-                    onChange={(e, v) => setActiveTab(v)} 
-                    indicatorColor="secondary" 
-                    textColor="inherit" 
-                    variant="scrollable" 
-                    scrollButtons="auto"
-                >
-                    {CATEGORIES[activeCategory].children.map((child) => (
-                        <Tab 
-                            key={child.id} 
-                            value={child.id} 
-                            label={child.label} 
-                            sx={{ 
-                                fontFamily: "'JetBrains Mono', monospace", 
-                                fontSize: '11px',
-                                minHeight: '48px',
-                                color: activeTab === child.id ? '#3b82f6' : 'text.secondary'
-                            }} 
-                        />
+                <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} indicatorColor="secondary" textColor="inherit" variant="scrollable" scrollButtons="auto">
+                    {ALLOWED_CATEGORIES[activeCategory]?.children.map((child) => (
+                        <Tab key={child.id} value={child.id} label={child.label} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minHeight: '48px', color: activeTab === child.id ? '#3b82f6' : 'text.secondary' }} />
                     ))}
                 </Tabs>
             </Box>
@@ -332,16 +327,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 {activeTab === "inventory" && (<InventoryTab project={project} resources={resources} updateProject={updateProject} />)}
             </Box>
 
-            <MasterBoqEditor
-                editorItem={editorItem}
-                onClose={() => setEditorItem(null)}
-                onSaveSuccess={() => { setEditorItem(null); loadData(); }}
-                project={project}
-                regions={regions}
-                resources={resources}
-                masterBoqs={masterBoqs}
-                setFormulaHelpOpen={setFormulaHelpOpen}
-            />
+            <MasterBoqEditor editorItem={editorItem} onClose={() => setEditorItem(null)} onSaveSuccess={() => { setEditorItem(null); loadData(); }} project={project} regions={regions} resources={resources} masterBoqs={masterBoqs} setFormulaHelpOpen={setFormulaHelpOpen} />
 
             <Dialog open={isExportOpen} onClose={() => setIsExportOpen(false)} maxWidth="xs" fullWidth>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EXPORT_CONFIG</DialogTitle>
@@ -358,10 +344,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </DialogActions>
             </Dialog>
 
-            <FormulaGuideDialog 
-                open={formulaHelpOpen} 
-                onClose={() => setFormulaHelpOpen(false)} 
-            />
+            <FormulaGuideDialog open={formulaHelpOpen} onClose={() => setFormulaHelpOpen(false)} />
 
             <Dialog open={isSyncResolveOpen} onClose={() => setIsSyncResolveOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#fff', fontSize: '14px' }}>SYNC IMPORT RESOLUTION</DialogTitle>

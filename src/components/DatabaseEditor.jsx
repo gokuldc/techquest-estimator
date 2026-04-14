@@ -8,7 +8,13 @@ import CreateBoqTab from "./database/CreateBoqTab";
 import ViewBoqTab from "./database/ViewBoqTab";
 import BackupRestoreTab from "./database/BackupRestoreTab";
 
+// 🔥 1. Import the Auth Hook
+import { useAuth } from "../context/AuthContext";
+
 export default function DatabaseEditor({ onBack }) {
+    // 🔥 2. Grab the Clearance Checker
+    const { hasClearance } = useAuth();
+
     const [tab, setTab] = useState("resources");
 
     const [regions, setRegions] = useState([]);
@@ -32,7 +38,7 @@ export default function DatabaseEditor({ onBack }) {
                 try { return JSON.parse(str); } catch { return fallback; }
             };
 
-            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}),rateHistory: parseSafe(r.rateHistory, []) }));
+            const safeRes = (res || []).map(r => ({ ...r, rates: parseSafe(r.rates, {}), rateHistory: parseSafe(r.rateHistory, []) }));
             const safeMBoqs = (boqs || []).map(b => ({ ...b, components: parseSafe(b.components, []) }));
 
             setRegions(reg || []);
@@ -46,6 +52,9 @@ export default function DatabaseEditor({ onBack }) {
     useEffect(() => { loadData(); }, []);
 
     const deleteMasterBoq = async (id) => {
+        // 🔥 Extra security: Only L3+ can delete Master items
+        if (!hasClearance(3)) return alert("Access Denied: Level 3 Clearance required to delete Master Databook items.");
+
         if (window.confirm("Delete this Databook item?")) {
             await window.api.db.deleteMasterBoq(id);
             loadData();
@@ -53,6 +62,9 @@ export default function DatabaseEditor({ onBack }) {
     };
 
     const handleEditBoq = (boq) => {
+        // 🔥 Extra security: Only L3+ can edit Master items
+        if (!hasClearance(3)) return alert("Access Denied: Level 3 Clearance required to edit Master Databook items.");
+
         setEditingBoq(boq);
         setTab("createBoq");
     };
@@ -75,17 +87,30 @@ export default function DatabaseEditor({ onBack }) {
 
             <Paper elevation={0} variant="outlined" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
+
+                    {/* Everyone with DB access (L2+) gets LMR and Databook View */}
                     <Tab value="resources" label="01_LOCAL_MARKET_RATES" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="createBoq" label={`02_${editingBoq ? "EDIT_DATABOOK_ITEM" : "DATABOOK_BUILDER"}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                     <Tab value="viewBoq" label="03_DATABOOK" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="backup" label="04_BACKUP_&_RESTORE" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+
+                    {/* 🔥 L3+ (Estimators/Leads) to build/edit Master BOQs */}
+                    {hasClearance(3) && (
+                        <Tab value="createBoq" label={`02_${editingBoq ? "EDIT_DATABOOK_ITEM" : "DATABOOK_BUILDER"}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                    )}
+
+                    {/* 🔥 L5 (Root) to manage Backups and Purges */}
+                    {hasClearance(5) && (
+                        <Tab value="backup" label="04_BACKUP_&_RESTORE" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px', color: 'error.main' }} />
+                    )}
+
                 </Tabs>
             </Paper>
 
             {tab === "resources" && <ResourcesTab regions={regions} resources={resources} loadData={loadData} />}
-            {tab === "createBoq" && <CreateBoqTab regions={regions} resources={resources} masterBoqs={masterBoqs} loadData={loadData} editingBoq={editingBoq} clearEdit={clearEdit} />}
             {tab === "viewBoq" && <ViewBoqTab masterBoqs={masterBoqs} regions={regions} resources={resources} onEditBoq={handleEditBoq} deleteMasterBoq={deleteMasterBoq} loadData={loadData} />}
-            {tab === "backup" && <BackupRestoreTab loadData={loadData} />}
+
+            {/* Component Level Security Blocks */}
+            {hasClearance(3) && tab === "createBoq" && <CreateBoqTab regions={regions} resources={resources} masterBoqs={masterBoqs} loadData={loadData} editingBoq={editingBoq} clearEdit={clearEdit} />}
+            {hasClearance(5) && tab === "backup" && <BackupRestoreTab loadData={loadData} />}
         </Box>
     );
 }

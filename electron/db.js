@@ -2,6 +2,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
+import crypto from 'crypto'; // 🔥 ADDED MISSING IMPORT
 
 export function initDatabase() {
     const userDataPath = app.getPath('userData');
@@ -68,22 +69,32 @@ export function initDatabase() {
         );
         CREATE TABLE IF NOT EXISTS org_staff (
             id TEXT PRIMARY KEY,
-            name TEXT, designation TEXT, department TEXT, status TEXT, email TEXT, phone TEXT, createdAt INTEGER
+            name TEXT, 
+            designation TEXT, 
+            department TEXT, 
+            status TEXT, 
+            email TEXT, 
+            phone TEXT, 
+            createdAt INTEGER,
+            username TEXT UNIQUE,
+            password TEXT,
+            role TEXT DEFAULT 'Staff',
+            accessLevel INTEGER DEFAULT 1
         );
         CREATE TABLE IF NOT EXISTS project_documents (
-                id TEXT PRIMARY KEY,
-                projectId TEXT,
-                name TEXT,
-                category TEXT,
-                filePath TEXT,
-                fileType TEXT,
-                addedAt INTEGER,
-                FOREIGN KEY(projectId) REFERENCES projects(id)
-            );
-            CREATE TABLE IF NOT EXISTS app_settings (
-                key TEXT PRIMARY KEY,
-                value TEXT
-            );
+            id TEXT PRIMARY KEY,
+            projectId TEXT,
+            name TEXT,
+            category TEXT,
+            filePath TEXT,
+            fileType TEXT,
+            addedAt INTEGER,
+            FOREIGN KEY(projectId) REFERENCES projects(id)
+        );
+        CREATE TABLE IF NOT EXISTS app_settings (
+            key TEXT PRIMARY KEY,
+            value TEXT
+        );
     `;
     db.exec(initSql);
 
@@ -91,11 +102,39 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN createdAt INTEGER;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN dailySchedules TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN resourceTrackingMode TEXT DEFAULT 'manual';"); } catch (err) { }
-    try { db.exec("ALTER TABLE projects ADD COLUMN raBills TEXT;"); } catch (err) {}
-    try { db.exec("ALTER TABLE projects ADD COLUMN purchaseOrders TEXT;"); } catch (err) {}
-    try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) {}
-    try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) {}
-    try { db.exec("ALTER TABLE resources ADD COLUMN rateHistory TEXT;"); } catch(e) {}
+    try { db.exec("ALTER TABLE projects ADD COLUMN raBills TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN purchaseOrders TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE resources ADD COLUMN rateHistory TEXT;"); } catch (e) { }
+    try { db.exec("ALTER TABLE org_staff ADD COLUMN accessLevel INTEGER DEFAULT 1;"); } catch (err) { }
+
+    // 🔥 FIXED: Synchronous logic moved safely INSIDE the initDatabase function 🔥
+    try {
+        const row = db.prepare("SELECT COUNT(*) as count FROM org_staff").get();
+        if (row && row.count === 0) {
+            db.prepare(`
+                INSERT INTO org_staff (id, name, designation, department, status, username, password, role, createdAt, accessLevel)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            `).run(
+                crypto.randomUUID(),
+                'System Administrator',
+                'Chief Technical Officer',
+                'Management',
+                'Active',
+                'admin',         // Default Username
+                'admin123',      // Default Password
+                'SuperAdmin',    // God-mode Role
+                Date.now(),
+                5                // 🔥 ADDED: Explicitly grant Level 5 Clearance
+            );
+            console.log("Default admin account injected into org_staff.");
+        }
+    } catch (err) {
+        console.error("Failed to inject default admin:", err);
+    }
+
+    try { db.prepare("UPDATE org_staff SET accessLevel = 5 WHERE role = 'SuperAdmin'").run(); } catch (e) { }
 
     return db;
 }

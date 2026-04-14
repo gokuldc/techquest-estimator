@@ -100,9 +100,26 @@ export function registerProjectsIpc(db) {
 
     ipcMain.handle('db:get-org-staff', () => db.prepare('SELECT * FROM org_staff').all());
     ipcMain.handle('db:save-org-staff', (e, data) => {
-        const cols = Object.keys(data).join(', ');
-        const placeholders = Object.keys(data).map(() => '?').join(', ');
-        db.prepare(`INSERT OR REPLACE INTO org_staff (${cols}) VALUES (${placeholders})`).run(...Object.values(data));
+        const level = data.accessLevel ? parseInt(data.accessLevel, 10) : 1;
+
+        db.prepare(`
+            INSERT OR REPLACE INTO org_staff 
+            (id, name, designation, department, status, email, phone, createdAt, username, password, role, accessLevel) 
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+            data.id,
+            data.name || '',
+            data.designation || '',
+            data.department || 'Operations',
+            data.status || 'Active',
+            data.email || '',
+            data.phone || '',
+            data.createdAt || Date.now(),
+            data.username || null,
+            data.password || null,
+            data.role || 'Staff',
+            level
+        );
     });
     ipcMain.handle('db:delete-org-staff', (e, id) => db.prepare('DELETE FROM org_staff WHERE id = ?').run(id));
 

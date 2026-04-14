@@ -7,6 +7,8 @@ import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 
+import { AuthProvider, useAuth } from './context/AuthContext';
+import Login from './components/Login';
 import DatabaseEditor from './components/DatabaseEditor';
 import Home from './components/Home';
 import ProjectWorkspace from './components/ProjectWorkspace';
@@ -14,6 +16,17 @@ import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Directory from './components/Directory';
 import { SettingsProvider } from './context/SettingsContext';
+
+// 🔥 THE GATEKEEPER
+function Gatekeeper({ children }) {
+    const { currentUser } = useAuth();
+
+    // If no user is logged in (or if the user data is corrupted), show the login screen
+    if (!currentUser || !currentUser.role) return <Login />;
+
+    // If logged in safely, show the rest of the app
+    return children;
+}
 
 export default function App() {
     const [mode, setMode] = useState(() => localStorage.getItem('themeMode') || 'dark');
@@ -116,82 +129,88 @@ export default function App() {
     });
 
     return (
-        /* 🔥 WRAPPED THE ENTIRE APP IN SETTINGSPROVIDER 🔥 */
         <SettingsProvider>
-            <ThemeProvider theme={theme}>
-                <CssBaseline />
-                <AppBar position="static" color="transparent" elevation={0}>
-                    <Toolbar>
-                        <Typography
-                            variant="h6"
-                            onClick={() => setCurrentView('home')}
-                            sx={{
-                                flexGrow: 1,
-                                fontWeight: 'bold',
-                                fontFamily: "'JetBrains Mono', monospace",
-                                color: 'primary.main',
-                                cursor: 'pointer',
-                                letterSpacing: '1px',
+            <AuthProvider>
+                <ThemeProvider theme={theme}>
+                    <CssBaseline />
+
+                    {/* 🔥 THE FIX: EVERYTHING IS NOW INSIDE THE GATEKEEPER 🔥 */}
+                    <Gatekeeper>
+                        <AppBar position="static" color="transparent" elevation={0}>
+                            <Toolbar>
+                                <Typography
+                                    variant="h6"
+                                    onClick={() => setCurrentView('home')}
+                                    sx={{
+                                        flexGrow: 1,
+                                        fontWeight: 'bold',
+                                        fontFamily: "'JetBrains Mono', monospace",
+                                        color: 'primary.main',
+                                        cursor: 'pointer',
+                                        letterSpacing: '1px',
+                                    }}
+                                >
+                                    {'// '}OPENPRIX
+                                </Typography>
+
+                                <Tooltip title="System Info">
+                                    <IconButton
+                                        onClick={() => setAboutOpen(true)}
+                                        sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
+                                    >
+                                        <InfoOutlinedIcon />
+                                    </IconButton>
+                                </Tooltip>
+
+                                <IconButton onClick={toggleTheme} sx={{ ml: 1, color: 'text.secondary' }}>
+                                    {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+                                </IconButton>
+                            </Toolbar>
+                        </AppBar>
+
+                        <Box sx={{ width: '100%', minHeight: 'calc(100vh - 64px)' }}>
+                            <ErrorBoundary>
+                                {currentView === 'home' && (
+                                    <Home
+                                        onOpenDb={() => setCurrentView('database')}
+                                        onOpenProject={(id) => { setActiveProjectId(id); setCurrentView('workspace'); }}
+                                        onOpenDirectory={() => setCurrentView('directory')}
+                                    />
+                                )}
+                                {currentView === 'database' && <DatabaseEditor onBack={() => setCurrentView('home')} />}
+                                {currentView === 'workspace' && <ProjectWorkspace projectId={activeProjectId} onBack={() => setCurrentView('home')} />}
+                                {currentView === 'directory' && <Directory onBack={() => setCurrentView('home')} />}
+                            </ErrorBoundary>
+                        </Box>
+
+                        {/* --- ABOUT SYSTEM POPUP --- */}
+                        <Dialog
+                            open={aboutOpen}
+                            onClose={() => setAboutOpen(false)}
+                            maxWidth="md"
+                            fullWidth
+                            PaperProps={{
+                                sx: { bgcolor: '#0b172d', border: '1px solid', borderColor: 'divider', borderRadius: 2 }
                             }}
                         >
-                            {'// '}OPENPRIX
-                        </Typography>
+                            <DialogContent>
+                                <About isPopup={true} />
+                            </DialogContent>
+                            <DialogActions sx={{ p: 3 }}>
+                                <Button
+                                    variant="outlined"
+                                    onClick={() => setAboutOpen(false)}
+                                    sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
+                                >
+                                    CLOSE_TERMINAL
+                                </Button>
+                            </DialogActions>
+                        </Dialog>
+                    </Gatekeeper>
+                    {/* 🔥 END OF GATEKEEPER 🔥 */}
 
-                        {/* TRIGGER ABOUT POPUP */}
-                        <Tooltip title="System Info">
-                            <IconButton
-                                onClick={() => setAboutOpen(true)}
-                                sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}
-                            >
-                                <InfoOutlinedIcon />
-                            </IconButton>
-                        </Tooltip>
-
-                        <IconButton onClick={toggleTheme} sx={{ ml: 1, color: 'text.secondary' }}>
-                            {theme.palette.mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
-                        </IconButton>
-                    </Toolbar>
-                </AppBar>
-
-                <Box sx={{ width: '100%', minHeight: 'calc(100vh - 64px)' }}>
-                    <ErrorBoundary>
-                        {currentView === 'home' && (
-                            <Home
-                                onOpenDb={() => setCurrentView('database')}
-                                onOpenProject={(id) => { setActiveProjectId(id); setCurrentView('workspace'); }}
-                                onOpenDirectory={() => setCurrentView('directory')}
-                            />
-                        )}
-                        {currentView === 'database' && <DatabaseEditor onBack={() => setCurrentView('home')} />}
-                        {currentView === 'workspace' && <ProjectWorkspace projectId={activeProjectId} onBack={() => setCurrentView('home')} />}
-                        {currentView === 'directory' && <Directory onBack={() => setCurrentView('home')} />}
-                    </ErrorBoundary>
-                </Box>
-
-                {/* --- ABOUT SYSTEM POPUP --- */}
-                <Dialog
-                    open={aboutOpen}
-                    onClose={() => setAboutOpen(false)}
-                    maxWidth="md"
-                    fullWidth
-                    PaperProps={{
-                        sx: { bgcolor: '#0b172d', border: '1px solid', borderColor: 'divider', borderRadius: 2 }
-                    }}
-                >
-                    <DialogContent>
-                        <About isPopup={true} />
-                    </DialogContent>
-                    <DialogActions sx={{ p: 3 }}>
-                        <Button
-                            variant="outlined"
-                            onClick={() => setAboutOpen(false)}
-                            sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}
-                        >
-                            CLOSE_TERMINAL
-                        </Button>
-                    </DialogActions>
-                </Dialog>
-            </ThemeProvider>
+                </ThemeProvider>
+            </AuthProvider>
         </SettingsProvider>
     );
 }

@@ -4,6 +4,25 @@ import fs from 'fs';
 import * as xlsx from 'xlsx';
 
 export function registerMasterDataIpc(db, mainWindow) {
+
+    // 🔥 1. NATIVE AUTHENTICATION HANDLER 🔥
+    ipcMain.handle('db:verify-login', (event, username, password) => {
+        try {
+            const user = db.prepare(`
+                SELECT id, username, name, role, designation, department, accessLevel 
+                FROM org_staff 
+                WHERE username = ? AND password = ? AND status = 'Active'
+            `).get(username, password);
+
+            return user || null;
+        } catch (error) {
+            console.error("Login verification error:", error);
+            return null;
+        }
+    });
+
+    // --- EXISTING MASTER DATA ROUTES ---
+
     ipcMain.handle('db:get-regions', () => db.prepare('SELECT * FROM regions ORDER BY name ASC').all());
 
     ipcMain.handle('db:create-region', (event, regionName) => {

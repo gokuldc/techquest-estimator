@@ -72,6 +72,7 @@ contextBridge.exposeInMainWorld('api', {
 
         getSettings: (key) => ipcRenderer.invoke('db:get-settings', key),
         saveSettings: (key, value) => ipcRenderer.invoke('db:save-settings', key, value),
+        verifyEmployeeLogin: (username, password) => ipcRenderer.invoke('db:verify-login', username, password),
     },
 
     // 🔥 NEW: OS NATIVE OPERATIONS (Files & Shell)

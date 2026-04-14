@@ -64,7 +64,7 @@ export default function CompanySettingsDialog({ open, onClose }) {
     return (
         <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider' } }}>
             <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
-                <BusinessIcon /> FIRM_IDENTITY_CONFIG
+                <BusinessIcon /> SETTINGS
             </DialogTitle>
             <DialogContent dividers sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>
                 <Box display="flex" flexDirection="column" gap={2.5} pt={2}>
