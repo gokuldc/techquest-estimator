@@ -113,17 +113,32 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
 
     const filteredProjects = useMemo(() => {
         if (!projects) return [];
-        if (!searchQuery.trim()) return projects;
+
+        // 1. PROJECT-WISE ACCESS CONTROL
+        let visibleProjects = projects;
+
+        // If user is below L4 (Management), they only see assigned projects
+        if (!hasClearance(4)) {
+            visibleProjects = projects.filter(p => {
+                try {
+                    const assigned = JSON.parse(p.assignedStaff || '[]');
+                    return assigned.includes(currentUser.id);
+                } catch (e) {
+                    return false;
+                }
+            });
+        }
+
+        // 2. SEARCH FILTER
+        if (!searchQuery.trim()) return visibleProjects;
 
         const query = searchQuery.toLowerCase();
-        return projects.filter(p =>
+        return visibleProjects.filter(p =>
             (p.name && p.name.toLowerCase().includes(query)) ||
             (p.code && p.code.toLowerCase().includes(query)) ||
-            (p.clientName && p.clientName.toLowerCase().includes(query)) ||
-            (p.region && p.region.toLowerCase().includes(query))
+            (p.clientName && p.clientName.toLowerCase().includes(query))
         );
-    }, [projects, searchQuery]);
-
+    }, [projects, searchQuery, currentUser, hasClearance]);
     const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
 
     useEffect(() => {
@@ -140,7 +155,9 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             clientName: "",
             region: "",
             status: "Draft",
+            assignedStaff: JSON.stringify([currentUser.id]),
             createdAt: Date.now()
+
         };
         await window.api.db.addProject(newProject);
         loadData();

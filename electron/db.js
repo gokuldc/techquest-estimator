@@ -108,6 +108,7 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE resources ADD COLUMN rateHistory TEXT;"); } catch (e) { }
     try { db.exec("ALTER TABLE org_staff ADD COLUMN accessLevel INTEGER DEFAULT 1;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN assignedStaff TEXT DEFAULT '[]';"); } catch (e) { }
 
     // 🔥 FIXED: Synchronous logic moved safely INSIDE the initDatabase function 🔥
     try {

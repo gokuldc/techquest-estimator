@@ -131,6 +131,16 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 window.api.db.getOrgStaff()
             ]);
 
+            // 🔥 SECURITY FAILSAFE: Check project assignment before parsing and rendering
+            if (p && !hasClearance(4)) {
+                const assigned = JSON.parse(p.assignedStaff || '[]');
+                if (!assigned.includes(currentUser.id)) {
+                    alert("ACCESS DENIED: You are not assigned to this project's team.");
+                    onBack(); // Instantly boot them back to the Home dashboard
+                    return;   // Stop execution so no sensitive data enters state
+                }
+            }
+
             const parseSafe = (str, fallback = []) => {
                 if (!str) return fallback;
                 if (typeof str !== 'string') return str;
