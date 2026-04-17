@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import {
     ThemeProvider, createTheme, CssBaseline, Box, AppBar, Toolbar,
-    Typography, IconButton, Tooltip, Dialog, DialogContent, DialogActions, Button, Drawer
+    Typography, IconButton, Tooltip, Dialog, DialogContent, DialogActions, Button, Drawer,
+    Badge // 🔥 Added Badge Import
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
-import ChatIcon from '@mui/icons-material/Chat'; // 🔥 New Icon for Global Chat
+import ChatIcon from '@mui/icons-material/Chat';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
@@ -16,7 +17,7 @@ import ProjectWorkspace from './components/ProjectWorkspace';
 import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Directory from './components/Directory';
-import ChatModule from './components/workspace/ChatModule'; // 🔥 Import Chat Module
+import ChatModule from './components/workspace/ChatModule';
 import { SettingsProvider } from './context/SettingsContext';
 
 // 🔥 THE GATEKEEPER
@@ -28,6 +29,52 @@ function Gatekeeper({ children }) {
 
     // If logged in safely, show the rest of the app
     return children;
+}
+
+// 🔥 ISOLATED NOTIFICATION BADGE COMPONENT
+// This sits inside the Gatekeeper so it can safely access the `currentUser`!
+function GlobalChatButton({ chatOpen, onOpen }) {
+    const { currentUser } = useAuth();
+    const [unreadCount, setUnreadCount] = useState(0);
+
+    useEffect(() => {
+        if (!currentUser) return;
+
+        const checkUnreadMessages = async () => {
+            // If chat is open, we are reading it. Update timestamp and clear badge.
+            if (chatOpen) {
+                localStorage.setItem(`last_chat_check_${currentUser.id}`, Date.now().toString());
+                setUnreadCount(0);
+                return;
+            }
+
+            // If chat is closed, check the database for anything newer than our last timestamp
+            try {
+                const lastChecked = parseInt(localStorage.getItem(`last_chat_check_${currentUser.id}`) || '0');
+                const count = await window.api.db.checkNotifications(currentUser.id, lastChecked);
+                setUnreadCount(count);
+            } catch (err) {
+                console.warn("Notification polling failed", err);
+            }
+        };
+
+        checkUnreadMessages(); // Run immediately
+        const interval = setInterval(checkUnreadMessages, 3000); // Check every 3 seconds
+        return () => clearInterval(interval);
+    }, [currentUser, chatOpen]);
+
+    return (
+        <Tooltip title="Global CommLink">
+            <IconButton
+                onClick={onOpen}
+                sx={{ color: 'text.secondary', mr: 1, '&:hover': { color: 'info.main' } }}
+            >
+                <Badge badgeContent={unreadCount} color="error" overlap="circular">
+                    <ChatIcon />
+                </Badge>
+            </IconButton>
+        </Tooltip>
+    );
 }
 
 export default function App() {
@@ -168,15 +215,8 @@ export default function App() {
                                     {'// '}OPENPRIX
                                 </Typography>
 
-                                {/* 🔥 GLOBAL CHAT BUTTON */}
-                                <Tooltip title="Global CommLink">
-                                    <IconButton
-                                        onClick={handleOpenGlobalChat}
-                                        sx={{ color: 'text.secondary', mr: 1, '&:hover': { color: 'info.main' } }}
-                                    >
-                                        <ChatIcon />
-                                    </IconButton>
-                                </Tooltip>
+                                {/* 🔥 NEW SMART NOTIFICATION CHAT BUTTON */}
+                                <GlobalChatButton chatOpen={globalChatOpen} onOpen={handleOpenGlobalChat} />
 
                                 <Tooltip title="System Info">
                                     <IconButton

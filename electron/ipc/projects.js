@@ -124,6 +124,8 @@ export function registerProjectsIpc(db) {
     ipcMain.handle('db:delete-org-staff', (e, id) => db.prepare('DELETE FROM org_staff WHERE id = ?').run(id));
 
     ipcMain.handle('db:get-kanban-tasks', () => []);
+
+    // --- CHAT & MESSAGING HANDLERS ---
     ipcMain.handle('db:get-messages', (e, projectId) => {
         if (projectId) {
             return db.prepare('SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC').all(projectId);
@@ -131,12 +133,14 @@ export function registerProjectsIpc(db) {
             return db.prepare('SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC').all();
         }
     });
+
     ipcMain.handle('db:save-message', (e, data) => {
         db.prepare(`
             INSERT INTO messages (id, projectId, senderId, content, createdAt) 
             VALUES (?, ?, ?, ?, ?)
         `).run(data.id, data.projectId || null, data.senderId, data.content, data.createdAt);
     });
+
     // FETCH PRIVATE MESSAGES (Between User A and User B)
     ipcMain.handle('db:get-private-messages', (e, user1, user2) => {
         return db.prepare(`
@@ -153,5 +157,27 @@ export function registerProjectsIpc(db) {
             INSERT INTO private_messages (id, senderId, receiverId, content, createdAt) 
             VALUES (?, ?, ?, ?, ?)
         `).run(data.id, data.senderId, data.receiverId, data.content, data.createdAt);
+    });
+
+    // 🔥 NEW: UNREAD NOTIFICATION CHECKER
+    ipcMain.handle('db:check-notifications', (e, userId, lastChecked) => {
+        try {
+            // Count global messages sent by OTHERS after the last checked time
+            const globalUnread = db.prepare(`
+                SELECT COUNT(*) as count FROM messages 
+                WHERE projectId IS NULL AND senderId != ? AND createdAt > ?
+            `).get(userId, lastChecked || 0);
+
+            // Count Direct Messages sent to THIS user after the last checked time
+            const dmUnread = db.prepare(`
+                SELECT COUNT(*) as count FROM private_messages 
+                WHERE receiverId = ? AND createdAt > ?
+            `).get(userId, lastChecked || 0);
+
+            return (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
+        } catch (err) {
+            console.error("Notification check error:", err);
+            return 0; // Failsafe
+        }
     });
 }

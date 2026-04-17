@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import {
     Box, Button, Typography, Paper, Grid, TextField, MenuItem, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
@@ -14,8 +14,46 @@ import CloseIcon from '@mui/icons-material/Close';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { tableInputActiveStyle } from "../../styles";
 
-// 🔥 Import global settings hook for currency formatting
+// Import global settings hook for currency formatting
 import { useSettings } from "../../context/SettingsContext";
+
+// 🔥 THE FIX: HIGH-PERFORMANCE ISOLATED INPUT CELL
+// This prevents the entire app from re-rendering on every single keystroke.
+const RateInputCell = ({ resource, regionName, onSave }) => {
+    const [localVal, setLocalVal] = useState(resource.rates[regionName] || "");
+
+    // Keep local state in sync if data changes from an Excel import
+    useEffect(() => {
+        setLocalVal(resource.rates[regionName] || "");
+    }, [resource.rates, regionName]);
+
+    // Only save to SQLite when the user clicks away or presses Tab
+    const handleBlur = () => {
+        const numVal = Number(localVal);
+        const currentDbVal = Number(resource.rates[regionName] || 0);
+        if (numVal !== currentDbVal) {
+            onSave(resource.id, numVal);
+        }
+    };
+
+    // Allow saving by pressing Enter
+    const handleKeyDown = (e) => {
+        if (e.key === 'Enter') {
+            e.target.blur();
+        }
+    };
+
+    return (
+        <input
+            type="number"
+            value={localVal}
+            onChange={(e) => setLocalVal(e.target.value)}
+            onBlur={handleBlur}
+            onKeyDown={handleKeyDown}
+            style={tableInputActiveStyle}
+        />
+    );
+};
 
 export default function ResourcesTab({ regions, resources, loadData }) {
     const { formatCurrency } = useSettings();
@@ -80,7 +118,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
         }
     };
 
-    // 🔥 UPGRADED: Smart Excel Import Logic
+    // Excel Import Logic
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file || !importRegion) return;
@@ -93,10 +131,8 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 const workbook = XLSX.read(data, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];
 
-                // Read as an array of arrays to safely find the header row
                 const rawSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
 
-                // 1. Scan rows to find the actual headers (ignoring "REPORT,,," rows)
                 let headerRowIdx = -1;
                 for (let i = 0; i < Math.min(10, rawSheetData.length); i++) {
                     const row = rawSheetData[i];
@@ -111,7 +147,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     return;
                 }
 
-                // 2. Identify specific column indices
                 const headers = rawSheetData[headerRowIdx].map(h => typeof h === 'string' ? h.toLowerCase().trim() : '');
                 const codeIdx = headers.findIndex(h => h === 'code' || h.includes('code'));
                 const descIdx = headers.findIndex(h => h.includes('description') || h.includes('item'));
@@ -123,18 +158,16 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     return;
                 }
 
-                // 3. Extract and format the data below the header row
                 const formattedData = [];
                 for (let i = headerRowIdx + 1; i < rawSheetData.length; i++) {
                     const row = rawSheetData[i];
-                    if (!row || row.length === 0) continue; // Skip empty rows
+                    if (!row || row.length === 0) continue;
 
                     const code = String(row[codeIdx] || '').trim();
                     const desc = String(row[descIdx] || '').trim();
                     const unit = String(row[unitIdx] || 'nos').trim();
                     const rate = Number(row[rateIdx] || 0);
 
-                    // Only push valid rows
                     if (code && desc) {
                         formattedData.push({ code, description: desc, unit, rate });
                     }
@@ -145,7 +178,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     return;
                 }
 
-                // 4. Batch process the imports into SQLite
                 for (const item of formattedData) {
                     let existingRes = resources.find(r => r.code === item.code);
                     if (existingRes) {
@@ -290,7 +322,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 />
             </Box>
 
-            {/* 🔥 REDESIGNED EXCEL-STYLE TABLE */}
+            {/* REDESIGNED EXCEL-STYLE TABLE */}
             <TableContainer component={Paper} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider' }}>
                 <Table stickyHeader size="small">
                     <TableHead>
@@ -333,11 +365,11 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
                                 {regions.map(r => (
                                     <TableCell key={r.id}>
-                                        <input
-                                            type="number"
-                                            value={res.rates[r.name] || ""}
-                                            onChange={e => updateResourceRate(res.id, 'rates', { ...res.rates, [r.name]: Number(e.target.value) }, r.name)}
-                                            style={tableInputActiveStyle}
+                                        {/* 🔥 Using the isolated, high-performance cell here */}
+                                        <RateInputCell
+                                            resource={res}
+                                            regionName={r.name}
+                                            onSave={(resId, val) => updateResourceRate(resId, 'rates', { ...res.rates, [r.name]: val }, r.name)}
                                         />
                                     </TableCell>
                                 ))}

@@ -38,6 +38,7 @@ contextBridge.exposeInMainWorld('api', {
         saveMessage: (data) => ipcRenderer.invoke('db:save-message', data),
         getPrivateMessages: (user1, user2) => ipcRenderer.invoke('db:get-private-messages', user1, user2),
         savePrivateMessage: (data) => ipcRenderer.invoke('db:save-private-message', data),
+        checkNotifications: (userId, lastChecked) => ipcRenderer.invoke('db:check-notifications', userId, lastChecked),
 
         // --- PROJECT BOQ & MEASUREMENTS ---
         getProjectBoqs: (projectId) => ipcRenderer.invoke('db:get-project-boqs', projectId),

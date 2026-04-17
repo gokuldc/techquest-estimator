@@ -22,25 +22,31 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import LogoutIcon from '@mui/icons-material/Logout';
-import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // 🔥 New Icon for Profile
+import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 
 // Components
 import CompanySettingsDialog from "./CompanySettingsDialog";
 
-// 🔥 1. Import the Auth Hook
+// Import Auth and Settings Hooks
 import { useAuth } from "../context/AuthContext";
+import { useSettings } from "../context/SettingsContext";
 
 export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const fileInputRef = useRef(null);
 
     const { currentUser, logout, hasClearance } = useAuth();
+    const { settings } = useSettings();
 
     // --- DIALOG & BRANDING STATE ---
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [importData, setImportData] = useState(null);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
 
-    // 🔥 PROFILE MODAL STATE
+    // BRANDING STATE
+    const [brandName, setBrandName] = useState("");
+    const [brandLogo, setBrandLogo] = useState("");
+
+    // PROFILE MODAL STATE
     const [isProfileOpen, setIsProfileOpen] = useState(false);
     const [profileData, setProfileData] = useState({});
 
@@ -76,19 +82,43 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         }
     };
 
+    const loadBranding = async () => {
+        let fetchedName = "";
+        let fetchedLogo = "";
+
+        try {
+            if (window.api.db.getSettings) {
+                const dbSettings = await window.api.db.getSettings('company_info');
+                if (dbSettings) {
+                    fetchedName = dbSettings.name || "";
+                    fetchedLogo = dbSettings.logo || "";
+                }
+            }
+        } catch (e) {
+            console.warn("Could not fetch branding from DB directly", e);
+        }
+
+        if (!fetchedName && settings?.name) fetchedName = settings.name;
+        if (!fetchedLogo && settings?.logo) fetchedLogo = settings.logo;
+
+        setBrandName(fetchedName);
+        setBrandLogo(fetchedLogo);
+    };
+
     useEffect(() => {
         loadData();
-    }, []);
+        loadBranding();
+    }, [settings]);
 
     // --- SEARCH & PAGINATION STATE ---
     const [searchQuery, setSearchQuery] = useState("");
     const [page, setPage] = useState(1);
     const itemsPerPage = 6;
 
-    // 🔥 1. MASTER VISIBILITY FILTER
+    // MASTER VISIBILITY FILTER
     const visibleProjects = useMemo(() => {
         if (!projects) return [];
-        if (hasClearance(4)) return projects; // Management sees everything
+        if (hasClearance(4)) return projects;
 
         return projects.filter(p => {
             try {
@@ -100,7 +130,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         });
     }, [projects, currentUser, hasClearance]);
 
-    // 🔥 2. METRICS
+    // METRICS
     const stats = useMemo(() => {
         let active = 0, completed = 0, draft = 0;
         visibleProjects.forEach(p => {
@@ -130,7 +160,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         };
     }, [visibleProjects, crmContacts, orgStaff]);
 
-    // 🔥 3. SEARCH FILTER
+    // SEARCH FILTER
     const filteredProjects = useMemo(() => {
         if (!searchQuery.trim()) return visibleProjects;
 
@@ -159,7 +189,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             clientName: "",
             region: "",
             status: "Draft",
-            assignedStaff: JSON.stringify([currentUser?.id]), // Auto-assign the creator
+            assignedStaff: JSON.stringify([currentUser?.id]),
             createdAt: Date.now()
         };
         await window.api.db.addProject(newProject);
@@ -204,9 +234,8 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         }
     };
 
-    // 🔥 PROFILE EVENT HANDLERS
+    // PROFILE EVENT HANDLERS
     const handleOpenProfile = () => {
-        // Load fresh data from the database to ensure we have the latest password/info
         const freshUserData = orgStaff.find(s => s.id === currentUser.id) || currentUser;
         setProfileData(freshUserData);
         setIsProfileOpen(true);
@@ -217,17 +246,16 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             return alert("Name, Username, and Password cannot be empty.");
         }
 
-        // Hard-override clearance levels to strictly prevent privilege escalation hacks
         const payload = {
             ...profileData,
             username: profileData.username.trim().toLowerCase().replace(/\s+/g, ''),
-            accessLevel: currentUser.accessLevel, // Immutable by user
-            role: currentUser.role                  // Immutable by user
+            accessLevel: currentUser.accessLevel,
+            role: currentUser.role
         };
 
         await window.api.db.saveOrgStaff(payload);
         alert("Profile updated securely! You will be logged out to apply changes to your session.");
-        logout(); // Force them to log back in to refresh the AuthContext safely
+        logout();
     };
 
     const MetricCard = ({ title, value, subtitle, icon, color }) => (
@@ -248,13 +276,27 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             {/* --- NEXUS HEADER --- */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 4, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Box>
-                    <Typography variant="h4" fontWeight="bold" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                        {'// '}OPENPRIX_NEXUS
-                    </Typography>
+                    {/* 🔥 LOGO PRIORITY BRANDING */}
+                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+                        {brandLogo ? (
+                            <Box
+                                component="img"
+                                src={brandLogo}
+                                alt={brandName || "Company Logo"}
+                                sx={{ height: 45, maxWidth: 300, objectFit: 'contain' }}
+                            />
+                        ) : (
+                            <Typography variant="h4" fontWeight="bold" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                                {brandName ? brandName.toUpperCase() : "// OPENPRIX_NEXUS"}
+                            </Typography>
+                        )}
+                    </Box>
+
                     <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1 }}>
                         <span style={{ color: '#10b981' }}>●</span> Logged in as: <strong>{currentUser?.name}</strong> [L{currentUser?.accessLevel || 1}]
                     </Typography>
                 </Box>
+
                 <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
                     {hasClearance(5) && (
                         <Button
@@ -278,7 +320,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     )}
                     <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
-                    {/* 🔥 MY PROFILE BUTTON */}
+                    {/* MY PROFILE BUTTON */}
                     <Button
                         onClick={handleOpenProfile}
                         variant="outlined"
@@ -368,9 +410,10 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
             )}
 
-            <CompanySettingsDialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+            {/* Reload branding instantly when settings dialog closes */}
+            <CompanySettingsDialog open={isSettingsOpen} onClose={() => { setIsSettingsOpen(false); loadBranding(); }} />
 
-            {/* 🔥 USER PROFILE MODAL */}
+            {/* USER PROFILE MODAL */}
             <Dialog open={isProfileOpen} onClose={() => setIsProfileOpen(false)} maxWidth="sm" fullWidth>
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EDIT_IDENTITY_PROFILE</DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', pt: 3 }}>
