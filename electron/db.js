@@ -151,5 +151,6 @@ export function initDatabase() {
 
     try { db.prepare("UPDATE org_staff SET accessLevel = 5 WHERE role = 'SuperAdmin'").run(); } catch (e) { }
 
+
     return db;
 }
