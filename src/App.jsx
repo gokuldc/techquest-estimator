@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import {
     ThemeProvider, createTheme, CssBaseline, Box, AppBar, Toolbar,
-    Typography, IconButton, Tooltip, Dialog, DialogContent, DialogActions, Button
+    Typography, IconButton, Tooltip, Dialog, DialogContent, DialogActions, Button, Drawer
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
+import ChatIcon from '@mui/icons-material/Chat'; // 🔥 New Icon for Global Chat
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
@@ -15,6 +16,7 @@ import ProjectWorkspace from './components/ProjectWorkspace';
 import About from './components/About';
 import ErrorBoundary from './components/ErrorBoundary';
 import Directory from './components/Directory';
+import ChatModule from './components/workspace/ChatModule'; // 🔥 Import Chat Module
 import { SettingsProvider } from './context/SettingsContext';
 
 // 🔥 THE GATEKEEPER
@@ -34,11 +36,26 @@ export default function App() {
     const [activeProjectId, setActiveProjectId] = useState(null);
     const [aboutOpen, setAboutOpen] = useState(false);
 
+    // 🔥 GLOBAL CHAT STATE
+    const [globalChatOpen, setGlobalChatOpen] = useState(false);
+    const [orgStaff, setOrgStaff] = useState([]);
+
     useEffect(() => {
         localStorage.setItem('themeMode', mode);
     }, [mode]);
 
     const toggleTheme = () => setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
+
+    // Fetch staff right as the drawer opens to ensure we have the names for the chat bubbles
+    const handleOpenGlobalChat = async () => {
+        try {
+            const staff = await window.api.db.getOrgStaff();
+            setOrgStaff(staff || []);
+            setGlobalChatOpen(true);
+        } catch (error) {
+            console.error("Failed to load staff for chat:", error);
+        }
+    };
 
     const theme = createTheme({
         palette: {
@@ -67,11 +84,9 @@ export default function App() {
                             ? "#3b82f6 rgba(0,0,0,0.3)"
                             : "#1e40af rgba(0,0,0,0.1)",
                     },
-
                     body: {
                         margin: 0,
                     },
-
                     "*::-webkit-scrollbar": {
                         width: "10px",
                         height: "10px",
@@ -153,6 +168,16 @@ export default function App() {
                                     {'// '}OPENPRIX
                                 </Typography>
 
+                                {/* 🔥 GLOBAL CHAT BUTTON */}
+                                <Tooltip title="Global CommLink">
+                                    <IconButton
+                                        onClick={handleOpenGlobalChat}
+                                        sx={{ color: 'text.secondary', mr: 1, '&:hover': { color: 'info.main' } }}
+                                    >
+                                        <ChatIcon />
+                                    </IconButton>
+                                </Tooltip>
+
                                 <Tooltip title="System Info">
                                     <IconButton
                                         onClick={() => setAboutOpen(true)}
@@ -206,6 +231,14 @@ export default function App() {
                                 </Button>
                             </DialogActions>
                         </Dialog>
+
+                        {/* 🔥 GLOBAL CHAT DRAWER (Overlays the entire app) */}
+                        <Drawer anchor="right" open={globalChatOpen} onClose={() => setGlobalChatOpen(false)}>
+                            <Box sx={{ width: { xs: '100vw', sm: 400 }, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: mode === 'dark' ? '#0d1f3c' : '#ffffff' }}>
+                                <ChatModule projectId={null} orgStaff={orgStaff} />
+                            </Box>
+                        </Drawer>
+
                     </Gatekeeper>
                     {/* 🔥 END OF GATEKEEPER 🔥 */}
 

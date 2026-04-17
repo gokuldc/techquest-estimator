@@ -1,8 +1,8 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef } from "react";
 import {
     Box, Button, Typography, Paper, Grid, TextField, MenuItem, Table,
     TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton,
-    Chip, InputAdornment, Drawer, Pagination, Divider
+    InputAdornment, Drawer, Pagination, Divider
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -12,27 +12,29 @@ import TrendingUpIcon from '@mui/icons-material/TrendingUp';
 import TrendingDownIcon from '@mui/icons-material/TrendingDown';
 import CloseIcon from '@mui/icons-material/Close';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { tableInputStyle, tableInputActiveStyle } from "../../styles";
+import { tableInputActiveStyle } from "../../styles";
 
-// 🔥 1. Import the global settings hook
+// 🔥 Import global settings hook for currency formatting
 import { useSettings } from "../../context/SettingsContext";
 
 export default function ResourcesTab({ regions, resources, loadData }) {
-    // 🔥 2. Grab the format function from the "Radio Tower"
     const { formatCurrency } = useSettings();
+    const fileInputRef = useRef(null);
 
     const [searchTerm, setSearchTerm] = useState("");
     const [importRegion, setImportRegion] = useState("");
     const [newRegion, setNewRegion] = useState("");
+
+    // Quick Add State
     const [resCode, setResCode] = useState("");
     const [resDesc, setResDesc] = useState("");
     const [resUnit, setResUnit] = useState("nos");
 
-    // --- PAGINATION STATE ---
+    // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
-    // --- ANALYTICS STATE ---
+    // Analytics State
     const [selectedResource, setSelectedResource] = useState(null);
 
     // --- FILTER & PAGINATION LOGIC ---
@@ -46,6 +48,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
     const totalPages = Math.ceil(filteredResources.length / itemsPerPage);
     const paginatedResources = filteredResources.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
+    // --- DATA MUTATION FUNCTIONS ---
     const updateResourceRate = async (id, field, value, regionName = null) => {
         const res = resources.find(r => r.id === id);
 
@@ -55,7 +58,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 ...currentHistory,
                 { date: new Date().toISOString().split('T')[0], rate: value[regionName], region: regionName }
             ];
-            // Update SQLite: rates is object, rateHistory is array
             await window.api.db.updateResource(id, 'rates', JSON.stringify(value));
             await window.api.db.updateResource(id, 'rateHistory', JSON.stringify(updatedHistory));
         } else {
@@ -65,10 +67,111 @@ export default function ResourcesTab({ regions, resources, loadData }) {
     };
 
     const deleteResource = async (id) => {
-        if (window.confirm("Delete resource?")) {
+        if (window.confirm("CRITICAL: Delete this resource? This will break formulas in BOQs that rely on it.")) {
             await window.api.db.deleteResource(id);
             loadData();
         }
+    };
+
+    const handleDeleteRegion = async (id) => {
+        if (window.confirm("WARNING: Delete this region? All historical prices saved under this region will become orphaned.")) {
+            await window.api.db.deleteRegion(id);
+            loadData();
+        }
+    };
+
+    // 🔥 UPGRADED: Smart Excel Import Logic
+    const handleFileUpload = (e) => {
+        const file = e.target.files[0];
+        if (!file || !importRegion) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const data = evt.target.result;
+                const XLSX = await import('xlsx');
+                const workbook = XLSX.read(data, { type: 'binary' });
+                const sheetName = workbook.SheetNames[0];
+
+                // Read as an array of arrays to safely find the header row
+                const rawSheetData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName], { header: 1 });
+
+                // 1. Scan rows to find the actual headers (ignoring "REPORT,,," rows)
+                let headerRowIdx = -1;
+                for (let i = 0; i < Math.min(10, rawSheetData.length); i++) {
+                    const row = rawSheetData[i];
+                    if (row.some(cell => typeof cell === 'string' && cell.toLowerCase().includes('code'))) {
+                        headerRowIdx = i;
+                        break;
+                    }
+                }
+
+                if (headerRowIdx === -1) {
+                    alert("Upload Failed: Could not find a header row containing 'Code'.");
+                    return;
+                }
+
+                // 2. Identify specific column indices
+                const headers = rawSheetData[headerRowIdx].map(h => typeof h === 'string' ? h.toLowerCase().trim() : '');
+                const codeIdx = headers.findIndex(h => h === 'code' || h.includes('code'));
+                const descIdx = headers.findIndex(h => h.includes('description') || h.includes('item'));
+                const unitIdx = headers.findIndex(h => h === 'unit' || h.includes('unit'));
+                const rateIdx = headers.findIndex(h => h.includes('rate') || h.includes('price'));
+
+                if (codeIdx === -1 || descIdx === -1 || rateIdx === -1) {
+                    alert("Missing required columns. Ensure your file has 'Code', 'Description', and 'Rate' headers.");
+                    return;
+                }
+
+                // 3. Extract and format the data below the header row
+                const formattedData = [];
+                for (let i = headerRowIdx + 1; i < rawSheetData.length; i++) {
+                    const row = rawSheetData[i];
+                    if (!row || row.length === 0) continue; // Skip empty rows
+
+                    const code = String(row[codeIdx] || '').trim();
+                    const desc = String(row[descIdx] || '').trim();
+                    const unit = String(row[unitIdx] || 'nos').trim();
+                    const rate = Number(row[rateIdx] || 0);
+
+                    // Only push valid rows
+                    if (code && desc) {
+                        formattedData.push({ code, description: desc, unit, rate });
+                    }
+                }
+
+                if (formattedData.length === 0) {
+                    alert("No valid material rows found under the headers.");
+                    return;
+                }
+
+                // 4. Batch process the imports into SQLite
+                for (const item of formattedData) {
+                    let existingRes = resources.find(r => r.code === item.code);
+                    if (existingRes) {
+                        const newRates = { ...existingRes.rates, [importRegion]: item.rate };
+                        await updateResourceRate(existingRes.id, 'rates', newRates, importRegion);
+                    } else {
+                        await window.api.db.createResource({
+                            code: item.code,
+                            description: item.description,
+                            unit: item.unit,
+                            rates: JSON.stringify({ [importRegion]: item.rate }),
+                            rateHistory: JSON.stringify([{ date: new Date().toISOString().split('T')[0], rate: item.rate, region: importRegion }])
+                        });
+                    }
+                }
+                alert(`Successfully imported ${formattedData.length} items into the [${importRegion}] market!`);
+                loadData();
+
+            } catch (err) {
+                console.error("Import Error:", err);
+                alert("Failed to parse Excel file. Is the file corrupted?");
+            } finally {
+                if (fileInputRef.current) fileInputRef.current.value = "";
+            }
+        };
+        reader.readAsBinaryString(file);
     };
 
     // --- ANALYTICS DRAWER COMPONENT ---
@@ -92,7 +195,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     <Box display="flex" gap={2} my={4}>
                         <Paper sx={{ p: 2, flex: 1, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                             <Typography variant="caption" color="text.secondary">LATEST_PRICE</Typography>
-                            {/* 🔥 Replaced Hardcoded ₹ */}
                             <Typography variant="h6">{formatCurrency(latest)}</Typography>
                         </Paper>
                         <Paper sx={{ p: 2, flex: 1, bgcolor: 'rgba(255,255,255,0.05)', border: trend >= 0 ? '1px solid #ef4444' : '1px solid #10b981' }}>
@@ -128,19 +230,29 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                     <Paper sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', borderRadius: 2 }}>
                         <Typography variant="subtitle2" mb={2}>IMPORT_EXCEL_LMR</Typography>
                         <Box display="flex" gap={2}>
-                            <TextField select fullWidth size="small" label="REGION" value={importRegion} onChange={e => setImportRegion(e.target.value)}>
+                            <TextField select fullWidth size="small" label="TARGET REGION" value={importRegion} onChange={e => setImportRegion(e.target.value)}>
                                 {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
                             </TextField>
-                            <Button variant="contained" startIcon={<UploadIcon />}>UPLOAD</Button>
+
+                            <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
+                            <Button
+                                variant="contained"
+                                startIcon={<UploadIcon />}
+                                disabled={!importRegion}
+                                onClick={() => fileInputRef.current.click()}
+                            >
+                                UPLOAD
+                            </Button>
                         </Box>
                     </Paper>
                 </Grid>
+
                 <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', borderRadius: 2 }}>
                         <Typography variant="subtitle2" mb={2}>MANAGE_REGIONS</Typography>
                         <Box display="flex" gap={1}>
                             <TextField fullWidth size="small" label="NEW_REGION" value={newRegion} onChange={e => setNewRegion(e.target.value)} />
-                            <Button variant="contained" onClick={async () => { await window.api.db.createRegion(newRegion); setNewRegion(""); loadData(); }}>ADD</Button>
+                            <Button variant="contained" disabled={!newRegion} onClick={async () => { await window.api.db.createRegion(newRegion); setNewRegion(""); loadData(); }}>ADD</Button>
                         </Box>
                     </Paper>
                 </Grid>
@@ -160,7 +272,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                         <TextField size="small" label="CODE" value={resCode} onChange={e => setResCode(e.target.value)} sx={{ width: 100 }} />
                         <TextField size="small" label="DESCRIPTION" value={resDesc} onChange={e => setResDesc(e.target.value)} fullWidth />
                         <TextField size="small" label="UNIT" value={resUnit} onChange={e => setResUnit(e.target.value)} sx={{ width: 100 }} />
-                        <Button variant="contained" onClick={async () => { await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit }); loadData(); }}>ADD</Button>
+                        <Button variant="contained" onClick={async () => { await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit }); setResCode(""); setResDesc(""); loadData(); }}>ADD</Button>
                     </Box>
                 </Box>
             </Paper>
@@ -178,28 +290,47 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 />
             </Box>
 
+            {/* 🔥 REDESIGNED EXCEL-STYLE TABLE */}
             <TableContainer component={Paper} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider' }}>
                 <Table stickyHeader size="small">
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ bgcolor: '#0b172d', width: 80 }}>ACTION</TableCell>
-                            <TableCell sx={{ bgcolor: '#0b172d' }}>RESOURCE_DETAILS</TableCell>
-                            <TableCell sx={{ bgcolor: '#0b172d', width: 80 }}>UNIT</TableCell>
-                            {regions.map(r => <TableCell key={r.id} sx={{ bgcolor: '#0b172d', color: 'primary.main', fontWeight: 'bold' }}>{r.name.toUpperCase()}</TableCell>)}
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 40, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>NO</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 120, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESCRIPTION</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+
+                            {regions.map(r => (
+                                <TableCell key={r.id} sx={{ bgcolor: '#0b172d', minWidth: 120 }}>
+                                    <Box display="flex" alignItems="center" justifyContent="space-between">
+                                        <Typography sx={{ color: 'primary.main', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                                            {r.name.toUpperCase()}
+                                        </Typography>
+                                        <IconButton size="small" color="error" onClick={() => handleDeleteRegion(r.id)} sx={{ opacity: 0.5, '&:hover': { opacity: 1 } }}>
+                                            <DeleteIcon sx={{ fontSize: 14 }} />
+                                        </IconButton>
+                                    </Box>
+                                </TableCell>
+                            ))}
+                            <TableCell align="right" sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTIONS</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
-                        {paginatedResources.map(res => (
+                        {paginatedResources.map((res, index) => (
                             <TableRow key={res.id} hover>
-                                <TableCell>
-                                    <IconButton size="small" color="primary" onClick={() => setSelectedResource(res)}><TimelineIcon fontSize="small" /></IconButton>
-                                    <IconButton size="small" color="error" onClick={() => deleteResource(res.id)}><DeleteIcon fontSize="small" /></IconButton>
+                                <TableCell sx={{ color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                                    {(currentPage - 1) * itemsPerPage + index + 1}
                                 </TableCell>
-                                <TableCell>
-                                    <Typography variant="body2" fontWeight="bold">{res.code || '---'}</Typography>
-                                    <Typography variant="caption" color="text.secondary">{res.description}</Typography>
+                                <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                    {res.code || '---'}
                                 </TableCell>
-                                <TableCell>{res.unit}</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                    {res.description}
+                                </TableCell>
+                                <TableCell sx={{ color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                                    {res.unit}
+                                </TableCell>
+
                                 {regions.map(r => (
                                     <TableCell key={r.id}>
                                         <input
@@ -210,6 +341,11 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                                         />
                                     </TableCell>
                                 ))}
+
+                                <TableCell align="right">
+                                    <IconButton size="small" color="primary" onClick={() => setSelectedResource(res)}><TimelineIcon fontSize="small" /></IconButton>
+                                    <IconButton size="small" color="error" onClick={() => deleteResource(res.id)}><DeleteIcon fontSize="small" /></IconButton>
+                                </TableCell>
                             </TableRow>
                         ))}
                     </TableBody>

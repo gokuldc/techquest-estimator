@@ -22,6 +22,7 @@ import DownloadIcon from '@mui/icons-material/Download';
 import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import LogoutIcon from '@mui/icons-material/Logout';
+import AccountCircleIcon from '@mui/icons-material/AccountCircle'; // 🔥 New Icon for Profile
 
 // Components
 import CompanySettingsDialog from "./CompanySettingsDialog";
@@ -32,13 +33,16 @@ import { useAuth } from "../context/AuthContext";
 export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const fileInputRef = useRef(null);
 
-    // 🔥 2. Grab user info, logout function, and the new CLEARANCE checker
     const { currentUser, logout, hasClearance } = useAuth();
 
     // --- DIALOG & BRANDING STATE ---
     const [isSettingsOpen, setIsSettingsOpen] = useState(false);
     const [importData, setImportData] = useState(null);
     const [importDialogOpen, setImportDialogOpen] = useState(false);
+
+    // 🔥 PROFILE MODAL STATE
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [profileData, setProfileData] = useState({});
 
     // --- SQLITE DATA STATE ---
     const [projects, setProjects] = useState([]);
@@ -81,10 +85,25 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
     const [page, setPage] = useState(1);
     const itemsPerPage = 6;
 
-    // --- DASHBOARD METRICS ---
+    // 🔥 1. MASTER VISIBILITY FILTER
+    const visibleProjects = useMemo(() => {
+        if (!projects) return [];
+        if (hasClearance(4)) return projects; // Management sees everything
+
+        return projects.filter(p => {
+            try {
+                const assigned = JSON.parse(p.assignedStaff || '[]');
+                return assigned.includes(currentUser?.id);
+            } catch (e) {
+                return false;
+            }
+        });
+    }, [projects, currentUser, hasClearance]);
+
+    // 🔥 2. METRICS
     const stats = useMemo(() => {
         let active = 0, completed = 0, draft = 0;
-        projects.forEach(p => {
+        visibleProjects.forEach(p => {
             if (p.status === 'In Progress' || p.status === 'Active') active++;
             else if (p.status === 'Completed') completed++;
             else draft++;
@@ -109,36 +128,21 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             totalSuppliers: suppliers,
             totalClients: clients
         };
-    }, [projects, crmContacts, orgStaff]);
+    }, [visibleProjects, crmContacts, orgStaff]);
 
+    // 🔥 3. SEARCH FILTER
     const filteredProjects = useMemo(() => {
-        if (!projects) return [];
-
-        // 1. PROJECT-WISE ACCESS CONTROL
-        let visibleProjects = projects;
-
-        // If user is below L4 (Management), they only see assigned projects
-        if (!hasClearance(4)) {
-            visibleProjects = projects.filter(p => {
-                try {
-                    const assigned = JSON.parse(p.assignedStaff || '[]');
-                    return assigned.includes(currentUser.id);
-                } catch (e) {
-                    return false;
-                }
-            });
-        }
-
-        // 2. SEARCH FILTER
         if (!searchQuery.trim()) return visibleProjects;
 
         const query = searchQuery.toLowerCase();
         return visibleProjects.filter(p =>
             (p.name && p.name.toLowerCase().includes(query)) ||
             (p.code && p.code.toLowerCase().includes(query)) ||
-            (p.clientName && p.clientName.toLowerCase().includes(query))
+            (p.clientName && p.clientName.toLowerCase().includes(query)) ||
+            (p.region && p.region.toLowerCase().includes(query))
         );
-    }, [projects, searchQuery, currentUser, hasClearance]);
+    }, [visibleProjects, searchQuery]);
+
     const totalPages = Math.ceil(filteredProjects.length / itemsPerPage);
 
     useEffect(() => {
@@ -155,9 +159,8 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             clientName: "",
             region: "",
             status: "Draft",
-            assignedStaff: JSON.stringify([currentUser.id]),
+            assignedStaff: JSON.stringify([currentUser?.id]), // Auto-assign the creator
             createdAt: Date.now()
-
         };
         await window.api.db.addProject(newProject);
         loadData();
@@ -201,6 +204,32 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
         }
     };
 
+    // 🔥 PROFILE EVENT HANDLERS
+    const handleOpenProfile = () => {
+        // Load fresh data from the database to ensure we have the latest password/info
+        const freshUserData = orgStaff.find(s => s.id === currentUser.id) || currentUser;
+        setProfileData(freshUserData);
+        setIsProfileOpen(true);
+    };
+
+    const handleSaveProfile = async () => {
+        if (!profileData.name || !profileData.username || !profileData.password) {
+            return alert("Name, Username, and Password cannot be empty.");
+        }
+
+        // Hard-override clearance levels to strictly prevent privilege escalation hacks
+        const payload = {
+            ...profileData,
+            username: profileData.username.trim().toLowerCase().replace(/\s+/g, ''),
+            accessLevel: currentUser.accessLevel, // Immutable by user
+            role: currentUser.role                  // Immutable by user
+        };
+
+        await window.api.db.saveOrgStaff(payload);
+        alert("Profile updated securely! You will be logged out to apply changes to your session.");
+        logout(); // Force them to log back in to refresh the AuthContext safely
+    };
+
     const MetricCard = ({ title, value, subtitle, icon, color }) => (
         <Paper sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', alignItems: 'center', gap: 2, height: '100%' }}>
             <Avatar sx={{ bgcolor: `rgba(${color === 'success' ? '16, 185, 129' : color === 'info' ? '59, 130, 246' : color === 'warning' ? '245, 158, 11' : '139, 92, 246'}, 0.1)`, color: `${color}.main`, width: 42, height: 42 }}>
@@ -227,8 +256,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     </Typography>
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
-
-                    {/* 🔥 RESTRICTED: L5 (Root/Admins) */}
                     {hasClearance(5) && (
                         <Button
                             onClick={() => setIsSettingsOpen(true)}
@@ -240,25 +267,28 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                             SETTINGS
                         </Button>
                     )}
-
-                    {/* 🔥 RESTRICTED: L2+ (Standard Operations & Up) */}
                     {hasClearance(2) && (
                         <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
                     )}
-
-                    {/* 🔥 RESTRICTED: L3+ (Department Leads & Up) - Lowered from L4 */}
                     {hasClearance(3) && (
                         <Button onClick={onOpenDirectory} variant="outlined" color="success" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DIRECTORY</Button>
                     )}
-
-                    {/* 🔥 RESTRICTED: L3+ (Department Leads / Estimators) */}
                     {hasClearance(3) && (
                         <Button onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>+ NEW_WORKSPACE</Button>
                     )}
-
                     <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
-                    {/* 🔥 LOGOUT BUTTON */}
+                    {/* 🔥 MY PROFILE BUTTON */}
+                    <Button
+                        onClick={handleOpenProfile}
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<AccountCircleIcon sx={{ fontSize: 16 }} />}
+                        sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}
+                    >
+                        MY_PROFILE
+                    </Button>
+
                     <Button
                         onClick={logout}
                         variant="outlined"
@@ -274,7 +304,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             {/* --- PRODUCTION STATS --- */}
             <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, display: 'block', opacity: 0.5, letterSpacing: '2px' }}>CORE_PRODUCTION</Typography>
             <Grid container spacing={2} sx={{ mb: 4 }}>
-                <Grid item xs={6} md={3}><MetricCard title="Total_Projects" value={projects.length} subtitle={`${stats.activeCount} Active`} icon={<FolderSpecialIcon />} color="info" /></Grid>
+                <Grid item xs={6} md={3}><MetricCard title="Total_Projects" value={visibleProjects.length} subtitle={`${stats.activeCount} Active`} icon={<FolderSpecialIcon />} color="info" /></Grid>
                 <Grid item xs={6} md={3}><MetricCard title="Databook_Items" value={masterBoqs.length} subtitle=" Assemblies" icon={<AutoStoriesIcon />} color="success" /></Grid>
                 <Grid item xs={6} md={3}><MetricCard title="Resource_Library" value={resources.length} subtitle="Materials & Labor" icon={<HandymanIcon />} color="warning" /></Grid>
                 <Grid item xs={6} md={3}><MetricCard title="Region_Markets" value={regions.length} subtitle="Active Prices" icon={<BusinessIcon />} color="secondary" /></Grid>
@@ -296,15 +326,12 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     <TextField size="small" placeholder="Filter..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16 }} /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', borderRadius: 2, height: 32, bgcolor: 'rgba(0,0,0,0.2)', width: 200 } }} />
                 </Box>
                 <Box display="flex" gap={1}>
-                    {/* 🔥 L4+ required to export/import */}
                     {hasClearance(4) && (
                         <>
                             <Button size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>EXPORT</Button>
                             <Button size="small" variant="outlined" color="success" startIcon={<UploadIcon />} onClick={handleFileSelect} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>IMPORT</Button>
                         </>
                     )}
-
-                    {/* 🔥 L5 required to Purge the DB */}
                     {hasClearance(5) && (
                         <Button size="small" variant="outlined" color="error" startIcon={<DeleteForeverIcon />} onClick={handlePurge} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>PURGE</Button>
                     )}
@@ -324,7 +351,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                             </Box>
                             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mt: 1 }}>
                                 <Box>
-                                    {/* 🔥 L4+ required to delete projects */}
                                     {hasClearance(4) && (
                                         <IconButton color="error" onClick={(e) => deleteProject(p.id, e)} size="small"><DeleteIcon sx={{ fontSize: 18 }} /></IconButton>
                                     )}
@@ -342,8 +368,46 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
             )}
 
-            {/* IDENTITY MODAL */}
             <CompanySettingsDialog open={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+
+            {/* 🔥 USER PROFILE MODAL */}
+            <Dialog open={isProfileOpen} onClose={() => setIsProfileOpen(false)} maxWidth="sm" fullWidth>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EDIT_IDENTITY_PROFILE</DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', pt: 3 }}>
+                    <Grid container spacing={3}>
+                        <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="FULL NAME" value={profileData.name || ""} onChange={e => setProfileData({ ...profileData, name: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="EMAIL ADDRESS" value={profileData.email || ""} onChange={e => setProfileData({ ...profileData, email: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="PHONE NUMBER" value={profileData.phone || ""} onChange={e => setProfileData({ ...profileData, phone: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="LOGIN USERNAME" value={profileData.username || ""} onChange={e => setProfileData({ ...profileData, username: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField fullWidth label="PASSWORD / PIN" type="text" value={profileData.password || ""} onChange={e => setProfileData({ ...profileData, password: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Grid>
+                        <Grid item xs={12} md={6}>
+                            <TextField
+                                fullWidth
+                                label="SYSTEM CLEARANCE LEVEL"
+                                value={`LEVEL ${currentUser?.accessLevel || 1} [${currentUser?.role || 'Staff'}]`}
+                                disabled
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                helperText="Clearance locked. Contact L5 Root."
+                            />
+                        </Grid>
+                    </Grid>
+                </DialogContent>
+                <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Button onClick={() => setIsProfileOpen(false)} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
+                    <Button variant="contained" color="success" onClick={handleSaveProfile} sx={{ fontFamily: "'JetBrains Mono', monospace", borderRadius: 50, px: 3 }}>SAVE_IDENTITY</Button>
+                </DialogActions>
+            </Dialog>
 
             {/* IMPORT RESOLUTION DIALOG */}
             <Dialog open={importDialogOpen} onClose={() => setImportDialogOpen(false)} PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider', minWidth: '400px' } }}>

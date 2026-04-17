@@ -33,6 +33,12 @@ contextBridge.exposeInMainWorld('api', {
         purgeProjects: () => ipcRenderer.invoke('db:purge-projects'),
         importProjects: (projectsArray, mode) => ipcRenderer.invoke('db:import-projects', projectsArray, mode),
 
+        // --- CHAT MESSAGES ---
+        getMessages: (projectId) => ipcRenderer.invoke('db:get-messages', projectId),
+        saveMessage: (data) => ipcRenderer.invoke('db:save-message', data),
+        getPrivateMessages: (user1, user2) => ipcRenderer.invoke('db:get-private-messages', user1, user2),
+        savePrivateMessage: (data) => ipcRenderer.invoke('db:save-private-message', data),
+
         // --- PROJECT BOQ & MEASUREMENTS ---
         getProjectBoqs: (projectId) => ipcRenderer.invoke('db:get-project-boqs', projectId),
         addProjectBoq: (data) => ipcRenderer.invoke('db:add-project-boq', data),

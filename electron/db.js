@@ -95,6 +95,20 @@ export function initDatabase() {
             key TEXT PRIMARY KEY,
             value TEXT
         );
+        CREATE TABLE IF NOT EXISTS messages (
+            id TEXT PRIMARY KEY,
+            projectId TEXT,   -- If NULL, it's a Global Message
+            senderId TEXT,
+            content TEXT,
+            createdAt INTEGER
+        );
+        CREATE TABLE IF NOT EXISTS private_messages (
+            id TEXT PRIMARY KEY,
+            senderId TEXT,
+            receiverId TEXT,
+            content TEXT,
+            createdAt INTEGER
+        );
     `;
     db.exec(initSql);
 

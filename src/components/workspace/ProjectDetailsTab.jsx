@@ -1,22 +1,46 @@
-import React, { useMemo } from 'react';
-import { Box, Typography, Paper, Grid, TextField, MenuItem, Button, Chip } from '@mui/material';
+import React, { useMemo, useState } from 'react';
+import {
+    Box, Typography, Paper, Grid, TextField, MenuItem, Button,
+    Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton
+} from '@mui/material';
 import LockIcon from '@mui/icons-material/Lock';
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import ReportProblemIcon from '@mui/icons-material/ReportProblem';
+import DeleteIcon from '@mui/icons-material/Delete';
+import PersonAddIcon from '@mui/icons-material/PersonAdd';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, AreaChart, Area
 } from 'recharts';
 
-// 🔥 1. Import the new Settings Hook
+// 🔥 1. Import Hooks
 import { useSettings } from '../../context/SettingsContext';
+import { useAuth } from '../../context/AuthContext';
 
 const PIE_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
 
 export default function ProjectDetailsTab({ project, updateProject, regions, resources, totalAmount, projectBoqItems, togglePriceLock, crmContacts, orgStaff }) {
 
-    // 🔥 2. Grab the format function and raw settings from the "Radio Tower"
+    // 🔥 2. Grab contexts
     const { formatCurrency, settings } = useSettings();
+    const { hasClearance } = useAuth();
+
+    // --- ASSIGNMENT ENGINE STATE ---
+    const [selectedNewMember, setSelectedNewMember] = useState("");
+    const assignedIds = JSON.parse(project.assignedStaff || '[]');
+    const availableStaff = (orgStaff || []).filter(staff => !assignedIds.includes(staff.id));
+
+    const handleAddMember = () => {
+        if (!selectedNewMember) return;
+        const newAssigned = [...assignedIds, selectedNewMember];
+        updateProject('assignedStaff', JSON.stringify(newAssigned));
+        setSelectedNewMember("");
+    };
+
+    const handleRemoveStaff = (idToRemove) => {
+        const newAssigned = assignedIds.filter(id => id !== idToRemove);
+        updateProject('assignedStaff', JSON.stringify(newAssigned));
+    };
 
     // --- 1. KPI DATA AGGREGATION ---
     const totalBilled = Array.isArray(project?.raBills) ? project.raBills.reduce((sum, bill) => sum + Number(bill.subTotal || 0), 0) : 0;
@@ -125,7 +149,6 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #3b82f6' }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>TOTAL CONTRACT</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
-                            {/* 🔥 Replaced Hardcoded Math */}
                             {formatCurrency(totalAmount)}
                         </Typography>
                     </Paper>
@@ -134,7 +157,6 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', borderTop: '4px solid #10b981' }}>
                         <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>BILLED TO DATE</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'success.main' }}>
-                            {/* 🔥 Replaced Hardcoded Math */}
                             {formatCurrency(totalBilled)}
                         </Typography>
                     </Paper>
@@ -143,7 +165,6 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     <Paper elevation={0} sx={{ p: 2, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(239, 68, 68, 0.05)', borderTop: '4px solid #ef4444' }}>
                         <Typography variant="caption" color="error.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>INFLATION RISK</Typography>
                         <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", mt: 1, display: 'flex', alignItems: 'center', gap: 1, color: 'error.main' }}>
-                            {/* 🔥 Replaced Hardcoded Math */}
                             <ReportProblemIcon fontSize="small" /> +{formatCurrency(inflationRisk)}
                         </Typography>
                     </Paper>
@@ -185,54 +206,126 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
 
                 <Grid container spacing={3}>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth label="PROJECT NAME" value={project?.name || ''} onChange={(e) => handleChange('name', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} />
+                        <TextField fullWidth label="PROJECT NAME" value={project?.name || ''} onChange={(e) => handleChange('name', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} disabled={!hasClearance(4)} />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth label="PROJECT CODE" value={project?.code || ''} onChange={(e) => handleChange('code', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                        <TextField fullWidth label="PROJECT CODE" value={project?.code || ''} onChange={(e) => handleChange('code', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth select label="REGION / COST ZONE" value={project?.region || ''} onChange={(e) => handleChange('region', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
+                        <TextField fullWidth select label="REGION / COST ZONE" value={project?.region || ''} onChange={(e) => handleChange('region', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                            <MenuItem value="">-- Auto-Detect First Rate --</MenuItem>
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.name}</MenuItem>)}
                         </TextField>
                     </Grid>
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} />
+                        <TextField fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth select label="PROJECT STATUS" value={project?.status || ''} onChange={(e) => handleChange('status', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
-                            {['Planning', 'Active', 'On Hold', 'Completed'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s}</MenuItem>)}
+                        <TextField fullWidth select label="PROJECT STATUS" value={project?.status || ''} onChange={(e) => handleChange('status', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                            {['Draft', 'Planning', 'Active', 'On Hold', 'Completed'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s}</MenuItem>)}
                         </TextField>
                     </Grid>
-                    <Grid item xs={12} md={3}>
-                        <TextField fullWidth select label="PROJECT LEAD" value={project?.projectLead || ''} onChange={(e) => handleChange('projectLead', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
-                            <MenuItem value="">Unassigned</MenuItem>
-                            {orgStaff.map(s => <MenuItem key={s.id} value={s.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.name}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <TextField fullWidth select label="SITE SUPERVISOR" value={project?.siteSupervisor || ''} onChange={(e) => handleChange('siteSupervisor', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
-                            <MenuItem value="">Unassigned</MenuItem>
-                            {orgStaff.map(s => <MenuItem key={s.id} value={s.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s.name}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <TextField fullWidth select label="ARCHITECT" value={project?.architect || ''} onChange={(e) => handleChange('architect', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
-                            <MenuItem value="">Unassigned</MenuItem>
-                            {crmContacts.filter(c => c.type === 'Architect').map(c => <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>)}
-                        </TextField>
-                    </Grid>
-                    <Grid item xs={12} md={3}>
-                        <TextField fullWidth select label="STRUCTURAL ENGINEER" value={project?.structuralEngineer || ''} onChange={(e) => handleChange('structuralEngineer', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}>
-                            <MenuItem value="">Unassigned</MenuItem>
-                            {crmContacts.filter(c => c.type === 'Consultant' || c.type === 'Architect').map(c => <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>)}
-                        </TextField>
+                </Grid>
+            </Paper>
+
+            {/* TIER 2.5: PROJECT TEAM ROSTER */}
+            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', mb: 3 }}>PROJECT TEAM ROSTER</Typography>
+
+                <Grid container spacing={3}>
+                    {/* Add Member Engine (Restricted to L4+) */}
+                    {hasClearance(4) && (
+                        <Grid item xs={12}>
+                            <Box display="flex" gap={2} alignItems="center" p={2} sx={{ border: '1px dashed', borderColor: 'primary.main', borderRadius: 2, bgcolor: 'rgba(59, 130, 246, 0.05)' }}>
+                                <TextField
+                                    select
+                                    fullWidth
+                                    size="small"
+                                    label="Select Staff Member to Assign"
+                                    value={selectedNewMember}
+                                    onChange={(e) => setSelectedNewMember(e.target.value)}
+                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }}
+                                >
+                                    {availableStaff.length === 0 && (
+                                        <MenuItem disabled value="" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontStyle: 'italic' }}>
+                                            No available staff to assign.
+                                        </MenuItem>
+                                    )}
+                                    {availableStaff.map((staff) => (
+                                        <MenuItem key={staff.id} value={staff.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                            {staff.name} — {staff.designation} (Level {staff.accessLevel || 1})
+                                        </MenuItem>
+                                    ))}
+                                </TextField>
+
+                                <Button
+                                    variant="contained"
+                                    color="primary"
+                                    disableElevation
+                                    startIcon={<PersonAddIcon />}
+                                    onClick={handleAddMember}
+                                    disabled={!selectedNewMember}
+                                    sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap', height: '40px', px: 3 }}
+                                >
+                                    ASSIGN
+                                </Button>
+                            </Box>
+                        </Grid>
+                    )}
+
+                    {/* The Roster Table */}
+                    <Grid item xs={12}>
+                        <TableContainer component={Paper} elevation={0} sx={{ border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)' }}>
+                            <Table size="small">
+                                <TableHead>
+                                    <TableRow>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary', bgcolor: 'rgba(0,0,0,0.4)', width: '40%' }}>MEMBER_NAME</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary', bgcolor: 'rgba(0,0,0,0.4)' }}>OFFICIAL_DESIGNATION</TableCell>
+                                        {hasClearance(4) && (
+                                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary', bgcolor: 'rgba(0,0,0,0.4)', width: '20%' }}>REVOKE_ACCESS</TableCell>
+                                        )}
+                                    </TableRow>
+                                </TableHead>
+                                <TableBody>
+                                    {assignedIds.length === 0 && (
+                                        <TableRow>
+                                            <TableCell colSpan={hasClearance(4) ? 3 : 2} align="center" sx={{ py: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                                                No personnel currently assigned to this workspace.
+                                            </TableCell>
+                                        </TableRow>
+                                    )}
+                                    {assignedIds.map(id => {
+                                        const staff = orgStaff?.find(s => s.id === id);
+                                        if (!staff) return null;
+
+                                        return (
+                                            <TableRow key={id} hover sx={{ '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.05)' } }}>
+                                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold' }}>
+                                                    {staff.name}
+                                                </TableCell>
+                                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>
+                                                    {staff.designation || 'Staff'}
+                                                </TableCell>
+                                                {hasClearance(4) && (
+                                                    <TableCell align="right">
+                                                        <IconButton size="small" color="error" onClick={() => handleRemoveStaff(id)}>
+                                                            <DeleteIcon fontSize="small" />
+                                                        </IconButton>
+                                                    </TableCell>
+                                                )}
+                                            </TableRow>
+                                        );
+                                    })}
+                                </TableBody>
+                            </Table>
+                        </TableContainer>
                     </Grid>
                 </Grid>
             </Paper>
 
             {/* TIER 3: ADVANCED ANALYTICS DASHBOARD */}
             <Grid container spacing={3}>
-
                 {/* THE S-CURVE */}
                 <Grid item xs={12} md={8}>
                     <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', height: 400 }}>
@@ -250,14 +343,8 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                     </defs>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                                     <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
-
-                                    {/* 🔥 Replaced Hardcoded ₹ and L with Smart Formatter */}
                                     <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} />
-
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
-                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
                                     <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                     <Area type="monotone" dataKey="CumulativeActual" name="Actual Progress (Billed)" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
                                     <Line type="monotone" dataKey="CumulativePlanned" name="Baseline (Planned)" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
@@ -285,10 +372,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                             <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />
                                         ))}
                                     </Pie>
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
-                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
                                     <Legend layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
                                 </PieChart>
                             </ResponsiveContainer>
@@ -311,15 +395,8 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                 <BarChart data={timeSeriesData} margin={{ top: 10, right: 30, left: 20, bottom: 0 }}>
                                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                     <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} />
-
-                                    {/* 🔥 Replaced Hardcoded ₹ and L with Smart Formatter */}
                                     <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 12, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} />
-
-                                    <Tooltip
-                                        contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
-                                        cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                                        formatter={(val) => formatCurrency(val)} // 🔥 Passed through formatCurrency
-                                    />
+                                    <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} formatter={(val) => formatCurrency(val)} />
                                     <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                     <Bar dataKey="MonthlyBilled" name="Actual Revenue (Billed)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
                                 </BarChart>

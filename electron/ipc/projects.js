@@ -124,4 +124,34 @@ export function registerProjectsIpc(db) {
     ipcMain.handle('db:delete-org-staff', (e, id) => db.prepare('DELETE FROM org_staff WHERE id = ?').run(id));
 
     ipcMain.handle('db:get-kanban-tasks', () => []);
+    ipcMain.handle('db:get-messages', (e, projectId) => {
+        if (projectId) {
+            return db.prepare('SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC').all(projectId);
+        } else {
+            return db.prepare('SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC').all();
+        }
+    });
+    ipcMain.handle('db:save-message', (e, data) => {
+        db.prepare(`
+            INSERT INTO messages (id, projectId, senderId, content, createdAt) 
+            VALUES (?, ?, ?, ?, ?)
+        `).run(data.id, data.projectId || null, data.senderId, data.content, data.createdAt);
+    });
+    // FETCH PRIVATE MESSAGES (Between User A and User B)
+    ipcMain.handle('db:get-private-messages', (e, user1, user2) => {
+        return db.prepare(`
+            SELECT * FROM private_messages 
+            WHERE (senderId = ? AND receiverId = ?) 
+               OR (senderId = ? AND receiverId = ?)
+            ORDER BY createdAt ASC
+        `).all(user1, user2, user2, user1);
+    });
+
+    // SAVE PRIVATE MESSAGE
+    ipcMain.handle('db:save-private-message', (e, data) => {
+        db.prepare(`
+            INSERT INTO private_messages (id, senderId, receiverId, content, createdAt) 
+            VALUES (?, ?, ?, ?, ?)
+        `).run(data.id, data.senderId, data.receiverId, data.content, data.createdAt);
+    });
 }

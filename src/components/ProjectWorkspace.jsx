@@ -20,6 +20,9 @@ import FormulaGuideDialog from "./workspace/FormulaGuideDialog";
 import InventoryTab from "./workspace/InventoryTab";
 import DocumentsTab from "./workspace/DocumentsTab";
 
+// 🔥 1. Import the new Chat Module
+import ChatModule from "./workspace/ChatModule";
+
 import { Box, Typography, Button, Paper, Tabs, Tab, Dialog, DialogTitle, DialogContent, DialogActions, FormControlLabel, Checkbox } from "@mui/material";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DownloadIcon from '@mui/icons-material/Download';
@@ -27,10 +30,10 @@ import UploadIcon from '@mui/icons-material/Upload';
 import LockIcon from '@mui/icons-material/Lock';
 import SyncIcon from '@mui/icons-material/Sync';
 
-// 🔥 1. Import the Auth Hook
+// 🔥 Import the Auth Hook
 import { useAuth } from "../context/AuthContext";
 
-// 🔥 2. ADDED CLEARANCE LEVELS TO THE HIERARCHY
+// 🔥 2. ADDED COMMUNICATION CATEGORY TO HIERARCHY
 const RAW_CATEGORIES = {
     planning: {
         id: "planning", label: "01_PLANNING_&_SETUP", minClearance: 1,
@@ -38,12 +41,12 @@ const RAW_CATEGORIES = {
             { id: "details", label: "Project Details", minClearance: 1 },
             { id: "documents", label: "Docs & Drawings", minClearance: 1 },
             { id: "schedule", label: "Gantt Schedule", minClearance: 2 },
-            { id: "boq", label: "Master BOQ", minClearance: 3 }, // 🔥 L3+ Estimators/Leads
-            { id: "subcontractors", label: "Subcontractors", minClearance: 3 } // 🔥 L3+
+            { id: "boq", label: "Master BOQ", minClearance: 3 },
+            { id: "subcontractors", label: "Subcontractors", minClearance: 3 }
         ]
     },
     execution: {
-        id: "execution", label: "02_SITE_EXECUTION", minClearance: 2, // 🔥 L2+ Site Engineers
+        id: "execution", label: "02_SITE_EXECUTION", minClearance: 2,
         children: [
             { id: "daily_log", label: "Daily Log", minClearance: 2 },
             { id: "kanban", label: "Task Board", minClearance: 2 },
@@ -55,22 +58,27 @@ const RAW_CATEGORIES = {
         children: [
             { id: "inventory", label: "Stock Inventory", minClearance: 2 },
             { id: "resources", label: "Resource Deficits", minClearance: 3 },
-            { id: "procurement", label: "Procurement (POs)", minClearance: 3 } // 🔥 L3+
+            { id: "procurement", label: "Procurement (POs)", minClearance: 3 }
         ]
     },
     financials: {
-        id: "financials", label: "04_FINANCIALS", minClearance: 4, // 🔥 L4+ Management Only
+        id: "financials", label: "04_FINANCIALS", minClearance: 4,
         children: [
             { id: "billing", label: "Client RA Billing", minClearance: 4 }
+        ]
+    },
+    // 🔥 NEW COMM LINK CATEGORY
+    communication: {
+        id: "communication", label: "05_COMMUNICATION", minClearance: 1, // Open to all assigned staff
+        children: [
+            { id: "chat", label: "Project CommLink", minClearance: 1 }
         ]
     }
 };
 
 export default function ProjectWorkspace({ projectId, onBack }) {
-    // 🔥 Grab the Clearance Checker
-    const { hasClearance } = useAuth();
+    const { hasClearance, currentUser } = useAuth();
 
-    // 🔥 Dynamically filter tabs based on the user's clearance level
     const ALLOWED_CATEGORIES = useMemo(() => {
         const filtered = {};
         for (const [key, cat] of Object.entries(RAW_CATEGORIES)) {
@@ -90,7 +98,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     const [activeCategory, setActiveCategory] = useState(defaultCategory);
     const [activeTab, setActiveTab] = useState(defaultTab);
 
-    // Failsafe: Ensure current tab is valid if user changes (e.g. session update)
     useEffect(() => {
         if (!ALLOWED_CATEGORIES[activeCategory]) {
             setActiveCategory(defaultCategory);
@@ -131,13 +138,12 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 window.api.db.getOrgStaff()
             ]);
 
-            // 🔥 SECURITY FAILSAFE: Check project assignment before parsing and rendering
             if (p && !hasClearance(4)) {
                 const assigned = JSON.parse(p.assignedStaff || '[]');
                 if (!assigned.includes(currentUser.id)) {
                     alert("ACCESS DENIED: You are not assigned to this project's team.");
-                    onBack(); // Instantly boot them back to the Home dashboard
-                    return;   // Stop execution so no sensitive data enters state
+                    onBack();
+                    return;
                 }
             }
 
@@ -196,7 +202,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     };
 
     const togglePriceLock = async () => {
-        // 🔥 Extra security: Only L4+ can lock pricing
         if (!hasClearance(4)) return alert("Access Denied: Level 4 Clearance required to lock project pricing.");
         await window.api.db.updateProject(projectId, { isPriceLocked: !(project.isPriceLocked || false) });
         loadData();
@@ -290,7 +295,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                     </Box>
                 </Box>
                 <Box display="flex" gap={1.5} flexWrap="wrap">
-                    {/* 🔥 Hide Sync/Import from L1/L2 Staff */}
                     {hasClearance(3) && (
                         <>
                             <input type="file" accept=".json" ref={importFileRef} style={{ display: 'none' }} onChange={handleImportData} />
@@ -303,7 +307,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Box>
             </Box>
 
-            {/* 🔥 TIER 1: PARENT CATEGORIES 🔥 */}
             <Paper sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.8)', mb: 1, overflow: 'hidden' }}>
                 <Tabs value={activeCategory} onChange={handleCategoryChange} indicatorColor="primary" textColor="primary" variant="fullWidth">
                     {Object.values(ALLOWED_CATEGORIES).map((cat) => (
@@ -312,7 +315,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Tabs>
             </Paper>
 
-            {/* 🔥 TIER 2: CHILD SUB-TABS 🔥 */}
             <Box sx={{ mb: 4, px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} indicatorColor="secondary" textColor="inherit" variant="scrollable" scrollButtons="auto">
                     {ALLOWED_CATEGORIES[activeCategory]?.children.map((child) => (
@@ -321,7 +323,6 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Tabs>
             </Box>
 
-            {/* 🔥 RENDER ACTIVE TAB COMPONENT 🔥 */}
             <Box sx={{ minHeight: '60vh' }}>
                 {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
                 {activeTab === "documents" && (<DocumentsTab projectId={projectId} />)}
@@ -335,6 +336,9 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 {activeTab === "billing" && (<ClientBillingTab project={project} renderedProjectBoq={renderedProjectBoq} updateProject={updateProject} />)}
                 {activeTab === "kanban" && (<KanbanBoardTab project={project} renderedProjectBoq={renderedProjectBoq} orgStaff={orgStaff} updateProject={updateProject} />)}
                 {activeTab === "inventory" && (<InventoryTab project={project} resources={resources} updateProject={updateProject} />)}
+
+                {/* 🔥 3. RENDER THE CHAT MODULE */}
+                {activeTab === "chat" && (<ChatModule projectId={projectId} orgStaff={orgStaff} />)}
             </Box>
 
             <MasterBoqEditor editorItem={editorItem} onClose={() => setEditorItem(null)} onSaveSuccess={() => { setEditorItem(null); loadData(); }} project={project} regions={regions} resources={resources} masterBoqs={masterBoqs} setFormulaHelpOpen={setFormulaHelpOpen} />
