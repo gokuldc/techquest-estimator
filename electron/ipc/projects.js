@@ -180,4 +180,18 @@ export function registerProjectsIpc(db) {
             return 0; // Failsafe
         }
     });
+    // --- STAFF WORK LOGS HANDLERS ---
+    ipcMain.handle('db:get-work-logs', () => {
+        return db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();
+    });
+
+    ipcMain.handle('db:save-work-log', (e, data) => {
+        const cols = Object.keys(data).join(', ');
+        const placeholders = Object.keys(data).map(() => '?').join(', ');
+        db.prepare(`INSERT OR REPLACE INTO staff_work_logs (${cols}) VALUES (${placeholders})`).run(...Object.values(data));
+    });
+
+    ipcMain.handle('db:delete-work-log', (e, id) => {
+        db.prepare('DELETE FROM staff_work_logs WHERE id = ?').run(id);
+    });
 }

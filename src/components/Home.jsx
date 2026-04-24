@@ -31,7 +31,8 @@ import CompanySettingsDialog from "./CompanySettingsDialog";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 
-export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
+// 🔥 Added onOpenWorkLog to the props
+export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenWorkLog }) {
     const fileInputRef = useRef(null);
 
     const { currentUser, logout, hasClearance } = useAuth();
@@ -276,7 +277,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             {/* --- NEXUS HEADER --- */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 4, borderBottom: '1px solid', borderColor: 'divider' }}>
                 <Box>
-                    {/* 🔥 LOGO PRIORITY BRANDING */}
                     <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         {brandLogo ? (
                             <Box
@@ -320,7 +320,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                     )}
                     <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
 
-                    {/* MY PROFILE BUTTON */}
                     <Button
                         onClick={handleOpenProfile}
                         variant="outlined"
@@ -353,7 +352,21 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
             </Grid>
 
             {/* --- HUMAN RESOURCES --- */}
-            <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, display: 'block', opacity: 0.5, letterSpacing: '2px' }}>HUMAN_RESOURCES</Typography>
+            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
+                <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", opacity: 0.5, letterSpacing: '2px' }}>HUMAN_RESOURCES</Typography>
+
+                {/* 🔥 THE NEW BUTTON THAT OPENS THE DAILY LOGS */}
+                <Button
+                    variant="contained"
+                    color="secondary"
+                    size="small"
+                    onClick={onOpenWorkLog}
+                    sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', borderRadius: 50, px: 3 }}
+                >
+                    VIEW DAILY WORK LOGS
+                </Button>
+            </Box>
+
             <Grid container spacing={2} sx={{ mb: 6 }}>
                 <Grid item xs={6} md={3}><MetricCard title="Internal_Staff" value={stats.totalStaff} subtitle="Firm Members" icon={<BadgeIcon />} color="secondary" /></Grid>
                 <Grid item xs={6} md={3}><MetricCard title="External_Contacts" value={stats.totalExternal} subtitle="Total Network" icon={<PeopleAltIcon />} color="info" /></Grid>
@@ -410,7 +423,6 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory }) {
                 </Box>
             )}
 
-            {/* Reload branding instantly when settings dialog closes */}
             <CompanySettingsDialog open={isSettingsOpen} onClose={() => { setIsSettingsOpen(false); loadBranding(); }} />
 
             {/* USER PROFILE MODAL */}

@@ -7,6 +7,7 @@ import { registerMasterDataIpc } from './ipc/masterData.js';
 import { registerProjectsIpc } from './ipc/projects.js';
 import { registerSyncAndBackupIpc } from './ipc/syncAndBackup.js';
 import { registerSettingsIpc } from './ipc/settings.js';
+import { initTray } from './traySync.js';
 
 app.disableHardwareAcceleration();
 
@@ -36,7 +37,8 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 
-    mainWindow.on('closed', () => { mainWindow = null; });
+    // 🔥 Removed the generic 'closed' destroyer because initTray.js 
+    // now intercepts the 'close' event to hide the window instead!
 }
 
 // --- NATIVE OS HANDLERS ---
@@ -64,7 +66,7 @@ function registerOsHandlers() {
         return { success: true };
     });
 
-    // 🔥 3. Convert Local File to Base64 (Fixes the Logo Upload Error)
+    // 3. Convert Local File to Base64 (Fixes the Logo Upload Error)
     ipcMain.handle('os:get-base64', async (event, filePath) => {
         try {
             const buffer = fs.readFileSync(filePath);
@@ -98,12 +100,22 @@ app.whenReady().then(() => {
 
     // 4. Register Native OS Utilities
     registerOsHandlers();
+
+    // 🔥 5. INITIALIZE THE TRAY MODULE & BACKGROUND SYNC ENGINE
+    initTray(mainWindow, db);
 });
 
-app.on('window-all-closed', () => {
-    if (process.platform !== 'darwin') app.quit();
+// 🔥 PREVENT APP FROM DYING WHEN THE WINDOW IS CLOSED
+app.on('window-all-closed', (e) => {
+    // By preventing the default action, the app keeps running in the background!
+    e.preventDefault();
 });
 
 app.on('activate', () => {
-    if (mainWindow === null) createWindow();
+    if (mainWindow === null) {
+        createWindow();
+        initTray(mainWindow, db);
+    } else {
+        mainWindow.show();
+    }
 });

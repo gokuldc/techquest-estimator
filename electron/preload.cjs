@@ -80,12 +80,19 @@ contextBridge.exposeInMainWorld('api', {
         getSettings: (key) => ipcRenderer.invoke('db:get-settings', key),
         saveSettings: (key, value) => ipcRenderer.invoke('db:save-settings', key, value),
         verifyEmployeeLogin: (username, password) => ipcRenderer.invoke('db:verify-login', username, password),
+
+        getWorkLogs: () => ipcRenderer.invoke('db:get-work-logs'),
+        saveWorkLog: (data) => ipcRenderer.invoke('db:save-work-log', data),
+        deleteWorkLog: (id) => ipcRenderer.invoke('db:delete-work-log', id),
     },
 
-    // 🔥 NEW: OS NATIVE OPERATIONS (Files & Shell)
+    // --- OS NATIVE OPERATIONS (Files & Shell) ---
     os: {
         pickFile: () => ipcRenderer.invoke('os:pick-file'),
         openFile: (filePath) => ipcRenderer.invoke('os:open-file', filePath),
         getBase64: (filePath) => ipcRenderer.invoke('os:get-base64', filePath)
-    }
+    },
+
+    // 🔥 ADDED: LISTENER FOR TRAY ICON SYNC SETTINGS 🔥
+    onOpenSyncSettings: (callback) => ipcRenderer.on('open-sync-settings', () => callback())
 });

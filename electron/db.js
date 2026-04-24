@@ -2,7 +2,7 @@ import { app } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import Database from 'better-sqlite3';
-import crypto from 'crypto'; // 🔥 ADDED MISSING IMPORT
+import crypto from 'crypto';
 
 export function initDatabase() {
     const userDataPath = app.getPath('userData');
@@ -112,6 +112,26 @@ export function initDatabase() {
     `;
     db.exec(initSql);
 
+
+    try {
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS staff_work_logs (
+                id TEXT PRIMARY KEY,
+                date TEXT,
+                staffId TEXT,
+                slNo INTEGER,
+                projectId TEXT,
+                details TEXT,
+                remarks TEXT,
+                status TEXT,
+                createdAt INTEGER
+            );
+        `);
+        console.log("✅ Staff Work Logs table verified.");
+    } catch (err) {
+        console.error("❌ Failed to create work logs table:", err);
+    }
+
     // Automated patches
     try { db.exec("ALTER TABLE projects ADD COLUMN createdAt INTEGER;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN dailySchedules TEXT;"); } catch (err) { }
@@ -124,7 +144,6 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE org_staff ADD COLUMN accessLevel INTEGER DEFAULT 1;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN assignedStaff TEXT DEFAULT '[]';"); } catch (e) { }
 
-    // 🔥 FIXED: Synchronous logic moved safely INSIDE the initDatabase function 🔥
     try {
         const row = db.prepare("SELECT COUNT(*) as count FROM org_staff").get();
         if (row && row.count === 0) {
@@ -141,7 +160,7 @@ export function initDatabase() {
                 'admin123',      // Default Password
                 'SuperAdmin',    // God-mode Role
                 Date.now(),
-                5                // 🔥 ADDED: Explicitly grant Level 5 Clearance
+                5                // Explicitly grant Level 5 Clearance
             );
             console.log("Default admin account injected into org_staff.");
         }
@@ -150,7 +169,6 @@ export function initDatabase() {
     }
 
     try { db.prepare("UPDATE org_staff SET accessLevel = 5 WHERE role = 'SuperAdmin'").run(); } catch (e) { }
-
 
     return db;
 }

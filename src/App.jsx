@@ -1,13 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import {
     ThemeProvider, createTheme, CssBaseline, Box, AppBar, Toolbar,
-    Typography, IconButton, Tooltip, Dialog, DialogContent, DialogActions, Button, Drawer,
-    Badge // 🔥 Added Badge Import
+    Typography, IconButton, Tooltip, Dialog, DialogTitle, DialogContent, DialogActions, Button, Drawer,
+    Badge, TextField
 } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import InfoOutlinedIcon from '@mui/icons-material/InfoOutlined';
 import ChatIcon from '@mui/icons-material/Chat';
+import CloudSyncIcon from '@mui/icons-material/CloudSync';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
@@ -19,20 +20,17 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Directory from './components/Directory';
 import ChatModule from './components/workspace/ChatModule';
 import { SettingsProvider } from './context/SettingsContext';
+import StaffWorkLog from './components/StaffWorkLog'; // 🔥 Work Log component
 
 // 🔥 THE GATEKEEPER
 function Gatekeeper({ children }) {
     const { currentUser } = useAuth();
 
-    // If no user is logged in (or if the user data is corrupted), show the login screen
     if (!currentUser || !currentUser.role) return <Login />;
-
-    // If logged in safely, show the rest of the app
     return children;
 }
 
 // 🔥 ISOLATED NOTIFICATION BADGE COMPONENT
-// This sits inside the Gatekeeper so it can safely access the `currentUser`!
 function GlobalChatButton({ chatOpen, onOpen }) {
     const { currentUser } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -41,14 +39,12 @@ function GlobalChatButton({ chatOpen, onOpen }) {
         if (!currentUser) return;
 
         const checkUnreadMessages = async () => {
-            // If chat is open, we are reading it. Update timestamp and clear badge.
             if (chatOpen) {
                 localStorage.setItem(`last_chat_check_${currentUser.id}`, Date.now().toString());
                 setUnreadCount(0);
                 return;
             }
 
-            // If chat is closed, check the database for anything newer than our last timestamp
             try {
                 const lastChecked = parseInt(localStorage.getItem(`last_chat_check_${currentUser.id}`) || '0');
                 const count = await window.api.db.checkNotifications(currentUser.id, lastChecked);
@@ -58,8 +54,8 @@ function GlobalChatButton({ chatOpen, onOpen }) {
             }
         };
 
-        checkUnreadMessages(); // Run immediately
-        const interval = setInterval(checkUnreadMessages, 3000); // Check every 3 seconds
+        checkUnreadMessages();
+        const interval = setInterval(checkUnreadMessages, 3000);
         return () => clearInterval(interval);
     }, [currentUser, chatOpen]);
 
@@ -87,13 +83,16 @@ export default function App() {
     const [globalChatOpen, setGlobalChatOpen] = useState(false);
     const [orgStaff, setOrgStaff] = useState([]);
 
+    // 🔥 SYNC SERVER STATE
+    const [syncModalOpen, setSyncModalOpen] = useState(false);
+    const [syncUrl, setSyncUrl] = useState("");
+
     useEffect(() => {
         localStorage.setItem('themeMode', mode);
     }, [mode]);
 
     const toggleTheme = () => setMode((prev) => (prev === 'light' ? 'dark' : 'light'));
 
-    // Fetch staff right as the drawer opens to ensure we have the names for the chat bubbles
     const handleOpenGlobalChat = async () => {
         try {
             const staff = await window.api.db.getOrgStaff();
@@ -102,6 +101,24 @@ export default function App() {
         } catch (error) {
             console.error("Failed to load staff for chat:", error);
         }
+    };
+
+    // 🔥 LISTEN FOR TRAY ICON CLICKS TO OPEN SYNC MODAL
+    useEffect(() => {
+        if (window.api && window.api.onOpenSyncSettings) {
+            window.api.onOpenSyncSettings(() => {
+                window.api.db.getSettings('sync_server_url').then(data => {
+                    if (data) setSyncUrl(data.value || "");
+                });
+                setSyncModalOpen(true);
+            });
+        }
+    }, []);
+
+    const handleSaveSyncUrl = async () => {
+        await window.api.db.saveSettings('sync_server_url', { value: syncUrl });
+        setSyncModalOpen(false);
+        alert("Sync Server Address saved! Background sync is now active.");
     };
 
     const theme = createTheme({
@@ -127,60 +144,35 @@ export default function App() {
                 styleOverrides: {
                     html: {
                         scrollbarWidth: "thin",
-                        scrollbarColor: mode === 'dark'
-                            ? "#3b82f6 rgba(0,0,0,0.3)"
-                            : "#1e40af rgba(0,0,0,0.1)",
+                        scrollbarColor: mode === 'dark' ? "#3b82f6 rgba(0,0,0,0.3)" : "#1e40af rgba(0,0,0,0.1)",
                     },
-                    body: {
-                        margin: 0,
-                    },
-                    "*::-webkit-scrollbar": {
-                        width: "10px",
-                        height: "10px",
-                    },
+                    body: { margin: 0 },
+                    "*::-webkit-scrollbar": { width: "10px", height: "10px" },
                     "*::-webkit-scrollbar-track": {
-                        background: mode === 'dark'
-                            ? "rgba(0,0,0,0.25)"
-                            : "rgba(0,0,0,0.05)",
+                        background: mode === 'dark' ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.05)",
                     },
                     "*::-webkit-scrollbar-thumb": {
-                        background: mode === 'dark'
-                            ? "linear-gradient(180deg, #3b82f6, #22d3ee)"
-                            : "linear-gradient(180deg, #1e40af, #3b82f6)",
+                        background: mode === 'dark' ? "linear-gradient(180deg, #3b82f6, #22d3ee)" : "linear-gradient(180deg, #1e40af, #3b82f6)",
                         borderRadius: "8px",
                     },
                     "*::-webkit-scrollbar-thumb:hover": {
-                        background: mode === 'dark'
-                            ? "linear-gradient(180deg, #2563eb, #06b6d4)"
-                            : "linear-gradient(180deg, #1d4ed8, #2563eb)",
+                        background: mode === 'dark' ? "linear-gradient(180deg, #2563eb, #06b6d4)" : "linear-gradient(180deg, #1d4ed8, #2563eb)",
                     },
                     MuiTableContainer: {
                         styleOverrides: {
                             root: {
                                 scrollbarWidth: "thin",
-                                scrollbarColor: mode === 'dark'
-                                    ? "#3b82f6 rgba(0,0,0,0.3)"
-                                    : "#1e40af rgba(0,0,0,0.1)",
-
-                                "&::-webkit-scrollbar": {
-                                    width: "10px",
-                                    height: "10px",
-                                },
+                                scrollbarColor: mode === 'dark' ? "#3b82f6 rgba(0,0,0,0.3)" : "#1e40af rgba(0,0,0,0.1)",
+                                "&::-webkit-scrollbar": { width: "10px", height: "10px" },
                                 "&::-webkit-scrollbar-track": {
-                                    background: mode === 'dark'
-                                        ? "rgba(0,0,0,0.25)"
-                                        : "rgba(0,0,0,0.05)",
+                                    background: mode === 'dark' ? "rgba(0,0,0,0.25)" : "rgba(0,0,0,0.05)",
                                 },
                                 "&::-webkit-scrollbar-thumb": {
-                                    background: mode === 'dark'
-                                        ? "linear-gradient(180deg, #3b82f6, #22d3ee)"
-                                        : "linear-gradient(180deg, #1e40af, #3b82f6)",
+                                    background: mode === 'dark' ? "linear-gradient(180deg, #3b82f6, #22d3ee)" : "linear-gradient(180deg, #1e40af, #3b82f6)",
                                     borderRadius: "8px",
                                 },
                                 "&::-webkit-scrollbar-thumb:hover": {
-                                    background: mode === 'dark'
-                                        ? "linear-gradient(180deg, #2563eb, #06b6d4)"
-                                        : "linear-gradient(180deg, #1d4ed8, #2563eb)",
+                                    background: mode === 'dark' ? "linear-gradient(180deg, #2563eb, #06b6d4)" : "linear-gradient(180deg, #1d4ed8, #2563eb)",
                                 },
                             }
                         }
@@ -196,7 +188,6 @@ export default function App() {
                 <ThemeProvider theme={theme}>
                     <CssBaseline />
 
-                    {/* 🔥 THE FIX: EVERYTHING IS NOW INSIDE THE GATEKEEPER 🔥 */}
                     <Gatekeeper>
                         <AppBar position="static" color="transparent" elevation={0}>
                             <Toolbar>
@@ -215,7 +206,6 @@ export default function App() {
                                     {'// '}OPENPRIX
                                 </Typography>
 
-                                {/* 🔥 NEW SMART NOTIFICATION CHAT BUTTON */}
                                 <GlobalChatButton chatOpen={globalChatOpen} onOpen={handleOpenGlobalChat} />
 
                                 <Tooltip title="System Info">
@@ -240,15 +230,16 @@ export default function App() {
                                         onOpenDb={() => setCurrentView('database')}
                                         onOpenProject={(id) => { setActiveProjectId(id); setCurrentView('workspace'); }}
                                         onOpenDirectory={() => setCurrentView('directory')}
+                                        onOpenWorkLog={() => setCurrentView('worklogs')} // 🔥 FIXED: Pass the trigger to Home!
                                     />
                                 )}
                                 {currentView === 'database' && <DatabaseEditor onBack={() => setCurrentView('home')} />}
                                 {currentView === 'workspace' && <ProjectWorkspace projectId={activeProjectId} onBack={() => setCurrentView('home')} />}
                                 {currentView === 'directory' && <Directory onBack={() => setCurrentView('home')} />}
+                                {currentView === 'worklogs' && <StaffWorkLog onBack={() => setCurrentView('home')} />}
                             </ErrorBoundary>
                         </Box>
 
-                        {/* --- ABOUT SYSTEM POPUP --- */}
                         <Dialog
                             open={aboutOpen}
                             onClose={() => setAboutOpen(false)}
@@ -272,7 +263,32 @@ export default function App() {
                             </DialogActions>
                         </Dialog>
 
-                        {/* 🔥 GLOBAL CHAT DRAWER (Overlays the entire app) */}
+                        {/* 🔥 SYNC SERVER MODAL */}
+                        <Dialog open={syncModalOpen} onClose={() => setSyncModalOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider' } }}>
+                            <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <CloudSyncIcon /> CLOUD_SYNC_TARGET
+                            </DialogTitle>
+                            <DialogContent dividers sx={{ borderColor: 'rgba(255,255,255,0.1)' }}>
+                                <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', mb: 3 }}>
+                                    Configure the remote endpoint for background synchronization.
+                                    The app will securely push the SQLite database file to this URL periodically while running in the system tray.
+                                </Typography>
+                                <TextField
+                                    fullWidth
+                                    label="SERVER ENDPOINT URL"
+                                    placeholder="https://api.yourcompany.com/sync"
+                                    value={syncUrl}
+                                    onChange={e => setSyncUrl(e.target.value)}
+                                    InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
+                                    InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }}
+                                />
+                            </DialogContent>
+                            <DialogActions sx={{ p: 3, bgcolor: 'rgba(0,0,0,0.2)' }}>
+                                <Button onClick={() => setSyncModalOpen(false)} sx={{ color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
+                                <Button onClick={handleSaveSyncUrl} variant="contained" color="primary" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>ACTIVATE SYNC</Button>
+                            </DialogActions>
+                        </Dialog>
+
                         <Drawer anchor="right" open={globalChatOpen} onClose={() => setGlobalChatOpen(false)}>
                             <Box sx={{ width: { xs: '100vw', sm: 400 }, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: mode === 'dark' ? '#0d1f3c' : '#ffffff' }}>
                                 <ChatModule projectId={null} orgStaff={orgStaff} />
@@ -280,7 +296,6 @@ export default function App() {
                         </Drawer>
 
                     </Gatekeeper>
-                    {/* 🔥 END OF GATEKEEPER 🔥 */}
 
                 </ThemeProvider>
             </AuthProvider>
