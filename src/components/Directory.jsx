@@ -25,7 +25,8 @@ export default function Directory({ onBack }) {
     // 🔥 2. Grab the Clearance Checker
     const { hasClearance, currentUser } = useAuth();
 
-    const [tab, setTab] = useState('crm');
+    // Set default tab to Internal Org if they have L4+ clearance, otherwise fallback to CRM
+    const [tab, setTab] = useState(hasClearance(4) ? 'org' : 'crm');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editId, setEditId] = useState(null);
 
@@ -128,71 +129,82 @@ export default function Directory({ onBack }) {
     );
 
     return (
-        <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
+        <Box sx={{ maxWidth: 1200, mx: "auto", p: { xs: 2, md: 3 } }}>
 
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px', borderColor: 'divider', color: 'text.secondary', px: 3, '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>
+            {/* 🔥 RESPONSIVE HEADER */}
+            <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', sm: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'stretch', sm: 'center' },
+                gap: { xs: 3, sm: 0 },
+                mb: 4, pb: 3,
+                borderBottom: '1px solid', borderColor: 'divider'
+            }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'center', sm: 'center' }, gap: 3, textAlign: { xs: 'center', sm: 'left' } }}>
+                    <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px', borderColor: 'divider', color: 'text.secondary', px: 3, '&:hover': { borderColor: 'primary.main', color: 'primary.main' }, alignSelf: { xs: 'center', sm: 'auto' } }}>
                         {'< '}BACK
                     </Button>
-                    <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                    <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '24px' } }}>
                         DIRECTORY: <span style={{ color: '#3b82f6' }}>SYSTEM_ROOT</span>
                     </Typography>
                 </Box>
 
                 {/* 🔥 Hide NEW_ENTRY button if they lack clearance for the current tab */}
                 {canCreateEntry && (
-                    <Button variant="contained" color="primary" disableElevation startIcon={<AddCircleOutlineIcon />} onClick={() => handleOpenDialog()} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '1px', height: '36px', px: 4 }}>
+                    <Button variant="contained" color="primary" disableElevation startIcon={<AddCircleOutlineIcon />} onClick={() => handleOpenDialog()} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '1px', height: '36px', px: 4, width: { xs: '100%', sm: 'auto' } }}>
                         NEW_ENTRY
                     </Button>
                 )}
             </Box>
 
+            {/* 🔥 RESPONSIVE METRIC GRIDS */}
             <Grid container spacing={2} sx={{ mb: 4 }}>
-                <Grid item xs={6} md={3}><MetricCard title="EXTERNAL_CRM" value={stats.ext} icon={<ApartmentIcon />} color="info" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="INTERNAL_ORG" value={stats.int} icon={<BadgeIcon />} color="secondary" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="SUPPLY_CHAIN" value={stats.subs} icon={<EngineeringIcon />} color="warning" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="ACTIVE_CLIENTS" value={stats.clients} icon={<GroupsIcon />} color="success" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="INTERNAL_ORG" value={stats.int} icon={<BadgeIcon />} color="secondary" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="EXTERNAL_CRM" value={stats.ext} icon={<ApartmentIcon />} color="info" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="SUPPLY_CHAIN" value={stats.subs} icon={<EngineeringIcon />} color="warning" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="ACTIVE_CLIENTS" value={stats.clients} icon={<GroupsIcon />} color="success" /></Grid>
             </Grid>
 
+            {/* 🔥 RESPONSIVE TABS (Reordered) */}
             <Paper sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
-                    <Tab value="crm" label="01_EXTERNAL_CRM" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-
-                    {/* 🔥 Hide INTERNAL_ORG tab entirely from L1-L3 staff */}
+                <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
+                    {/* Hide INTERNAL_ORG tab entirely from L1-L3 staff */}
                     {hasClearance(4) && (
-                        <Tab value="org" label="02_INTERNAL_ORG" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+                        <Tab value="org" label="01_INTERNAL_ORG" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                     )}
+                    <Tab value="crm" label="02_EXTERNAL_CRM" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                 </Tabs>
             </Paper>
 
-            <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+            {/* 🔥 RESPONSIVE TABLE CONTAINER */}
+            <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', overflowX: 'auto' }}>
                 <Table size="small">
                     <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                         <TableRow>
-                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px' }}>IDENTITY</TableCell>
-                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px' }}>{tab === 'crm' ? 'ENTITY_COMPANY' : 'ROLE_DESIGNATION'}</TableCell>
-                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px' }}>{tab === 'crm' ? 'TYPE' : 'DEPT'}</TableCell>
-                            {tab === 'org' && <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px' }}>SYSTEM_ACCESS</TableCell>}
-                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px' }}>ACTIONS</TableCell>
+                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px', whiteSpace: 'nowrap' }}>IDENTITY</TableCell>
+                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px', whiteSpace: 'nowrap' }}>{tab === 'crm' ? 'ENTITY_COMPANY' : 'ROLE_DESIGNATION'}</TableCell>
+                            <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px', whiteSpace: 'nowrap' }}>{tab === 'crm' ? 'TYPE' : 'DEPT'}</TableCell>
+                            {tab === 'org' && <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px', whiteSpace: 'nowrap' }}>SYSTEM_ACCESS</TableCell>}
+                            <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: '11px', whiteSpace: 'nowrap' }}>ACTIONS</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
                         {(tab === 'crm' ? crmContacts : orgStaff).map((item) => (
                             <TableRow key={item.id} hover sx={{ '&:hover': { bgcolor: 'rgba(59, 130, 246, 0.05)' } }}>
-                                <TableCell>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                     <Box display="flex" alignItems="center" gap={2}>
                                         <Avatar sx={{ width: 28, height: 28, fontSize: '11px', bgcolor: 'primary.dark', fontFamily: "'JetBrains Mono', monospace" }}>{item.name?.charAt(0)}</Avatar>
                                         <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold' }}>{item.name}</Typography>
                                     </Box>
                                 </TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary' }}>{tab === 'crm' ? item.company : item.designation}</TableCell>
-                                <TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'text.secondary', whiteSpace: 'nowrap' }}>{tab === 'crm' ? item.company : item.designation}</TableCell>
+                                <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                     <Chip label={tab === 'crm' ? item.type : item.department} size="small" variant="outlined" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '9px', borderRadius: 1 }} />
                                 </TableCell>
 
                                 {tab === 'org' && (
-                                    <TableCell align="center">
+                                    <TableCell align="center" sx={{ whiteSpace: 'nowrap' }}>
                                         {item.username ? (
                                             <Chip
                                                 icon={<VpnKeyIcon style={{ fontSize: 12 }} />}
@@ -207,7 +219,7 @@ export default function Directory({ onBack }) {
                                     </TableCell>
                                 )}
 
-                                <TableCell align="right">
+                                <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                                     {/* 🔥 Granular Action Security */}
                                     {tab === 'crm' ? (
                                         <>

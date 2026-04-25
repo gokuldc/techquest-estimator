@@ -19,6 +19,7 @@ import KanbanBoardTab from "./workspace/KanbanBoardTab";
 import FormulaGuideDialog from "./workspace/FormulaGuideDialog";
 import InventoryTab from "./workspace/InventoryTab";
 import DocumentsTab from "./workspace/DocumentsTab";
+import SiteGalleryTab from "./workspace/SiteGalleryTab";
 
 // 🔥 1. Import the new Chat Module
 import ChatModule from "./workspace/ChatModule";
@@ -33,32 +34,33 @@ import SyncIcon from '@mui/icons-material/Sync';
 // 🔥 Import the Auth Hook
 import { useAuth } from "../context/AuthContext";
 
-// 🔥 2. ADDED COMMUNICATION CATEGORY TO HIERARCHY
+// 🔥 CORRECTED WORKFLOW SEQUENCE
 const RAW_CATEGORIES = {
     planning: {
         id: "planning", label: "01_PLANNING_&_SETUP", minClearance: 1,
         children: [
             { id: "details", label: "Project Details", minClearance: 1 },
             { id: "documents", label: "Docs & Drawings", minClearance: 1 },
-            { id: "schedule", label: "Gantt Schedule", minClearance: 2 },
             { id: "boq", label: "Master BOQ", minClearance: 3 },
+            { id: "schedule", label: "Gantt Schedule", minClearance: 2 },
             { id: "subcontractors", label: "Subcontractors", minClearance: 3 }
         ]
     },
     execution: {
         id: "execution", label: "02_SITE_EXECUTION", minClearance: 2,
         children: [
-            { id: "daily_log", label: "Daily Log", minClearance: 2 },
             { id: "kanban", label: "Task Board", minClearance: 2 },
+            { id: "gallery", label: "Site Photo Gallery", minClearance: 2 },
+            { id: "daily_log", label: "Daily Log", minClearance: 2 },
             { id: "mbook", label: "Measurement Book", minClearance: 2 }
         ]
     },
     supply_chain: {
         id: "supply_chain", label: "03_SUPPLY_CHAIN", minClearance: 2,
         children: [
-            { id: "inventory", label: "Stock Inventory", minClearance: 2 },
             { id: "resources", label: "Resource Deficits", minClearance: 3 },
-            { id: "procurement", label: "Procurement (POs)", minClearance: 3 }
+            { id: "procurement", label: "Procurement (POs)", minClearance: 3 },
+            { id: "inventory", label: "Stock Inventory", minClearance: 2 }
         ]
     },
     financials: {
@@ -67,9 +69,8 @@ const RAW_CATEGORIES = {
             { id: "billing", label: "Client RA Billing", minClearance: 4 }
         ]
     },
-    // 🔥 NEW COMM LINK CATEGORY
     communication: {
-        id: "communication", label: "05_COMMUNICATION", minClearance: 1, // Open to all assigned staff
+        id: "communication", label: "05_COMMUNICATION", minClearance: 1,
         children: [
             { id: "chat", label: "Project CommLink", minClearance: 1 }
         ]
@@ -283,18 +284,33 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     };
 
     return (
-        <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                    <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px' }}>BACK</Button>
+        <Box sx={{ maxWidth: 1400, mx: "auto", p: { xs: 1, sm: 2, md: 3 } }}>
+            {/* 🔥 RESPONSIVE HEADER */}
+            <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'stretch', md: 'center' },
+                mb: 4, pb: 3,
+                borderBottom: '1px solid', borderColor: 'divider',
+                gap: { xs: 3, md: 0 }
+            }}>
+                <Box sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    alignItems: { xs: 'stretch', sm: 'center' },
+                    textAlign: { xs: 'center', sm: 'left' },
+                    gap: 3
+                }}>
+                    <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '11px', alignSelf: { xs: 'center', sm: 'auto' } }}>BACK</Button>
                     <Box>
-                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '24px' } }}>
                             WORKSPACE: <span style={{ color: '#3b82f6' }}>{project?.name?.toUpperCase() || "UNTITLED"}</span>
                         </Typography>
-                        {Boolean(project.isPriceLocked) && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
+                        {Boolean(project.isPriceLocked) && (<Typography variant="caption" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', justifyContent: { xs: 'center', sm: 'flex-start' }, gap: 0.5, mt: 0.5 }}><LockIcon sx={{ fontSize: 12 }} /> PRICING_LOCKED</Typography>)}
                     </Box>
                 </Box>
-                <Box display="flex" gap={1.5} flexWrap="wrap">
+                <Box display="flex" gap={1.5} flexWrap="wrap" justifyContent={{ xs: 'center', md: 'flex-end' }}>
                     {hasClearance(3) && (
                         <>
                             <input type="file" accept=".json" ref={importFileRef} style={{ display: 'none' }} onChange={handleImportData} />
@@ -307,16 +323,18 @@ export default function ProjectWorkspace({ projectId, onBack }) {
                 </Box>
             </Box>
 
+            {/* 🔥 RESPONSIVE CATEGORY TABS */}
             <Paper sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.8)', mb: 1, overflow: 'hidden' }}>
-                <Tabs value={activeCategory} onChange={handleCategoryChange} indicatorColor="primary" textColor="primary" variant="fullWidth">
+                <Tabs value={activeCategory} onChange={handleCategoryChange} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
                     {Object.values(ALLOWED_CATEGORIES).map((cat) => (
                         <Tab key={cat.id} value={cat.id} label={cat.label} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', py: 2 }} />
                     ))}
                 </Tabs>
             </Paper>
 
-            <Box sx={{ mb: 4, px: 2, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} indicatorColor="secondary" textColor="inherit" variant="scrollable" scrollButtons="auto">
+            {/* 🔥 RESPONSIVE SUB-TABS */}
+            <Box sx={{ mb: 4, px: { xs: 0, sm: 2 }, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Tabs value={activeTab} onChange={(e, v) => setActiveTab(v)} indicatorColor="secondary" textColor="inherit" variant="scrollable" scrollButtons="auto" allowScrollButtonsMobile>
                     {ALLOWED_CATEGORIES[activeCategory]?.children.map((child) => (
                         <Tab key={child.id} value={child.id} label={child.label} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minHeight: '48px', color: activeTab === child.id ? '#3b82f6' : 'text.secondary' }} />
                     ))}
@@ -326,6 +344,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             <Box sx={{ minHeight: '60vh' }}>
                 {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
                 {activeTab === "documents" && (<DocumentsTab projectId={projectId} />)}
+                {activeTab === "gallery" && (<SiteGalleryTab projectId={projectId} />)}
                 {activeTab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={(item) => setEditorItem(item)} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}
                 {activeTab === "mbook" && (<MeasurementBookTab renderedProjectBoq={renderedProjectBoq} setFormulaHelpOpen={setFormulaHelpOpen} loadData={loadData} />)}
                 {activeTab === "schedule" && (<GanttScheduleTab project={project} projectBoqItems={projectBoqItems} updateProject={updateProject} />)}

@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "electron:start": "electron . --disable-gpu --disable-gpu-compositing",
     "dev:electron": "cross-env NODE_ENV=development concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
-    "build:electron": "npm run build && electron-builder"
+    "build:electron": "npm run build && electron-builder",
+    "serve": "node server.js"
   },
   "build": {
     "appId": "com.openprix.estimator",
@@ -41,9 +42,11 @@
     "@mui/icons-material": "^6.4.1",
     "@mui/material": "^6.4.1",
     "better-sqlite3": "^12.8.0",
+    "cors": "^2.8.6",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "exceljs": "^4.4.0",
+    "express": "^5.2.1",
     "file-saver": "^2.0.5",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",

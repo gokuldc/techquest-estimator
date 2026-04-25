@@ -8,6 +8,7 @@ import { registerProjectsIpc } from './ipc/projects.js';
 import { registerSyncAndBackupIpc } from './ipc/syncAndBackup.js';
 import { registerSettingsIpc } from './ipc/settings.js';
 import { initTray } from './traySync.js';
+import { startWebServer, stopWebServer, getLocalIp } from './webServer.js';
 
 app.disableHardwareAcceleration();
 
@@ -37,8 +38,13 @@ function createWindow() {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
 
-    // 🔥 Removed the generic 'closed' destroyer because initTray.js 
-    // now intercepts the 'close' event to hide the window instead!
+    // 🔥 THE FIX: Intercept the "X" button so the window hides instead of dying!
+    mainWindow.on('close', (event) => {
+        if (!app.isQuiting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
 }
 
 // --- NATIVE OS HANDLERS ---
@@ -101,7 +107,7 @@ app.whenReady().then(() => {
     // 4. Register Native OS Utilities
     registerOsHandlers();
 
-    // 🔥 5. INITIALIZE THE TRAY MODULE & BACKGROUND SYNC ENGINE
+    // 5. INITIALIZE THE TRAY MODULE & BACKGROUND SYNC ENGINE
     initTray(mainWindow, db);
 });
 

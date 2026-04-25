@@ -20,9 +20,10 @@ import ErrorBoundary from './components/ErrorBoundary';
 import Directory from './components/Directory';
 import ChatModule from './components/workspace/ChatModule';
 import { SettingsProvider } from './context/SettingsContext';
-import StaffWorkLog from './components/StaffWorkLog'; // 🔥 Work Log component
+import StaffWorkLog from './components/StaffWorkLog';
+import ServerManager from './components/ServerManager';
 
-// 🔥 THE GATEKEEPER
+//  THE GATEKEEPER
 function Gatekeeper({ children }) {
     const { currentUser } = useAuth();
 
@@ -30,7 +31,7 @@ function Gatekeeper({ children }) {
     return children;
 }
 
-// 🔥 ISOLATED NOTIFICATION BADGE COMPONENT
+//  ISOLATED NOTIFICATION BADGE COMPONENT
 function GlobalChatButton({ chatOpen, onOpen }) {
     const { currentUser } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -79,11 +80,11 @@ export default function App() {
     const [activeProjectId, setActiveProjectId] = useState(null);
     const [aboutOpen, setAboutOpen] = useState(false);
 
-    // 🔥 GLOBAL CHAT STATE
+    //  GLOBAL CHAT STATE
     const [globalChatOpen, setGlobalChatOpen] = useState(false);
     const [orgStaff, setOrgStaff] = useState([]);
 
-    // 🔥 SYNC SERVER STATE
+    //  SYNC SERVER STATE
     const [syncModalOpen, setSyncModalOpen] = useState(false);
     const [syncUrl, setSyncUrl] = useState("");
 
@@ -103,7 +104,7 @@ export default function App() {
         }
     };
 
-    // 🔥 LISTEN FOR TRAY ICON CLICKS TO OPEN SYNC MODAL
+    //  LISTEN FOR TRAY ICON CLICKS TO OPEN SYNC MODAL
     useEffect(() => {
         if (window.api && window.api.onOpenSyncSettings) {
             window.api.onOpenSyncSettings(() => {
@@ -230,13 +231,15 @@ export default function App() {
                                         onOpenDb={() => setCurrentView('database')}
                                         onOpenProject={(id) => { setActiveProjectId(id); setCurrentView('workspace'); }}
                                         onOpenDirectory={() => setCurrentView('directory')}
-                                        onOpenWorkLog={() => setCurrentView('worklogs')} // 🔥 FIXED: Pass the trigger to Home!
+                                        onOpenWorkLog={() => setCurrentView('worklogs')}
+                                        onOpenServerManager={() => setCurrentView('servermanager')} //  Pass the trigger to Home
                                     />
                                 )}
                                 {currentView === 'database' && <DatabaseEditor onBack={() => setCurrentView('home')} />}
                                 {currentView === 'workspace' && <ProjectWorkspace projectId={activeProjectId} onBack={() => setCurrentView('home')} />}
                                 {currentView === 'directory' && <Directory onBack={() => setCurrentView('home')} />}
                                 {currentView === 'worklogs' && <StaffWorkLog onBack={() => setCurrentView('home')} />}
+                                {currentView === 'servermanager' && <ServerManager onBack={() => setCurrentView('home')} />}
                             </ErrorBoundary>
                         </Box>
 
@@ -263,7 +266,7 @@ export default function App() {
                             </DialogActions>
                         </Dialog>
 
-                        {/* 🔥 SYNC SERVER MODAL */}
+                        {/*  SYNC SERVER MODAL */}
                         <Dialog open={syncModalOpen} onClose={() => setSyncModalOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider' } }}>
                             <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <CloudSyncIcon /> CLOUD_SYNC_TARGET
@@ -290,8 +293,20 @@ export default function App() {
                         </Dialog>
 
                         <Drawer anchor="right" open={globalChatOpen} onClose={() => setGlobalChatOpen(false)}>
-                            <Box sx={{ width: { xs: '100vw', sm: 400 }, height: '100vh', display: 'flex', flexDirection: 'column', bgcolor: mode === 'dark' ? '#0d1f3c' : '#ffffff' }}>
-                                <ChatModule projectId={null} orgStaff={orgStaff} />
+                            <Box sx={{
+                                width: { xs: '100vw', sm: 400 },
+                                height: '100vh',
+                                display: 'flex',
+                                flexDirection: 'column',
+                                bgcolor: mode === 'dark' ? '#0d1f3c' : '#ffffff',
+                                overflow: 'hidden' // 🔥 Ensures only the message list scrolls
+                            }}>
+                                {/* ChatModule now fills the full 100vh */}
+                                <ChatModule
+                                    projectId={null}
+                                    orgStaff={orgStaff}
+                                    onClose={() => setGlobalChatOpen(false)}
+                                />
                             </Box>
                         </Drawer>
 

@@ -9,30 +9,37 @@ import HubIcon from '@mui/icons-material/Hub';
 
 export default function About({ isPopup }) {
     return (
-        <Box sx={{ p: isPopup ? 2 : 6, maxWidth: 1000, mx: 'auto' }}>
-            {/* --- HEADER SECTION --- */}
-            <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={4}>
+        <Box sx={{ p: { xs: 3, md: isPopup ? 2 : 6 }, maxWidth: 1000, mx: 'auto' }}>
+            {/* --- RESPONSIVE HEADER SECTION --- */}
+            <Box
+                display="flex"
+                flexDirection={{ xs: 'column', md: 'row' }}
+                justifyContent="space-between"
+                alignItems={{ xs: 'flex-start', md: 'center' }}
+                gap={{ xs: 2, md: 0 }}
+                mb={4}
+            >
                 <Box>
                     <Typography variant="h3" fontWeight="900" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '-2px' }}>
                         // OPENPRIX
                     </Typography>
-                    <Box display="flex" gap={1} mt={1}>
-                        <Chip label="v1.9.9-V2.0.0 RC1" size="small" sx={{ bgcolor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
+                    <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
+                        <Chip label="v2.0.0 RC1" size="small" sx={{ bgcolor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
                         <Chip label="CORE_ENGINE: ACTIVE" size="small" sx={{ bgcolor: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
                     </Box>
                 </Box>
-                <Link 
-                    href="https://github.com/gokuldc/OpenPrix" 
-                    target="_blank" 
+                <Link
+                    href="https://github.com/gokuldc/OpenPrix"
+                    target="_blank"
                     rel="noopener"
-                    sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }, transition: '0.2s' }}
+                    sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main', transform: 'scale(1.1)' }, transition: 'all 0.2s ease-in-out' }}
                 >
                     <GitHubIcon sx={{ fontSize: 32 }} />
                 </Link>
             </Box>
 
             <Typography variant="body1" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', maxWidth: 600, mb: 4, lineHeight: 1.6 }}>
-                An advanced construction management suite engineered for precision estimation, 
+                An advanced construction management suite engineered for precision estimation,
                 real-time site execution tracking, and automated supply chain reconciliation.
             </Typography>
 
@@ -47,7 +54,17 @@ export default function About({ isPopup }) {
                     { icon: <SecurityIcon color="primary" />, title: "FINANCIALS", items: ["RA Billing", "Tax Logic", "Risk Analysis"] }
                 ].map((mod, idx) => (
                     <Grid item xs={12} sm={6} md={3} key={idx}>
-                        <Paper elevation={0} sx={{ p: 2, bgcolor: 'rgba(255,255,255,0.02)', border: '1px solid rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                        <Paper
+                            elevation={0}
+                            sx={{
+                                p: 2,
+                                bgcolor: 'rgba(255,255,255,0.02)',
+                                border: '1px solid rgba(255,255,255,0.05)',
+                                borderRadius: 2,
+                                transition: '0.2s',
+                                '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.05)' }
+                            }}
+                        >
                             <Box display="flex" alignItems="center" gap={1} mb={2}>
                                 {mod.icon}
                                 <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>{mod.title}</Typography>
@@ -70,19 +87,23 @@ export default function About({ isPopup }) {
                     </Typography>
                     <Paper variant="outlined" sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
                         <Grid container spacing={2}>
-                            <Grid item xs={6}>
+                            <Grid item xs={6} sm={4}>
                                 <Typography variant="caption" display="block" color="text.disabled">FRONTEND</Typography>
                                 <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>React 18 / MUI 5</Typography>
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid item xs={6} sm={4}>
                                 <Typography variant="caption" display="block" color="text.disabled">RUNTIME</Typography>
                                 <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>Electron / Node.js</Typography>
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid item xs={6} sm={4}>
+                                <Typography variant="caption" display="block" color="text.disabled">NETWORK</Typography>
+                                <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>Express / Universal RPC</Typography>
+                            </Grid>
+                            <Grid item xs={6} sm={4}>
                                 <Typography variant="caption" display="block" color="text.disabled">DATABASE</Typography>
                                 <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>SQLite 3 (Native)</Typography>
                             </Grid>
-                            <Grid item xs={6}>
+                            <Grid item xs={6} sm={4}>
                                 <Typography variant="caption" display="block" color="text.disabled">ANALYTICS</Typography>
                                 <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>Recharts Engine</Typography>
                             </Grid>
@@ -97,9 +118,9 @@ export default function About({ isPopup }) {
                             LEGAL_LICENSE
                         </Typography>
                     </Box>
-                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.05)', borderRadius: 2 }}>
+                    <Paper variant="outlined" sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', borderColor: 'rgba(255,255,255,0.05)', borderRadius: 2, height: 'calc(100% - 32px)' }}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', lineHeight: 1.6 }}>
-                            Licensed under the **MIT Open Source License**. 
+                            Licensed under the **MIT Open Source License**.
                             Permission is granted for commercial use, modification, and distribution.
                         </Typography>
                     </Paper>

@@ -93,6 +93,12 @@ contextBridge.exposeInMainWorld('api', {
         getBase64: (filePath) => ipcRenderer.invoke('os:get-base64', filePath)
     },
 
+    server: {
+        start: (port) => ipcRenderer.invoke('server:start', port),
+        stop: () => ipcRenderer.invoke('server:stop'),
+        getIp: () => ipcRenderer.invoke('server:get-ip')
+    },
+
     // 🔥 ADDED: LISTENER FOR TRAY ICON SYNC SETTINGS 🔥
     onOpenSyncSettings: (callback) => ipcRenderer.on('open-sync-settings', () => callback())
 });

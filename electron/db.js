@@ -169,6 +169,8 @@ export function initDatabase() {
     }
 
     try { db.prepare("UPDATE org_staff SET accessLevel = 5 WHERE role = 'SuperAdmin'").run(); } catch (e) { }
+    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_project ON project_documents(projectId);"); } catch (e) { }
+    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_category ON project_documents(category);"); } catch (e) { }
 
     return db;
 }

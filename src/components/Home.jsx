@@ -23,6 +23,7 @@ import UploadIcon from '@mui/icons-material/Upload';
 import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import LogoutIcon from '@mui/icons-material/Logout';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
+import RouterIcon from '@mui/icons-material/Router';
 
 // Components
 import CompanySettingsDialog from "./CompanySettingsDialog";
@@ -31,8 +32,7 @@ import CompanySettingsDialog from "./CompanySettingsDialog";
 import { useAuth } from "../context/AuthContext";
 import { useSettings } from "../context/SettingsContext";
 
-// 🔥 Added onOpenWorkLog to the props
-export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenWorkLog }) {
+export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenWorkLog, onOpenServerManager }) {
     const fileInputRef = useRef(null);
 
     const { currentUser, logout, hasClearance } = useAuth();
@@ -182,9 +182,22 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
 
     const paginatedProjects = filteredProjects.slice((page - 1) * itemsPerPage, page * itemsPerPage);
 
+    // 🔥 Bulletproof ID Generator for both Desktop and Web HTTP environments
+    const generateSecureId = () => {
+        if (window.crypto && window.crypto.randomUUID) {
+            try {
+                return window.crypto.randomUUID();
+            } catch (e) { } // Fallback if browser restricts it
+        }
+        return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function (c) {
+            const r = Math.random() * 16 | 0, v = c === 'x' ? r : (r & 0x3 | 0x8);
+            return v.toString(16);
+        });
+    };
+
     const createProject = async () => {
         const newProject = {
-            id: crypto.randomUUID(),
+            id: generateSecureId(),
             name: "New Project",
             code: "",
             clientName: "",
@@ -273,11 +286,19 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
     );
 
     return (
-        <Container maxWidth="lg" sx={{ py: 6 }}>
-            {/* --- NEXUS HEADER --- */}
-            <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 4, borderBottom: '1px solid', borderColor: 'divider' }}>
-                <Box>
-                    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+        <Container maxWidth="lg" sx={{ py: { xs: 3, md: 6 } }}>
+            {/* --- NEXUS HEADER (RESPONSIVE) --- */}
+            <Box sx={{
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                justifyContent: 'space-between',
+                alignItems: { xs: 'stretch', md: 'center' },
+                gap: { xs: 3, md: 0 },
+                mb: 4, pb: 4,
+                borderBottom: '1px solid', borderColor: 'divider'
+            }}>
+                <Box sx={{ textAlign: { xs: 'center', md: 'left' } }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: { xs: 'center', md: 'flex-start' } }}>
                         {brandLogo ? (
                             <Box
                                 component="img"
@@ -297,7 +318,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
                     </Typography>
                 </Box>
 
-                <Box display="flex" gap={1.5} flexWrap="wrap" alignItems="center">
+                <Box display="flex" gap={1.5} flexWrap="wrap" justifyContent={{ xs: 'center', md: 'flex-end' }}>
                     {hasClearance(5) && (
                         <Button
                             onClick={() => setIsSettingsOpen(true)}
@@ -309,6 +330,17 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
                             SETTINGS
                         </Button>
                     )}
+                    {hasClearance(5) && (
+                        <Button
+                            onClick={onOpenServerManager}
+                            variant="outlined"
+                            color="info"
+                            startIcon={<RouterIcon sx={{ fontSize: 16 }} />}
+                            sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}
+                        >
+                            HOST_NETWORK
+                        </Button>
+                    )}
                     {hasClearance(2) && (
                         <Button onClick={onOpenDb} variant="outlined" color="secondary" sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>DATABASE</Button>
                     )}
@@ -318,7 +350,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
                     {hasClearance(3) && (
                         <Button onClick={createProject} variant="contained" color="primary" disableElevation sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}>+ NEW_WORKSPACE</Button>
                     )}
-                    <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
+                    <Divider orientation="vertical" flexItem sx={{ mx: 1, display: { xs: 'none', sm: 'block' } }} />
 
                     <Button
                         onClick={handleOpenProfile}
@@ -342,20 +374,19 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
                 </Box>
             </Box>
 
-            {/* --- PRODUCTION STATS --- */}
+            {/* --- PRODUCTION STATS (RESPONSIVE GRIDS) --- */}
             <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, display: 'block', opacity: 0.5, letterSpacing: '2px' }}>CORE_PRODUCTION</Typography>
             <Grid container spacing={2} sx={{ mb: 4 }}>
-                <Grid item xs={6} md={3}><MetricCard title="Total_Projects" value={visibleProjects.length} subtitle={`${stats.activeCount} Active`} icon={<FolderSpecialIcon />} color="info" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="Databook_Items" value={masterBoqs.length} subtitle=" Assemblies" icon={<AutoStoriesIcon />} color="success" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="Resource_Library" value={resources.length} subtitle="Materials & Labor" icon={<HandymanIcon />} color="warning" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="Region_Markets" value={regions.length} subtitle="Active Prices" icon={<BusinessIcon />} color="secondary" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Total_Projects" value={visibleProjects.length} subtitle={`${stats.activeCount} Active`} icon={<FolderSpecialIcon />} color="info" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Databook_Items" value={masterBoqs.length} subtitle=" Assemblies" icon={<AutoStoriesIcon />} color="success" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Resource_Library" value={resources.length} subtitle="Materials & Labor" icon={<HandymanIcon />} color="warning" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Region_Markets" value={regions.length} subtitle="Active Prices" icon={<BusinessIcon />} color="secondary" /></Grid>
             </Grid>
 
-            {/* --- HUMAN RESOURCES --- */}
+            {/* --- HUMAN RESOURCES (RESPONSIVE GRIDS) --- */}
             <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
                 <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", opacity: 0.5, letterSpacing: '2px' }}>HUMAN_RESOURCES</Typography>
 
-                {/* 🔥 THE NEW BUTTON THAT OPENS THE DAILY LOGS */}
                 <Button
                     variant="contained"
                     color="secondary"
@@ -368,19 +399,26 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
             </Box>
 
             <Grid container spacing={2} sx={{ mb: 6 }}>
-                <Grid item xs={6} md={3}><MetricCard title="Internal_Staff" value={stats.totalStaff} subtitle="Firm Members" icon={<BadgeIcon />} color="secondary" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="External_Contacts" value={stats.totalExternal} subtitle="Total Network" icon={<PeopleAltIcon />} color="info" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="Supply_Chain" value={stats.totalSuppliers} subtitle="Subs & Vendors" icon={<EngineeringIcon />} color="warning" /></Grid>
-                <Grid item xs={6} md={3}><MetricCard title="Client_Base" value={stats.totalClients} subtitle="Active Leads" icon={<GroupsIcon />} color="success" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Internal_Staff" value={stats.totalStaff} subtitle="Firm Members" icon={<BadgeIcon />} color="secondary" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="External_Contacts" value={stats.totalExternal} subtitle="Total Network" icon={<PeopleAltIcon />} color="info" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Supply_Chain" value={stats.totalSuppliers} subtitle="Subs & Vendors" icon={<EngineeringIcon />} color="warning" /></Grid>
+                <Grid item xs={12} sm={6} md={3}><MetricCard title="Client_Base" value={stats.totalClients} subtitle="Active Leads" icon={<GroupsIcon />} color="success" /></Grid>
             </Grid>
 
-            {/* --- ARCHIVE SECTION --- */}
-            <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 2 }}>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+            {/* --- ARCHIVE SECTION (RESPONSIVE ALIGNMENT) --- */}
+            <Box sx={{
+                mb: 3,
+                display: 'flex',
+                flexDirection: { xs: 'column', md: 'row' },
+                alignItems: { xs: 'stretch', md: 'center' },
+                justifyContent: 'space-between',
+                gap: 2
+            }}>
+                <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'center' }, gap: 2 }}>
                     <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>PROJECT_ARCHIVE</Typography>
-                    <TextField size="small" placeholder="Filter..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16 }} /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', borderRadius: 2, height: 32, bgcolor: 'rgba(0,0,0,0.2)', width: 200 } }} />
+                    <TextField size="small" placeholder="Filter..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon sx={{ fontSize: 16 }} /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', borderRadius: 2, height: 32, bgcolor: 'rgba(0,0,0,0.2)', width: { xs: '100%', sm: 200 } } }} />
                 </Box>
-                <Box display="flex" gap={1}>
+                <Box display="flex" gap={1} justifyContent={{ xs: 'space-between', sm: 'flex-start' }}>
                     {hasClearance(4) && (
                         <>
                             <Button size="small" variant="outlined" color="info" startIcon={<DownloadIcon />} onClick={handleExport} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>EXPORT</Button>
@@ -395,7 +433,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
 
             <Grid container spacing={3}>
                 {paginatedProjects.map(p => (
-                    <Grid item xs={12} md={6} lg={4} key={p.id}>
+                    <Grid item xs={12} sm={6} lg={4} key={p.id}>
                         <Paper elevation={0} sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid', borderColor: 'divider', borderRadius: 2, bgcolor: 'rgba(13, 31, 60, 0.5)', '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.05)' } }}>
                             <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                                 <Box>

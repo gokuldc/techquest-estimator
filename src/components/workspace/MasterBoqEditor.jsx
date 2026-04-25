@@ -7,24 +7,19 @@ import DeleteIcon from '@mui/icons-material/Delete';
 import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import { tableInputActiveStyle } from "../../styles";
 
-// 🔥 1. Import the global settings hook
 import { useSettings } from "../../context/SettingsContext";
 
 export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, project, regions, resources, masterBoqs, setFormulaHelpOpen }) {
 
-    // 🔥 2. Grab the format function
     const { formatCurrency } = useSettings();
 
-    // --- LOCAL EDITOR STATE ---
     const [isCustom, setIsCustom] = useState(false);
 
-    // Custom State
     const [editCustomCode, setEditCustomCode] = useState("");
     const [editCustomDesc, setEditCustomDesc] = useState("");
     const [editCustomUnit, setEditCustomUnit] = useState("");
     const [editCustomRate, setEditCustomRate] = useState("");
 
-    // Master State
     const [editBoqCode, setEditBoqCode] = useState("");
     const [editBoqDesc, setEditBoqDesc] = useState("");
     const [editBoqUnit, setEditBoqUnit] = useState("cum");
@@ -34,10 +29,8 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
     const [editBoqRows, setEditBoqRows] = useState([]);
     const [focusedQtyId, setFocusedQtyId] = useState(null);
 
-    // Local Cache for buttery smooth 60fps typing
     const [localRows, setLocalRows] = useState({});
 
-    // Initialize State when dialog opens
     useEffect(() => {
         if (!editorItem) return;
 
@@ -153,13 +146,15 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
             <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
                 {isCustom ? "EDIT_CUSTOM_ITEM" : (editorItem.masterBoqId ? "EDIT_DATABOOK_ITEM" : "CONVERT_TO_MASTER_ITEM")}
             </DialogTitle>
-            <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+
+            {/* 🔥 FIXED: Reduced horizontal padding on mobile so table can use full screen width */}
+            <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', px: { xs: 1, sm: 3 } }}>
                 {isCustom ? (
                     <Box display='flex' flexDirection='column' gap={3}>
                         <Alert severity="info" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>Ad-Hoc items use a fixed flat rate. Convert to a Master Item to calculate based on resources, overhead, and profit.</Alert>
                         <TextField label="CODE" value={editCustomCode} onChange={e => setEditCustomCode(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
                         <TextField label="DESCRIPTION" value={editCustomDesc} onChange={e => setEditCustomDesc(e.target.value)} multiline rows={2} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                        <Box display="flex" gap={2}>
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                             <TextField label="UNIT" value={editCustomUnit} onChange={e => setEditCustomUnit(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
                             <TextField label="FLAT RATE" type="number" value={editCustomRate} onChange={e => setEditCustomRate(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
                         </Box>
@@ -169,33 +164,36 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                     </Box>
                 ) : (
                     <>
-                        <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
-                            <TextField label="ITEM_CODE" value={editBoqCode} onChange={e => setEditBoqCode(e.target.value)} sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            <TextField label="DESCRIPTION" value={editBoqDesc} onChange={e => setEditBoqDesc(e.target.value)} sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            <TextField label="UNIT" value={editBoqUnit} onChange={e => setEditBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            <TextField select label="REGION" value={editPreviewRegion} onChange={e => setEditPreviewRegion(e.target.value)} sx={{ width: 200 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                        <Box display="flex" gap={{ xs: 2, sm: 3 }} flexDirection={{ xs: 'column', md: 'row' }} mb={4}>
+                            <TextField label="ITEM_CODE" value={editBoqCode} onChange={e => setEditBoqCode(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                            <TextField label="DESCRIPTION" value={editBoqDesc} onChange={e => setEditBoqDesc(e.target.value)} sx={{ flex: 3 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                            <TextField label="UNIT" value={editBoqUnit} onChange={e => setEditBoqUnit(e.target.value)} sx={{ width: { xs: '100%', md: 100 } }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                            <TextField select label="REGION" value={editPreviewRegion} onChange={e => setEditPreviewRegion(e.target.value)} sx={{ width: { xs: '100%', md: 200 } }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                                 {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
                             </TextField>
                         </Box>
 
-                        <Alert severity="info" sx={{ mb: 3, display: 'flex', alignItems: 'center' }}>
-                            <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>💡 <strong>Formula engine:</strong> Use math (<code>= 10 * 2.5</code>) or reference rows (<code>= #1 * 0.45</code>) to automatically calculate mixture ratios.</Typography>
-                            <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ ml: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>FORMULA_GUIDE</Button>
+                        {/* 🔥 FIXED: Applied Box inside Alert to stop Flexbox from breaking Alert icon */}
+                        <Alert severity="info" sx={{ mb: 3 }}>
+                            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2}>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>💡 <strong>Formula engine:</strong> Use math (<code>= 10 * 2.5</code>) or reference rows (<code>= #1 * 0.45</code>) to automatically calculate mixture ratios.</Typography>
+                                <Button variant="outlined" size="small" startIcon={<HelpOutlineIcon />} onClick={() => setFormulaHelpOpen(true)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>FORMULA_GUIDE</Button>
+                            </Box>
                         </Alert>
 
-                        <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3 }}>
-                            <Table size="small">
+                        <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, mb: 3, overflowX: 'auto', width: '100%' }}>
+                            <Table size="small" sx={{ minWidth: 900 }}>
                                 <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                                     <TableRow>
-                                        <TableCell sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SL.NO</TableCell>
-                                        <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TYPE</TableCell>
-                                        <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE_SEARCH</TableCell>
-                                        <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESC_SEARCH</TableCell>
-                                        <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
-                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY/FORMULA</TableCell>
-                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE</TableCell>
-                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT</TableCell>
-                                        <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
+                                        <TableCell sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>SL.NO</TableCell>
+                                        <TableCell sx={{ width: '12%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>TYPE</TableCell>
+                                        <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>CODE_SEARCH</TableCell>
+                                        <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DESC_SEARCH</TableCell>
+                                        <TableCell sx={{ width: '8%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>UNIT</TableCell>
+                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>QTY/FORMULA</TableCell>
+                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>RATE</TableCell>
+                                        <TableCell sx={{ width: '10%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>AMOUNT</TableCell>
+                                        <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTION</TableCell>
                                     </TableRow>
                                 </TableHead>
                                 <TableBody>
@@ -205,9 +203,8 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                         return (
                                             <TableRow key={row.id}>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{idx + 1}</TableCell>
-                                                <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={tableInputActiveStyle}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
+                                                <TableCell><select value={row.itemType} onChange={e => updateEditSpreadsheetRow(row.id, 'itemType', e.target.value)} style={{ ...tableInputActiveStyle, width: '100%' }}><option value="resource">RESOURCE</option><option value="boq">DATABOOK_ITEM</option></select></TableCell>
 
-                                                {/* CACHED CODE SEARCH */}
                                                 <TableCell>
                                                     <input
                                                         list={`ws-codes-${row.id}`}
@@ -228,12 +225,11 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                                 setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
                                                             }
                                                         }}
-                                                        style={tableInputActiveStyle}
+                                                        style={{ ...tableInputActiveStyle, width: '100%' }}
                                                     />
                                                     <datalist id={`ws-codes-${row.id}`}>{sourceList.filter(s => s.code || s.itemCode).map(s => <option key={s.id} value={s.code || s.itemCode} />)}</datalist>
                                                 </TableCell>
 
-                                                {/* CACHED DESCRIPTION SEARCH */}
                                                 <TableCell>
                                                     <input
                                                         list={`ws-descs-${row.id}`}
@@ -254,14 +250,13 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                                 setEditBoqRows(prev => prev.map(r => r.id === row.id ? { ...r, itemId: matched.id, tempCode: undefined, tempDesc: undefined } : r));
                                                             }
                                                         }}
-                                                        style={tableInputActiveStyle}
+                                                        style={{ ...tableInputActiveStyle, width: '100%' }}
                                                     />
                                                     <datalist id={`ws-descs-${row.id}`}>{sourceList.filter(s => s.description).map(s => <option key={s.id} value={s.description} />)}</datalist>
                                                 </TableCell>
 
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{row.unit}</TableCell>
 
-                                                {/* CACHED FORMULA INPUT */}
                                                 <TableCell>
                                                     <input
                                                         type="text"
@@ -277,11 +272,10 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                                             }
                                                         }}
                                                         onChange={e => setLocalRows(prev => ({ ...prev, [`${row.id}-qty`]: e.target.value }))}
-                                                        style={tableInputActiveStyle}
+                                                        style={{ ...tableInputActiveStyle, width: '100%' }}
                                                     />
                                                 </TableCell>
 
-                                                {/* 🔥 FORMATTED ROW RATES */}
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(row.rate)}</TableCell>
                                                 <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(row.amount)}</TableCell>
                                                 <TableCell align="center"><IconButton size="small" color="error" onClick={() => removeEditSpreadsheetRow(row.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
@@ -291,11 +285,10 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                                 </TableBody>
                             </Table>
                         </TableContainer>
-                        <Button variant="outlined" disableElevation onClick={addEditSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>+ ADD_COMPONENT</Button>
+                        <Button variant="outlined" disableElevation onClick={addEditSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', width: { xs: '100%', sm: 'auto' } }}>+ ADD_COMPONENT</Button>
 
                         <Box display="flex" justifyContent="flex-end">
-                            <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                                {/* 🔥 FORMATTED SUMMARY FOOTERS */}
+                            <Paper elevation={0} variant="outlined" sx={{ width: { xs: '100%', sm: 400 }, p: { xs: 2, sm: 3 }, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                                 <Box display="flex" justifyContent="space-between" mb={2}>
                                     <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
                                     <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(editSubTotal)}</Typography>
@@ -323,18 +316,29 @@ export default function MasterBoqEditor({ editorItem, onClose, onSaveSuccess, pr
                     </>
                 )}
             </DialogContent>
-            <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', gap: 2 }}>
-                <Button onClick={onClose} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
-                <Box display="flex" gap={2}>
+
+            {/* 🔥 FIXED: Neutralized MUI's default margin-left that breaks mobile buttons */}
+            <DialogActions sx={{
+                p: { xs: 2, sm: 3 },
+                bgcolor: 'rgba(13, 31, 60, 0.5)',
+                flexDirection: { xs: 'column', sm: 'row' },
+                alignItems: 'stretch',
+                gap: { xs: 1, sm: 2 },
+                '& > :not(:first-of-type)': { ml: 0 }
+            }}>
+                <Button onClick={onClose} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace", flexShrink: 0 }}>CANCEL</Button>
+
+                {/* Wrapped buttons in a standard width box so they stack properly */}
+                <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} sx={{ width: { xs: '100%', sm: 'auto' } }}>
                     {isCustom ? (
-                        <Button variant="contained" color="success" onClick={saveEditedCustomBoq} startIcon={<SaveIcon />}>SAVE</Button>
+                        <Button variant="contained" color="success" onClick={saveEditedCustomBoq} startIcon={<SaveIcon />} fullWidth>SAVE</Button>
                     ) : editorItem.masterBoqId ? (
                         <>
-                            <Button variant="outlined" color="info" onClick={() => saveEditedMasterBoq(true)}>SAVE_AS_NEW</Button>
-                            <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(false)} startIcon={<SaveIcon />}>UPDATE_ORIGINAL</Button>
+                            <Button variant="outlined" color="info" onClick={() => saveEditedMasterBoq(true)} fullWidth>SAVE_AS_NEW</Button>
+                            <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(false)} startIcon={<SaveIcon />} fullWidth>UPDATE_ORIGINAL</Button>
                         </>
                     ) : (
-                        <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(true)} startIcon={<SaveIcon />}>SAVE_TO_MASTER_DB</Button>
+                        <Button variant="contained" color="success" onClick={() => saveEditedMasterBoq(true)} startIcon={<SaveIcon />} fullWidth>SAVE_TO_MASTER_DB</Button>
                     )}
                 </Box>
             </DialogActions>

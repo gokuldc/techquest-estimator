@@ -1,94 +1,78 @@
-import { Tray, Menu, app, nativeImage, Notification } from 'electron';
-import fs from 'fs';
+import { Tray, Menu, app, nativeImage } from 'electron';
 import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// 🔥 CRITICAL: This variable MUST be outside the function!
 let tray = null;
 
 export function initTray(mainWindow, db) {
-    // Create an empty icon (Replace with a real icon path in production)
-    // e.g., const icon = nativeImage.createFromPath(path.join(__dirname, 'icon.png'));
-    const icon = nativeImage.createEmpty();
+    // Prevent creating multiple tray icons if the function runs twice
+    if (tray) return;
 
-    tray = new Tray(icon);
+    // 🔥 SMART PATH RESOLUTION
+    // This checks both the Dev environment and the Production packaged environment
+    let iconPath = path.join(__dirname, '../public/icon.ico');
+    if (!fs.existsSync(iconPath)) {
+        // Fallback for compiled production build
+        iconPath = path.join(process.resourcesPath, 'public/icon.ico');
+    }
 
-    const contextMenu = Menu.buildFromTemplate([
-        { label: 'OpenPrix Nexus (Background Sync)', enabled: false },
-        { type: 'separator' },
-        {
-            label: 'Force Cloud Sync Now',
-            click: () => executeSync(db)
-        },
-        {
-            label: 'Configure Server Address',
-            click: () => {
-                mainWindow.show();
-                // Tell the React frontend to open the settings modal
-                mainWindow.webContents.send('open-sync-settings');
-            }
-        },
-        { type: 'separator' },
-        {
-            label: 'Show Dashboard',
-            click: () => mainWindow.show()
-        },
-        {
-            label: 'Quit Completely',
-            click: () => {
-                app.isQuiting = true;
-                app.quit();
-            }
-        }
-    ]);
-
-    tray.setToolTip('OpenPrix Sync Engine');
-    tray.setContextMenu(contextMenu);
-
-    // 🔥 THE MAGIC: Prevent the app from dying when the window is closed!
-    mainWindow.on('close', function (event) {
-        if (!app.isQuiting) {
-            event.preventDefault();
-            mainWindow.hide(); // Hide instead of closing
-            new Notification({
-                title: "OpenPrix Nexus",
-                body: "App is minimized to the system tray for background syncing."
-            }).show();
-        }
-        return false;
-    });
-
-    // Optional: Auto-sync every 30 minutes in the background
-    setInterval(() => executeSync(db), 30 * 60 * 1000);
-}
-
-// 🔥 THE SYNC LOGIC
-async function executeSync(db) {
     try {
-        // 1. Grab the URL from the SQLite settings table
-        const row = db.prepare("SELECT value FROM app_settings WHERE key = 'sync_server_url'").get();
-        if (!row || !row.value) {
-            new Notification({ title: "Sync Skipped", body: "No server address configured." }).show();
-            return;
-        }
+        // Create the image native object
+        const icon = nativeImage.createFromPath(iconPath);
 
-        const serverUrl = row.value;
-        const dbPath = path.join(app.getPath('userData'), 'database', 'openprix_v2.sqlite');
+        // Initialize the global tray
+        tray = new Tray(icon);
 
-        // 2. Read the entire database file as a buffer
-        const dbBuffer = fs.readFileSync(dbPath);
+        const contextMenu = Menu.buildFromTemplate([
+            { label: 'OPENPRIX_NEXUS', enabled: false },
+            { type: 'separator' },
+            {
+                label: 'Show Dashboard',
+                click: () => {
+                    // 🔥 SAFETY CHECK: Only show if the window actually exists
+                    if (mainWindow && !mainWindow.isDestroyed()) {
+                        mainWindow.show();
+                        mainWindow.focus();
+                    }
+                }
+            },
+            {
+                label: 'Force Cloud Sync',
+                click: () => {
+                    // Your manual sync trigger logic here
+                    console.log("Manual sync triggered via Tray");
+                }
+            },
+            { type: 'separator' },
+            {
+                label: 'Quit Completely',
+                click: () => {
+                    app.isQuiting = true;
+                    app.quit();
+                }
+            }
+        ]);
 
-        // 3. Push it to the cloud server
-        const response = await fetch(serverUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/octet-stream' },
-            body: dbBuffer
+        tray.setToolTip('OpenPrix Background Sync');
+        tray.setContextMenu(contextMenu);
+
+        // Double-clicking the icon restores the app
+        tray.on('double-click', () => {
+            // 🔥 SAFETY CHECK: Added here as well
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.show();
+                mainWindow.focus();
+            }
         });
 
-        if (response.ok) {
-            new Notification({ title: "Sync Successful", body: "Database backed up to the cloud." }).show();
-        } else {
-            new Notification({ title: "Sync Failed", body: `Server responded with Error ${response.status}` }).show();
-        }
-    } catch (error) {
-        new Notification({ title: "Sync Error", body: error.message }).show();
+        console.log("✅ System Tray Icon successfully pinned.");
+
+    } catch (err) {
+        console.error("❌ Failed to create tray icon. Is the icon.ico file missing?", err);
     }
 }

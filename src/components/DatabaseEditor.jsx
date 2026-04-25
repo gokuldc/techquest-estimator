@@ -75,9 +75,24 @@ export default function DatabaseEditor({ onBack }) {
     };
 
     return (
-        <Box sx={{ maxWidth: 1200, mx: "auto", p: 3 }}>
-            <Box display="flex" alignItems="center" gap={2} mb={3}>
-                <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" color="inherit" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}>
+        <Box sx={{ maxWidth: 1200, mx: "auto", p: { xs: 2, md: 3 } }}>
+            {/* 🔥 RESPONSIVE HEADER: Stacks on mobile, row on tablet/desktop */}
+            <Box
+                sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    alignItems: { xs: 'flex-start', sm: 'center' },
+                    gap: { xs: 2, sm: 2 },
+                    mb: 3
+                }}
+            >
+                <Button
+                    startIcon={<ArrowBackIcon />}
+                    onClick={onBack}
+                    variant="outlined"
+                    color="inherit"
+                    sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', borderColor: 'divider', color: 'text.secondary', '&:hover': { borderColor: 'primary.main', color: 'primary.main' } }}
+                >
                     {'< '}HOME
                 </Button>
                 <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '22px' } }}>
@@ -88,16 +103,18 @@ export default function DatabaseEditor({ onBack }) {
             <Paper elevation={0} variant="outlined" sx={{ mb: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Tabs value={tab} onChange={(e, v) => setTab(v)} indicatorColor="primary" textColor="primary" variant="scrollable" scrollButtons="auto">
 
-                    {/* Everyone with DB access (L2+) gets LMR and Databook View */}
+                    {/* 01: Everyone with DB access (L2+) gets LMR */}
                     <Tab value="resources" label="01_LOCAL_MARKET_RATES" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
-                    <Tab value="viewBoq" label="03_DATABOOK" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
 
-                    {/* 🔥 L3+ (Estimators/Leads) to build/edit Master BOQs */}
+                    {/* 02: L3+ (Estimators/Leads) to build/edit Master BOQs */}
                     {hasClearance(3) && (
                         <Tab value="createBoq" label={`02_${editingBoq ? "EDIT_DATABOOK_ITEM" : "DATABOOK_BUILDER"}`} sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
                     )}
 
-                    {/* 🔥 L5 (Root) to manage Backups and Purges */}
+                    {/* 03: Everyone with DB access gets Databook View */}
+                    <Tab value="viewBoq" label="03_DATABOOK" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px' }} />
+
+                    {/* 04: L5 (Root) to manage Backups and Purges */}
                     {hasClearance(5) && (
                         <Tab value="backup" label="04_BACKUP_&_RESTORE" sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', letterSpacing: '0.5px', color: 'error.main' }} />
                     )}

@@ -422,21 +422,55 @@ export default function DatabaseEditor({ onBack }) {
             )}
 
             {tab === "createBoq" && (
-                <Paper elevation={0} variant="outlined" sx={{ p: 4, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                    {/* Keep your BOQ Editor Form exactly as it was, it relies on the safe variables parsed in loadData */}
-                    <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '16px' }}>{editingBoqId ? "EDIT" : "CREATE"}_DATABOOK_ITEM</Typography>
+                <Paper elevation={0} variant="outlined" sx={{ p: { xs: 2, md: 4 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Typography variant="h6" fontWeight="bold" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '14px', md: '16px' } }}>
+                        {editingBoqId ? "EDIT" : "CREATE"}_DATABOOK_ITEM
+                    </Typography>
 
-                    <Box display="flex" gap={3} flexWrap="wrap" mb={4}>
-                        <TextField label="ITEM_CODE" value={boqCode} onChange={e => setBoqCode(e.target.value)} sx={{ flex: 1, minWidth: 150 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <TextField label="DESCRIPTION" value={boqDesc} onChange={e => setBoqDesc(e.target.value)} sx={{ flex: 2, minWidth: 300 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <TextField label="UNIT" value={boqUnit} onChange={e => setBoqUnit(e.target.value)} sx={{ width: 100 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    {/* 🔥 FIXED: Flexible stacking on mobile */}
+                    <Box display="flex" gap={{ xs: 2, sm: 3 }} flexDirection={{ xs: 'column', md: 'row' }} mb={4}>
+                        <TextField label="ITEM_CODE" value={boqCode} onChange={e => setBoqCode(e.target.value)} sx={{ flex: 1 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="DESCRIPTION" value={boqDesc} onChange={e => setBoqDesc(e.target.value)} sx={{ flex: 3 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField label="UNIT" value={boqUnit} onChange={e => setBoqUnit(e.target.value)} sx={{ width: { xs: '100%', md: 100 } }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                     </Box>
 
-                    <Button variant="outlined" disableElevation onClick={addSpreadsheetRow} sx={{ mb: 4, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>+ ADD_COMPONENT</Button>
+                    {/* 🔥 Assuming you have the Boq components table rendering here, ensure it has overflowX: 'auto' */}
+                    <Box sx={{ width: '100%', overflowX: 'auto', mb: 4 }}>
+                        <Button variant="outlined" disableElevation onClick={addSpreadsheetRow} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', width: { xs: '100%', sm: 'auto' } }}>+ ADD_COMPONENT</Button>
+                    </Box>
 
                     <Box display="flex" justifyContent="flex-end">
-                        <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-                            <Box display="flex" gap={2} mb={1}>
+                        {/* 🔥 FIXED: Removed hardcoded 400px width */}
+                        <Paper elevation={0} variant="outlined" sx={{ width: { xs: '100%', sm: 400 }, p: { xs: 2, md: 3 }, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
+
+                            <Box display="flex" justifyContent="space-between" mb={2}>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
+                                <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {subTotal.toFixed(2)}</Typography>
+                            </Box>
+
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>OVERHEAD (%):</Typography>
+                                    <input type="number" value={boqOH} onChange={e => setBoqOH(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {ohAmount.toFixed(2)}</Typography>
+                            </Box>
+
+                            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2} pb={2} borderBottom="2px solid" borderColor="divider">
+                                <Box display="flex" alignItems="center" gap={1}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>PROFIT (%):</Typography>
+                                    <input type="number" value={boqProfit} onChange={e => setBoqProfit(e.target.value)} style={{ ...tableInputActiveStyle, width: 60 }} />
+                                </Box>
+                                <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>₹ {profitAmount.toFixed(2)}</Typography>
+                            </Box>
+
+                            <Box display="flex" justifyContent="space-between" mb={3} color="success.main">
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>FINAL_RATE/{boqUnit}:</Typography>
+                                <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>₹ {grandTotal.toFixed(2)}</Typography>
+                            </Box>
+
+                            {/* 🔥 FIXED: Flexible button stacking */}
+                            <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                                 {editingBoqId && <Button variant="outlined" color="info" fullWidth size="large" onClick={() => saveMasterBoq(true)} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>SAVE_AS_NEW</Button>}
                                 <Button variant="contained" color="success" fullWidth size="large" onClick={() => saveMasterBoq(false)} startIcon={<SaveIcon />} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '13px' }}>{editingBoqId ? "UPDATE_ITEM" : "SAVE_ITEM"}</Button>
                             </Box>

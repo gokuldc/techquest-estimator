@@ -14,20 +14,16 @@ import CloseIcon from '@mui/icons-material/Close';
 import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { tableInputActiveStyle } from "../../styles";
 
-// Import global settings hook for currency formatting
 import { useSettings } from "../../context/SettingsContext";
 
-// 🔥 THE FIX: HIGH-PERFORMANCE ISOLATED INPUT CELL
-// This prevents the entire app from re-rendering on every single keystroke.
+// HIGH-PERFORMANCE ISOLATED INPUT CELL
 const RateInputCell = ({ resource, regionName, onSave }) => {
     const [localVal, setLocalVal] = useState(resource.rates[regionName] || "");
 
-    // Keep local state in sync if data changes from an Excel import
     useEffect(() => {
         setLocalVal(resource.rates[regionName] || "");
     }, [resource.rates, regionName]);
 
-    // Only save to SQLite when the user clicks away or presses Tab
     const handleBlur = () => {
         const numVal = Number(localVal);
         const currentDbVal = Number(resource.rates[regionName] || 0);
@@ -36,7 +32,6 @@ const RateInputCell = ({ resource, regionName, onSave }) => {
         }
     };
 
-    // Allow saving by pressing Enter
     const handleKeyDown = (e) => {
         if (e.key === 'Enter') {
             e.target.blur();
@@ -63,19 +58,15 @@ export default function ResourcesTab({ regions, resources, loadData }) {
     const [importRegion, setImportRegion] = useState("");
     const [newRegion, setNewRegion] = useState("");
 
-    // Quick Add State
     const [resCode, setResCode] = useState("");
     const [resDesc, setResDesc] = useState("");
     const [resUnit, setResUnit] = useState("nos");
 
-    // Pagination State
     const [currentPage, setCurrentPage] = useState(1);
     const itemsPerPage = 50;
 
-    // Analytics State
     const [selectedResource, setSelectedResource] = useState(null);
 
-    // --- FILTER & PAGINATION LOGIC ---
     const filteredResources = useMemo(() => {
         return resources.filter(r =>
             (r.code || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -86,7 +77,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
     const totalPages = Math.ceil(filteredResources.length / itemsPerPage);
     const paginatedResources = filteredResources.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
-    // --- DATA MUTATION FUNCTIONS ---
     const updateResourceRate = async (id, field, value, regionName = null) => {
         const res = resources.find(r => r.id === id);
 
@@ -118,7 +108,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
         }
     };
 
-    // Excel Import Logic
     const handleFileUpload = (e) => {
         const file = e.target.files[0];
         if (!file || !importRegion) return;
@@ -206,7 +195,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
         reader.readAsBinaryString(file);
     };
 
-    // --- ANALYTICS DRAWER COMPONENT ---
     const InflationDrawer = () => {
         if (!selectedResource) return null;
         const history = (selectedResource.rateHistory || []).sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -216,15 +204,16 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
         return (
             <Drawer anchor="right" open={!!selectedResource} onClose={() => setSelectedResource(null)}>
-                <Box sx={{ width: 500, p: 4, bgcolor: '#0b172d', height: '100%', color: '#fff' }}>
+                {/* 🔥 FIXED: Width converts to 100vw on mobile to prevent overflow */}
+                <Box sx={{ width: { xs: '100vw', sm: 500 }, p: { xs: 2, sm: 4 }, bgcolor: '#0b172d', height: '100%', color: '#fff' }}>
                     <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-                        <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>MARKET_ANALYTICS</Typography>
+                        <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '16px', sm: '20px' } }}>MARKET_ANALYTICS</Typography>
                         <IconButton onClick={() => setSelectedResource(null)} color="inherit"><CloseIcon /></IconButton>
                     </Box>
-                    <Typography variant="h5" fontWeight="bold" color="primary.main">{selectedResource.description}</Typography>
+                    <Typography variant="h5" fontWeight="bold" color="primary.main" sx={{ fontSize: { xs: '18px', sm: '24px' } }}>{selectedResource.description}</Typography>
                     <Typography variant="caption" sx={{ opacity: 0.6 }}>CODE: {selectedResource.code}</Typography>
 
-                    <Box display="flex" gap={2} my={4}>
+                    <Box display="flex" gap={2} my={4} flexDirection={{ xs: 'column', sm: 'row' }}>
                         <Paper sx={{ p: 2, flex: 1, bgcolor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>
                             <Typography variant="caption" color="text.secondary">LATEST_PRICE</Typography>
                             <Typography variant="h6">{formatCurrency(latest)}</Typography>
@@ -256,22 +245,22 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
     return (
         <Box>
-            {/* TOP ACTIONS: IMPORT & REGIONS */}
             <Grid container spacing={3} mb={3}>
                 <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', borderRadius: 2 }}>
                         <Typography variant="subtitle2" mb={2}>IMPORT_EXCEL_LMR</Typography>
-                        <Box display="flex" gap={2}>
+                        {/* 🔥 FIXED: Flexible stacking on small screens */}
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                             <TextField select fullWidth size="small" label="TARGET REGION" value={importRegion} onChange={e => setImportRegion(e.target.value)}>
                                 {regions.map(r => <MenuItem key={r.id} value={r.name}>{r.name}</MenuItem>)}
                             </TextField>
-
                             <input type="file" accept=".xlsx, .xls, .csv" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileUpload} />
                             <Button
                                 variant="contained"
                                 startIcon={<UploadIcon />}
                                 disabled={!importRegion}
                                 onClick={() => fileInputRef.current.click()}
+                                sx={{ flexShrink: 0 }}
                             >
                                 UPLOAD
                             </Button>
@@ -282,35 +271,70 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                 <Grid item xs={12} md={6}>
                     <Paper sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)', borderRadius: 2 }}>
                         <Typography variant="subtitle2" mb={2}>MANAGE_REGIONS</Typography>
-                        <Box display="flex" gap={1}>
+                        {/* 🔥 FIXED: Flexible stacking on small screens */}
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                             <TextField fullWidth size="small" label="NEW_REGION" value={newRegion} onChange={e => setNewRegion(e.target.value)} />
-                            <Button variant="contained" disabled={!newRegion} onClick={async () => { await window.api.db.createRegion(newRegion); setNewRegion(""); loadData(); }}>ADD</Button>
+                            <Button variant="contained" disabled={!newRegion} onClick={async () => { await window.api.db.createRegion(newRegion); setNewRegion(""); loadData(); }} sx={{ flexShrink: 0 }}>ADD</Button>
                         </Box>
                     </Paper>
                 </Grid>
             </Grid>
 
             {/* SEARCH & QUICK ADD */}
-            <Paper sx={{ p: 3, mb: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box display="flex" gap={2}>
-                    <TextField
-                        placeholder="Search Materials..."
-                        size="small" sx={{ width: 300 }}
-                        value={searchTerm} onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
-                        InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
-                    />
-                    <Divider orientation="vertical" flexItem />
-                    <Box display="flex" gap={1} flexGrow={1}>
-                        <TextField size="small" label="CODE" value={resCode} onChange={e => setResCode(e.target.value)} sx={{ width: 100 }} />
-                        <TextField size="small" label="DESCRIPTION" value={resDesc} onChange={e => setResDesc(e.target.value)} fullWidth />
-                        <TextField size="small" label="UNIT" value={resUnit} onChange={e => setResUnit(e.target.value)} sx={{ width: 100 }} />
-                        <Button variant="contained" onClick={async () => { await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit }); setResCode(""); setResDesc(""); loadData(); }}>ADD</Button>
-                    </Box>
-                </Box>
+            <Paper sx={{ p: { xs: 2, sm: 3 }, mb: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Grid container spacing={3} alignItems="center">
+
+                    {/* 1. Search Bar */}
+                    <Grid item xs={12} md={3}>
+                        <TextField
+                            fullWidth
+                            placeholder="Search Materials..."
+                            size="small"
+                            value={searchTerm}
+                            onChange={e => { setSearchTerm(e.target.value); setCurrentPage(1); }}
+                            InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment> }}
+                        />
+                    </Grid>
+
+                    {/* 2. Visual Divider (Hidden on phones) */}
+                    <Grid item sx={{ display: { xs: 'none', md: 'flex' }, justifyContent: 'center' }}>
+                        <Divider orientation="vertical" flexItem sx={{ height: 40 }} />
+                    </Grid>
+
+                    {/* 3. Add Resource Form */}
+                    <Grid item xs={12} md>
+                        <Grid container spacing={2}>
+                            <Grid item xs={12} sm={3} md={2}>
+                                <TextField fullWidth size="small" label="CODE" value={resCode} onChange={e => setResCode(e.target.value)} />
+                            </Grid>
+                            <Grid item xs={12} sm={5} md={5}>
+                                <TextField fullWidth size="small" label="DESCRIPTION" value={resDesc} onChange={e => setResDesc(e.target.value)} />
+                            </Grid>
+                            <Grid item xs={12} sm={2} md={2}>
+                                <TextField fullWidth size="small" label="UNIT" value={resUnit} onChange={e => setResUnit(e.target.value)} />
+                            </Grid>
+                            <Grid item xs={12} sm={2} md={3}>
+                                <Button
+                                    fullWidth
+                                    variant="contained"
+                                    sx={{ height: { xs: 40, sm: '100%' } }}
+                                    onClick={async () => {
+                                        await window.api.db.createResource({ code: resCode, description: resDesc, unit: resUnit });
+                                        setResCode(""); setResDesc(""); loadData();
+                                    }}
+                                >
+                                    ADD
+                                </Button>
+                            </Grid>
+                        </Grid>
+                    </Grid>
+
+                </Grid>
             </Paper>
 
             {/* TABLE HEADER WITH PAGINATION CONTROLS */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={2}>
+            {/* 🔥 FIXED: Proper flex wrapping for pagination controls on mobile */}
+            <Box display="flex" justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} flexDirection={{ xs: 'column', sm: 'row' }} gap={2} mb={2}>
                 <Typography variant="caption" sx={{ color: 'text.secondary' }}>
                     SHOWING {paginatedResources.length} OF {filteredResources.length} RESOURCES
                 </Typography>
@@ -323,14 +347,15 @@ export default function ResourcesTab({ regions, resources, loadData }) {
             </Box>
 
             {/* REDESIGNED EXCEL-STYLE TABLE */}
-            <TableContainer component={Paper} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider' }}>
-                <Table stickyHeader size="small">
+            {/* 🔥 FIXED: Added explicit minWidth to force X-scrolling instead of UI crunching */}
+            <TableContainer component={Paper} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider', overflowX: 'auto' }}>
+                <Table stickyHeader size="small" sx={{ minWidth: 1000 }}>
                     <TableHead>
                         <TableRow>
-                            <TableCell sx={{ bgcolor: '#0b172d', width: 40, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>NO</TableCell>
-                            <TableCell sx={{ bgcolor: '#0b172d', width: 120, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE</TableCell>
-                            <TableCell sx={{ bgcolor: '#0b172d', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESCRIPTION</TableCell>
-                            <TableCell sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 40, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>NO</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 120, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>CODE</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DESCRIPTION</TableCell>
+                            <TableCell sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>UNIT</TableCell>
 
                             {regions.map(r => (
                                 <TableCell key={r.id} sx={{ bgcolor: '#0b172d', minWidth: 120 }}>
@@ -344,7 +369,7 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                                     </Box>
                                 </TableCell>
                             ))}
-                            <TableCell align="right" sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTIONS</TableCell>
+                            <TableCell align="right" sx={{ bgcolor: '#0b172d', width: 80, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTIONS</TableCell>
                         </TableRow>
                     </TableHead>
                     <TableBody>
@@ -365,7 +390,6 @@ export default function ResourcesTab({ regions, resources, loadData }) {
 
                                 {regions.map(r => (
                                     <TableCell key={r.id}>
-                                        {/* 🔥 Using the isolated, high-performance cell here */}
                                         <RateInputCell
                                             resource={res}
                                             regionName={r.name}
@@ -375,8 +399,10 @@ export default function ResourcesTab({ regions, resources, loadData }) {
                                 ))}
 
                                 <TableCell align="right">
-                                    <IconButton size="small" color="primary" onClick={() => setSelectedResource(res)}><TimelineIcon fontSize="small" /></IconButton>
-                                    <IconButton size="small" color="error" onClick={() => deleteResource(res.id)}><DeleteIcon fontSize="small" /></IconButton>
+                                    <Box display="flex" justifyContent="flex-end">
+                                        <IconButton size="small" color="primary" onClick={() => setSelectedResource(res)}><TimelineIcon fontSize="small" /></IconButton>
+                                        <IconButton size="small" color="error" onClick={() => deleteResource(res.id)}><DeleteIcon fontSize="small" /></IconButton>
+                                    </Box>
                                 </TableCell>
                             </TableRow>
                         ))}
