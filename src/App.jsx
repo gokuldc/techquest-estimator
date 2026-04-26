@@ -23,7 +23,7 @@ import { SettingsProvider } from './context/SettingsContext';
 import StaffWorkLog from './components/StaffWorkLog';
 import ServerManager from './components/ServerManager';
 
-//  THE GATEKEEPER
+// GATEKEEPER
 function Gatekeeper({ children }) {
     const { currentUser } = useAuth();
 
@@ -31,7 +31,7 @@ function Gatekeeper({ children }) {
     return children;
 }
 
-//  ISOLATED NOTIFICATION BADGE COMPONENT
+// ISOLATED NOTIFICATION BADGE COMPONENT
 function GlobalChatButton({ chatOpen, onOpen }) {
     const { currentUser } = useAuth();
     const [unreadCount, setUnreadCount] = useState(0);
@@ -80,11 +80,11 @@ export default function App() {
     const [activeProjectId, setActiveProjectId] = useState(null);
     const [aboutOpen, setAboutOpen] = useState(false);
 
-    //  GLOBAL CHAT STATE
+    // GLOBAL CHAT STATE
     const [globalChatOpen, setGlobalChatOpen] = useState(false);
     const [orgStaff, setOrgStaff] = useState([]);
 
-    //  SYNC SERVER STATE
+    // SYNC SERVER STATE
     const [syncModalOpen, setSyncModalOpen] = useState(false);
     const [syncUrl, setSyncUrl] = useState("");
 
@@ -104,7 +104,7 @@ export default function App() {
         }
     };
 
-    //  LISTEN FOR TRAY ICON CLICKS TO OPEN SYNC MODAL
+    // LISTEN FOR TRAY ICON CLICKS TO OPEN SYNC MODAL
     useEffect(() => {
         if (window.api && window.api.onOpenSyncSettings) {
             window.api.onOpenSyncSettings(() => {
@@ -136,7 +136,9 @@ export default function App() {
             MuiAppBar: {
                 styleOverrides: {
                     root: {
-                        backgroundColor: mode === 'dark' ? '#060e1a' : '#ffffff',
+                        // Ensure the background is completely opaque so scrolling content doesn't bleed through
+                        backgroundColor: mode === 'dark' ? 'rgba(6, 14, 26, 0.95)' : 'rgba(255, 255, 255, 0.95)',
+                        backdropFilter: 'blur(8px)', // Adds a nice modern frosted glass effect
                         borderBottom: `1px solid ${mode === 'dark' ? '#1e3a5f' : '#cbd5e1'}`,
                     }
                 }
@@ -190,7 +192,8 @@ export default function App() {
                     <CssBaseline />
 
                     <Gatekeeper>
-                        <AppBar position="static" color="transparent" elevation={0}>
+                        {/* 🔥 FIX: Changed position to sticky, added zIndex, locked top to 0 */}
+                        <AppBar position="sticky" elevation={0} sx={{ top: 0, zIndex: 1100 }}>
                             <Toolbar>
                                 <Typography
                                     variant="h6"
@@ -232,7 +235,7 @@ export default function App() {
                                         onOpenProject={(id) => { setActiveProjectId(id); setCurrentView('workspace'); }}
                                         onOpenDirectory={() => setCurrentView('directory')}
                                         onOpenWorkLog={() => setCurrentView('worklogs')}
-                                        onOpenServerManager={() => setCurrentView('servermanager')} //  Pass the trigger to Home
+                                        onOpenServerManager={() => setCurrentView('servermanager')} 
                                     />
                                 )}
                                 {currentView === 'database' && <DatabaseEditor onBack={() => setCurrentView('home')} />}
@@ -266,7 +269,7 @@ export default function App() {
                             </DialogActions>
                         </Dialog>
 
-                        {/*  SYNC SERVER MODAL */}
+                        {/* SYNC SERVER MODAL */}
                         <Dialog open={syncModalOpen} onClose={() => setSyncModalOpen(false)} fullWidth maxWidth="sm" PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider' } }}>
                             <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'primary.main', display: 'flex', alignItems: 'center', gap: 1 }}>
                                 <CloudSyncIcon /> CLOUD_SYNC_TARGET
@@ -299,9 +302,8 @@ export default function App() {
                                 display: 'flex',
                                 flexDirection: 'column',
                                 bgcolor: mode === 'dark' ? '#0d1f3c' : '#ffffff',
-                                overflow: 'hidden' // 🔥 Ensures only the message list scrolls
+                                overflow: 'hidden'
                             }}>
-                                {/* ChatModule now fills the full 100vh */}
                                 <ChatModule
                                     projectId={null}
                                     orgStaff={orgStaff}

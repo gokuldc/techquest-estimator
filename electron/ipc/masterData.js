@@ -14,10 +14,15 @@ export function registerMasterDataIpc(db, mainWindow) {
                 WHERE username = ? AND password = ? AND status = 'Active'
             `).get(username, password);
 
-            return user || null;
+            if (user) {
+                // Formatting exactly as AuthContext expects!
+                return { success: true, user: user };
+            } else {
+                return { success: false, error: 'Invalid username or password.' };
+            }
         } catch (error) {
             console.error("Login verification error:", error);
-            return null;
+            return { success: false, error: error.message };
         }
     });
 

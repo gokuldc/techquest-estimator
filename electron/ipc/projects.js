@@ -134,11 +134,17 @@ export function registerProjectsIpc(db) {
         }
     });
 
+    // 🔥 ADDED replyToId field
     ipcMain.handle('db:save-message', (e, data) => {
         db.prepare(`
-            INSERT INTO messages (id, projectId, senderId, content, createdAt) 
-            VALUES (?, ?, ?, ?, ?)
-        `).run(data.id, data.projectId || null, data.senderId, data.content, data.createdAt);
+            INSERT INTO messages (id, projectId, senderId, content, replyToId, createdAt) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(data.id, data.projectId || null, data.senderId, data.content, data.replyToId || null, data.createdAt);
+    });
+    
+    // 🔥 ADDED Missing Delete Handler
+    ipcMain.handle('db:delete-message', (e, id) => {
+        db.prepare('DELETE FROM messages WHERE id = ?').run(id);
     });
 
     // FETCH PRIVATE MESSAGES (Between User A and User B)
@@ -151,15 +157,20 @@ export function registerProjectsIpc(db) {
         `).all(user1, user2, user2, user1);
     });
 
-    // SAVE PRIVATE MESSAGE
+    // 🔥 ADDED replyToId field
     ipcMain.handle('db:save-private-message', (e, data) => {
         db.prepare(`
-            INSERT INTO private_messages (id, senderId, receiverId, content, createdAt) 
-            VALUES (?, ?, ?, ?, ?)
-        `).run(data.id, data.senderId, data.receiverId, data.content, data.createdAt);
+            INSERT INTO private_messages (id, senderId, receiverId, content, replyToId, createdAt) 
+            VALUES (?, ?, ?, ?, ?, ?)
+        `).run(data.id, data.senderId, data.receiverId, data.content, data.replyToId || null, data.createdAt);
     });
 
-    // 🔥 NEW: UNREAD NOTIFICATION CHECKER
+    // 🔥 ADDED Missing Delete Handler
+    ipcMain.handle('db:delete-private-message', (e, id) => {
+        db.prepare('DELETE FROM private_messages WHERE id = ?').run(id);
+    });
+
+    // --- UNREAD NOTIFICATION CHECKER ---
     ipcMain.handle('db:check-notifications', (e, userId, lastChecked) => {
         try {
             // Count global messages sent by OTHERS after the last checked time
@@ -180,6 +191,7 @@ export function registerProjectsIpc(db) {
             return 0; // Failsafe
         }
     });
+
     // --- STAFF WORK LOGS HANDLERS ---
     ipcMain.handle('db:get-work-logs', () => {
         return db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();

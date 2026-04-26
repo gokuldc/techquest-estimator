@@ -204,7 +204,26 @@ export default function ProjectWorkspace({ projectId, onBack }) {
 
     const togglePriceLock = async () => {
         if (!hasClearance(4)) return alert("Access Denied: Level 4 Clearance required to lock project pricing.");
-        await window.api.db.updateProject(projectId, { isPriceLocked: !(project.isPriceLocked || false) });
+
+        const isCurrentlyLocked = project.isPriceLocked || false;
+        const willBeLocked = !isCurrentlyLocked;
+
+        if (willBeLocked) {
+            // 🔥 WE ARE LOCKING: Take a snapshot of today's live rates and freeze them in the DB
+            const updates = renderedProjectBoq.map(item => window.api.db.updateProjectBoq(item.id, { 
+                lockedRate: item.rate // This grabs the live rate we just calculated!
+            }));
+            await Promise.all(updates);
+        } else {
+            // 🔓 WE ARE UNLOCKING: Erase the snapshots so it goes back to live market rates
+            const updates = renderedProjectBoq.map(item => window.api.db.updateProjectBoq(item.id, { 
+                lockedRate: null 
+            }));
+            await Promise.all(updates);
+        }
+
+        // Finally, toggle the master lock switch on the project itself
+        await window.api.db.updateProject(projectId, { isPriceLocked: willBeLocked ? 1 : 0 });
         loadData();
     };
 
@@ -342,7 +361,7 @@ export default function ProjectWorkspace({ projectId, onBack }) {
             </Box>
 
             <Box sx={{ minHeight: '60vh' }}>
-                {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={projectBoqItems} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
+                {activeTab === "details" && (<ProjectDetailsTab project={project} updateProject={updateProject} regions={regions} totalAmount={totalAmount} projectBoqItems={renderedProjectBoq} togglePriceLock={togglePriceLock} crmContacts={crmContacts} orgStaff={orgStaff} />)}
                 {activeTab === "documents" && (<DocumentsTab projectId={projectId} />)}
                 {activeTab === "gallery" && (<SiteGalleryTab projectId={projectId} />)}
                 {activeTab === "boq" && (<BoqBuilderTab projectId={projectId} projectBoqItems={projectBoqItems} masterBoqs={masterBoqs} renderedProjectBoq={renderedProjectBoq} totalAmount={totalAmount} handleAddMasterItem={handleAddMasterItem} handleAddCustomItem={handleAddCustomItem} updateBoqQtyManual={updateBoqQtyManual} deleteProjectBoq={deleteProjectBoq} openEditDialog={(item) => setEditorItem(item)} setFormulaHelpOpen={setFormulaHelpOpen} handleDragStart={handleDragStart} handleDragOver={handleDragOver} handleDrop={handleDrop} draggedId={draggedId} />)}

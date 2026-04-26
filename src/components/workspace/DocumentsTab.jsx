@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
     Box, Typography, Paper, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, IconButton, TextField, MenuItem, Chip,
@@ -14,6 +14,7 @@ import ArchitectureIcon from '@mui/icons-material/Architecture';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import HistoryIcon from '@mui/icons-material/History';
 import UploadFileIcon from '@mui/icons-material/UploadFile';
+import DownloadIcon from '@mui/icons-material/Download'; // 🔥 IMPORT DOWNLOAD ICON
 
 export default function DocumentsTab({ projectId }) {
     const [docs, setDocs] = useState([]);
@@ -24,6 +25,10 @@ export default function DocumentsTab({ projectId }) {
     const [historyOpen, setHistoryOpen] = useState(false);
     const [selectedDocGroup, setSelectedDocGroup] = useState([]);
 
+    // Unified Upload State
+    const fileInputRef = useRef(null);
+    const [uploadContext, setUploadContext] = useState({ name: null, category: null });
+
     const loadDocs = async () => {
         const data = await window.api.db.getProjectDocuments(projectId);
         setDocs(data || []);
@@ -31,7 +36,6 @@ export default function DocumentsTab({ projectId }) {
 
     useEffect(() => { loadDocs(); }, [projectId]);
 
-    // 🔥 THE VERSIONING ENGINE: Group by Category -> Group by Name -> Sort by Date
     const categorizedDocs = useMemo(() => {
         const groups = {};
 
@@ -44,7 +48,6 @@ export default function DocumentsTab({ projectId }) {
             groups[doc.category][nameKey].push(doc);
         });
 
-        // Sort versions newest first so [0] is always the latest
         Object.keys(groups).forEach(cat => {
             Object.keys(groups[cat]).forEach(nameKey => {
                 groups[cat][nameKey].sort((a, b) => b.addedAt - a.addedAt);
@@ -54,34 +57,64 @@ export default function DocumentsTab({ projectId }) {
         return groups;
     }, [docs]);
 
-    const handleLinkFile = async (explicitName = null, explicitCategory = null) => {
-        const path = await window.api.os.pickFile();
-        if (!path) return;
+    const triggerFileSelect = (explicitName = null, explicitCategory = null) => {
+        setUploadContext({ name: explicitName, category: explicitCategory });
+        fileInputRef.current.click();
+    };
 
-        const extension = path.split('.').pop().toLowerCase();
+    const handleFileChange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
 
-        // If updating a version, use the exact explicit name. Otherwise, use user input or filename.
-        const finalName = explicitName || name || path.split('\\').pop().split('/').pop();
-        const finalCategory = explicitCategory || category;
+        const extension = file.name.split('.').pop().toLowerCase();
+        
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            const base64Data = evt.target.result;
+            
+            const res = await window.api.os.uploadFileWeb(file.name, base64Data, projectId);
+            
+            if (res && res.success) {
+                const finalName = uploadContext.name || name || file.name.replace(/\.[^/.]+$/, "");
+                const finalCategory = uploadContext.category || category;
 
-        const newDoc = {
-            id: crypto.randomUUID(),
-            projectId,
-            name: finalName,
-            category: finalCategory,
-            filePath: path,
-            fileType: extension,
-            addedAt: Date.now()
+                const newDoc = {
+                    id: crypto.randomUUID(),
+                    projectId,
+                    name: finalName,
+                    category: finalCategory,
+                    filePath: res.path, 
+                    fileType: extension,
+                    addedAt: Date.now()
+                };
+
+                await window.api.db.saveProjectDocument(newDoc);
+                setName(""); 
+                loadDocs();
+            } else {
+                alert("File upload failed: " + (res?.error || "Unknown error"));
+            }
+            
+            if (fileInputRef.current) fileInputRef.current.value = null;
         };
-
-        await window.api.db.saveProjectDocument(newDoc);
-        setName(""); // Clear input
-        loadDocs();
+        
+        reader.readAsDataURL(file);
     };
 
     const handleOpenFile = async (path) => {
         const result = await window.api.os.openFile(path);
-        if (!result.success) alert("Could not open file. It may have been moved or deleted from the host system.");
+        if (result && !result.success) alert("Could not open file. It may have been moved or deleted from the host system.");
+    };
+
+    // 🔥 NEW: Save As / Download Logic
+    const handleDownloadFile = (path, fileName) => {
+        const downloadUrl = `/api/download?path=${encodeURIComponent(path)}`;
+        const a = document.createElement('a');
+        a.href = downloadUrl;
+        a.download = fileName; // This forces the "Save As" dialog on Electron, and a download on Web
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
     };
 
     const handleDeleteDoc = async (id, isGroupDelete = false) => {
@@ -92,7 +125,7 @@ export default function DocumentsTab({ projectId }) {
         if (window.confirm(msg)) {
             await window.api.db.deleteProjectDocument(id);
             loadDocs();
-            if (historyOpen) setHistoryOpen(false); // Close history if we deleted from it
+            if (historyOpen) setHistoryOpen(false); 
         }
     };
 
@@ -115,18 +148,40 @@ export default function DocumentsTab({ projectId }) {
 
     return (
         <Box display="flex" flexDirection="column" gap={3}>
+            
+            <input type="file" ref={fileInputRef} style={{ display: 'none' }} onChange={handleFileChange} />
 
-            {/* ADD BRAND NEW DOCUMENT BAR */}
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+            {/* 🔥 MOBILE RESPONSIVE UPLOAD BAR */}
+            <Paper elevation={0} sx={{ p: { xs: 2, md: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'primary.main' }}>
                     // INITIALIZE_NEW_DOCUMENT_GROUP
                 </Typography>
-                <Box display="flex" gap={2} flexWrap="wrap">
-                    <TextField size="small" label="DOCUMENT MASTER NAME" value={name} onChange={e => setName(e.target.value)} sx={{ flex: 2 }} helperText="Uploading a file with the same name creates a new Version." />
-                    <TextField select size="small" label="CATEGORY" value={category} onChange={e => setCategory(e.target.value)} sx={{ width: 220 }}>
+                <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2}>
+                    <TextField 
+                        fullWidth 
+                        size="small" 
+                        label="DOCUMENT MASTER NAME" 
+                        value={name} 
+                        onChange={e => setName(e.target.value)} 
+                        helperText="Leave blank to use the file's original name." 
+                    />
+                    <TextField 
+                        select 
+                        fullWidth 
+                        sx={{ minWidth: { md: 220 }, maxWidth: { md: 250 } }} 
+                        size="small" 
+                        label="CATEGORY" 
+                        value={category} 
+                        onChange={e => setCategory(e.target.value)}
+                    >
                         {CATEGORY_OPTIONS.map(cat => <MenuItem key={cat} value={cat}>{cat}</MenuItem>)}
                     </TextField>
-                    <Button variant="contained" startIcon={<FolderOpenIcon />} onClick={() => handleLinkFile()} sx={{ borderRadius: 2, fontWeight: 'bold', height: 40 }}>
+                    <Button 
+                        variant="contained" 
+                        startIcon={<FolderOpenIcon />} 
+                        onClick={() => triggerFileSelect()} 
+                        sx={{ borderRadius: 2, fontWeight: 'bold', height: 40, minWidth: { md: 220 }, whiteSpace: 'nowrap' }}
+                    >
                         SELECT & INITIALIZE
                     </Button>
                 </Box>
@@ -136,20 +191,22 @@ export default function DocumentsTab({ projectId }) {
             <Box>
                 {Object.keys(categorizedDocs).length === 0 ? (
                     <Paper sx={{ p: 5, textAlign: 'center', bgcolor: 'rgba(0,0,0,0.2)', border: '1px dashed rgba(255,255,255,0.1)' }}>
-                        <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>NO DOCUMENTS ARCHIVED IN THIS WORKSPACE</Typography>
+                        <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary', fontSize: { xs: '12px', sm: '14px' } }}>
+                            NO DOCUMENTS ARCHIVED IN THIS WORKSPACE
+                        </Typography>
                     </Paper>
                 ) : (
                     Object.entries(categorizedDocs).sort().map(([catName, docGroups]) => (
                         <Accordion key={catName} defaultExpanded disableGutters sx={{ mb: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.4)', '&:before': { display: 'none' } }}>
                             <AccordionSummary expandIcon={<ExpandMoreIcon />} sx={{ bgcolor: 'rgba(0,0,0,0.2)', borderBottom: '1px solid', borderColor: 'divider' }}>
-                                <Typography variant="subtitle2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="subtitle2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 1 }}>
                                     {catName.toUpperCase()}
                                     <Chip label={`${Object.keys(docGroups).length} Docs`} size="small" color="primary" sx={{ height: 20, fontSize: '10px', fontFamily: "'JetBrains Mono', monospace" }} />
                                 </Typography>
                             </AccordionSummary>
                             <AccordionDetails sx={{ p: 0 }}>
-                                <TableContainer>
-                                    <Table size="small">
+                                <TableContainer sx={{ overflowX: 'auto' }}>
+                                    <Table size="small" sx={{ minWidth: 600 }}>
                                         <TableHead>
                                             <TableRow>
                                                 <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: 50 }}>TYPE</TableCell>
@@ -161,7 +218,7 @@ export default function DocumentsTab({ projectId }) {
                                         </TableHead>
                                         <TableBody>
                                             {Object.entries(docGroups).map(([nameKey, versions]) => {
-                                                const latestDoc = versions[0]; // Guaranteed to be latest due to sorting
+                                                const latestDoc = versions[0]; 
                                                 const versionCount = versions.length;
 
                                                 return (
@@ -169,7 +226,7 @@ export default function DocumentsTab({ projectId }) {
                                                         <TableCell>{getIcon(latestDoc.fileType)}</TableCell>
                                                         <TableCell>
                                                             <Typography variant="body2" fontWeight="bold">{latestDoc.name}</Typography>
-                                                            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: 350, display: 'block', fontSize: '10px' }}>
+                                                            <Typography variant="caption" color="text.secondary" noWrap sx={{ maxWidth: { xs: 200, sm: 350 }, display: 'block', fontSize: '10px' }}>
                                                                 {latestDoc.filePath}
                                                             </Typography>
                                                         </TableCell>
@@ -182,17 +239,22 @@ export default function DocumentsTab({ projectId }) {
                                                                 sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', fontWeight: 'bold' }}
                                                             />
                                                         </TableCell>
-                                                        <TableCell sx={{ fontSize: '12px', color: 'text.secondary' }}>
+                                                        <TableCell sx={{ fontSize: '12px', color: 'text.secondary', whiteSpace: 'nowrap' }}>
                                                             {new Date(latestDoc.addedAt).toLocaleDateString()}
                                                         </TableCell>
-                                                        <TableCell align="right">
+                                                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                                                             {/* OPEN LATEST */}
-                                                            <IconButton size="small" color="primary" onClick={() => handleOpenFile(latestDoc.filePath)} title="Open Latest Version">
+                                                            <IconButton size="small" color="primary" onClick={() => handleOpenFile(latestDoc.filePath)} title="Open Native Viewer">
                                                                 <LaunchIcon fontSize="small" />
                                                             </IconButton>
 
+                                                            {/* 🔥 NEW: DOWNLOAD / SAVE AS */}
+                                                            <IconButton size="small" color="success" onClick={() => handleDownloadFile(latestDoc.filePath, `${latestDoc.name}.${latestDoc.fileType}`)} title="Save As / Download">
+                                                                <DownloadIcon fontSize="small" />
+                                                            </IconButton>
+
                                                             {/* ADD REVISION */}
-                                                            <IconButton size="small" color="info" onClick={() => handleLinkFile(latestDoc.name, latestDoc.category)} title="Upload New Revision">
+                                                            <IconButton size="small" color="info" onClick={() => triggerFileSelect(latestDoc.name, latestDoc.category)} title="Upload New Revision">
                                                                 <UploadFileIcon fontSize="small" />
                                                             </IconButton>
 
@@ -203,10 +265,9 @@ export default function DocumentsTab({ projectId }) {
 
                                                             {/* DELETE ALL */}
                                                             <IconButton size="small" color="error" onClick={() => {
-                                                                // Delete all versions iteratively
                                                                 if (window.confirm("Delete this ENTIRE document group and all its versions?")) {
                                                                     versions.forEach(v => window.api.db.deleteProjectDocument(v.id));
-                                                                    setTimeout(loadDocs, 500); // Hacky delay to wait for loop to finish
+                                                                    setTimeout(loadDocs, 500); 
                                                                 }
                                                             }} title="Delete Document Group">
                                                                 <DeleteIcon fontSize="small" />
@@ -224,46 +285,51 @@ export default function DocumentsTab({ projectId }) {
                 )}
             </Box>
 
-            {/* 🔥 VERSION HISTORY MODAL 🔥 */}
+            {/* VERSION HISTORY MODAL */}
             <Dialog open={historyOpen} onClose={() => setHistoryOpen(false)} maxWidth="md" fullWidth PaperProps={{ sx: { bgcolor: '#0d1f3c', border: '1px solid', borderColor: 'divider' } }}>
-                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", borderBottom: '1px solid rgba(255,255,255,0.1)' }}>
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", borderBottom: '1px solid rgba(255,255,255,0.1)', fontSize: { xs: '14px', sm: '18px' } }}>
                     VERSION_HISTORY: <span style={{ color: '#3b82f6' }}>{selectedDocGroup[0]?.name}</span>
                 </DialogTitle>
                 <DialogContent sx={{ p: 0 }}>
-                    <Table size="small">
-                        <TableHead>
-                            <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>VER</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>PATH / FILE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>DATE</TableCell>
-                                <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>ACTIONS</TableCell>
-                            </TableRow>
-                        </TableHead>
-                        <TableBody>
-                            {selectedDocGroup.map((doc, index) => {
-                                // Math to figure out version number (Latest is length, oldest is 1)
-                                const vNum = selectedDocGroup.length - index;
-                                const isLatest = index === 0;
+                    <TableContainer sx={{ overflowX: 'auto' }}>
+                        <Table size="small" sx={{ minWidth: 500 }}>
+                            <TableHead>
+                                <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>VER</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>PATH / FILE</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>DATE</TableCell>
+                                    <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'text.secondary' }}>ACTIONS</TableCell>
+                                </TableRow>
+                            </TableHead>
+                            <TableBody>
+                                {selectedDocGroup.map((doc, index) => {
+                                    const vNum = selectedDocGroup.length - index;
+                                    const isLatest = index === 0;
 
-                                return (
-                                    <TableRow key={doc.id} sx={{ bgcolor: isLatest ? 'rgba(16, 185, 129, 0.05)' : 'transparent' }}>
-                                        <TableCell>
-                                            <Chip label={`v${vNum}.0`} size="small" color={isLatest ? "success" : "default"} variant={isLatest ? "filled" : "outlined"} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
-                                        </TableCell>
-                                        <TableCell>
-                                            <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{doc.filePath}</Typography>
-                                            {isLatest && <Typography variant="caption" color="success.main" sx={{ ml: 2, fontWeight: 'bold' }}>(CURRENT_ACTIVE)</Typography>}
-                                        </TableCell>
-                                        <TableCell sx={{ fontSize: '12px' }}>{new Date(doc.addedAt).toLocaleString()}</TableCell>
-                                        <TableCell align="right">
-                                            <IconButton size="small" color="primary" onClick={() => handleOpenFile(doc.filePath)}><LaunchIcon fontSize="small" /></IconButton>
-                                            <IconButton size="small" color="error" onClick={() => handleDeleteDoc(doc.id, false)}><DeleteIcon fontSize="small" /></IconButton>
-                                        </TableCell>
-                                    </TableRow>
-                                );
-                            })}
-                        </TableBody>
-                    </Table>
+                                    return (
+                                        <TableRow key={doc.id} sx={{ bgcolor: isLatest ? 'rgba(16, 185, 129, 0.05)' : 'transparent' }}>
+                                            <TableCell>
+                                                <Chip label={`v${vNum}.0`} size="small" color={isLatest ? "success" : "default"} variant={isLatest ? "filled" : "outlined"} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
+                                            </TableCell>
+                                            <TableCell>
+                                                <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{doc.filePath}</Typography>
+                                                {isLatest && <Typography variant="caption" color="success.main" sx={{ ml: 2, fontWeight: 'bold', display: { xs: 'none', sm: 'inline' } }}>(CURRENT)</Typography>}
+                                            </TableCell>
+                                            <TableCell sx={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{new Date(doc.addedAt).toLocaleString()}</TableCell>
+                                            <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                                                <IconButton size="small" color="primary" onClick={() => handleOpenFile(doc.filePath)} title="Open Viewer"><LaunchIcon fontSize="small" /></IconButton>
+                                                
+                                                {/* 🔥 NEW: DOWNLOAD OLD VERSIONS TOO */}
+                                                <IconButton size="small" color="success" onClick={() => handleDownloadFile(doc.filePath, `${doc.name}_v${vNum}.${doc.fileType}`)} title="Download this version"><DownloadIcon fontSize="small" /></IconButton>
+                                                
+                                                <IconButton size="small" color="error" onClick={() => handleDeleteDoc(doc.id, false)} title="Delete Version"><DeleteIcon fontSize="small" /></IconButton>
+                                            </TableCell>
+                                        </TableRow>
+                                    );
+                                })}
+                            </TableBody>
+                        </Table>
+                    </TableContainer>
                 </DialogContent>
             </Dialog>
 

@@ -206,20 +206,20 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
-            {/* ACTION BAR */}
-            <Box display="flex" justifyContent="flex-end" gap={2}>
-                <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportTemplate} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+            {/* 🔥 FIXED: Responsive Action Bar */}
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" gap={2}>
+                <Button fullWidth={{ xs: true, sm: false }} variant="outlined" startIcon={<DownloadIcon />} onClick={exportTemplate} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                     EXPORT MATRIX TEMPLATE
                 </Button>
                 <input type="file" accept=".xls,.xlsx" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} />
-                <Button variant="contained" disableElevation startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                <Button fullWidth={{ xs: true, sm: false }} variant="contained" disableElevation startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                     IMPORT MATRIX
                 </Button>
             </Box>
 
-            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box display="flex" gap={2} mb={3}>
-                    {/* CRM SEARCHABLE AUTOCOMPLETE */}
+            <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                {/* 🔥 FIXED: Responsive Input Row */}
+                <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={2} mb={3}>
                     <Autocomplete
                         freeSolo
                         openOnFocus
@@ -227,7 +227,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                         options={subOptions}
                         value={newSubName}
                         onInputChange={(e, newVal) => setNewSubName(newVal || "")}
-                        sx={{ minWidth: 300 }}
+                        sx={{ width: '100%', minWidth: { sm: 300 } }}
                         renderInput={(params) => (
                             <TextField
                                 {...params}
@@ -238,21 +238,27 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                             />
                         )}
                     />
-                    <Button variant="contained" disableElevation onClick={addSubcontractor} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
+                    <Button 
+                        fullWidth={{ xs: true, sm: false }} 
+                        variant="contained" 
+                        disableElevation 
+                        onClick={addSubcontractor} 
+                        sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', flexShrink: 0, height: 40 }}
+                    >
                         + ADD BIDDER
                     </Button>
                 </Box>
 
-                {/* HORIZONTAL SCROLLING CONTAINER */}
-                <TableContainer sx={{ overflowX: 'auto' }}>
-                    <Table size="small" sx={{ minWidth: 'max-content' }}>
+                {/* 🔥 FIXED: Horizontal Scrolling Container */}
+                <TableContainer sx={{ overflowX: 'auto', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                    <Table size="small" sx={{ minWidth: 800 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
-                                <TableCell rowSpan={2} sx={{ minWidth: 250, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESCRIPTION</TableCell>
-                                <TableCell rowSpan={2} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY</TableCell>
-                                <TableCell colSpan={2} align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRight: '2px solid rgba(255,255,255,0.1)' }}>ESTIMATED (IN-HOUSE)</TableCell>
+                                <TableCell rowSpan={2} sx={{ minWidth: 250, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DESCRIPTION</TableCell>
+                                <TableCell rowSpan={2} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>QTY</TableCell>
+                                <TableCell colSpan={2} align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRight: '2px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>ESTIMATED (IN-HOUSE)</TableCell>
                                 {(project.subcontractors || []).map(sub => (
-                                    <TableCell key={sub.id} colSpan={2} align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'secondary.main', borderRight: '2px solid rgba(255,255,255,0.1)' }}>
+                                    <TableCell key={sub.id} colSpan={2} align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'secondary.main', borderRight: '2px solid rgba(255,255,255,0.1)', whiteSpace: 'nowrap' }}>
                                         <Box display="flex" alignItems="center" justifyContent="center" gap={1}>
                                             {sub.name.toUpperCase()}
                                             <IconButton size="small" onClick={() => openEditSubDialog(sub)} sx={{ color: 'text.secondary', p: 0.5 }}>
@@ -278,7 +284,7 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                         </TableHead>
                         <TableBody>
                             {renderedProjectBoq.map(item => {
-                                // 🔥 Calculate Base Safe Values once per row
+                                // Calculate Base Safe Values once per row
                                 const safeQty = Number(item.computedQty || 0);
                                 const safeRate = Number(item.rate || 0);
                                 const safeAmount = Number(item.amount || 0);
@@ -288,23 +294,23 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                                         <TableCell sx={{ minWidth: 250, maxWidth: 400, whiteSpace: 'normal', wordWrap: 'break-word', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
                                             {item.displayDesc}
                                         </TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{safeQty.toFixed(2)} {item.displayUnit}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', whiteSpace: 'nowrap' }}>{safeQty.toFixed(2)} {item.displayUnit}</TableCell>
 
-                                        {/* 🔥 PROTECTED IN-HOUSE RATE/AMOUNT WITH FORMATTER */}
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(safeRate)}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>{formatCurrency(safeAmount)}</TableCell>
+                                        {/* PROTECTED IN-HOUSE RATE/AMOUNT WITH FORMATTER */}
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', whiteSpace: 'nowrap' }}>{formatCurrency(safeRate)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>{formatCurrency(safeAmount)}</TableCell>
 
                                         {(project.subcontractors || []).map(sub => {
-                                            // 🔥 PROTECTED SUBCONTRACTOR RATE/AMOUNT WITH FORMATTER
+                                            // PROTECTED SUBCONTRACTOR RATE/AMOUNT WITH FORMATTER
                                             const subRate = Number(sub.rates[item.id] || 0);
                                             const subAmount = subRate * safeQty;
 
                                             return (
                                                 <React.Fragment key={`${sub.id}-${item.id}`}>
-                                                    <TableCell>
+                                                    <TableCell sx={{ minWidth: '80px' }}>
                                                         <input type="number" value={sub.rates[item.id] || ""} onChange={(e) => handleSubRateChange(sub.id, item.id, e.target.value)} style={tableInputActiveStyle} />
                                                     </TableCell>
-                                                    <TableCell sx={{ fontWeight: 'bold', color: subAmount > safeAmount ? 'error.main' : 'success.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)' }}>
+                                                    <TableCell sx={{ fontWeight: 'bold', color: subAmount > safeAmount ? 'error.main' : 'success.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', borderRight: '2px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap' }}>
                                                         {formatCurrency(subAmount)}
                                                     </TableCell>
                                                 </React.Fragment>
@@ -325,8 +331,14 @@ export default function SubcontractorBidTab({ project, renderedProjectBoq, updat
                 </TableContainer>
             </Paper>
 
-            {/* EDIT SUBCONTRACTOR DIALOG */}
-            <Dialog open={!!editingSubId} onClose={() => setEditingSubId(null)} maxWidth="xs" fullWidth>
+            {/* 🔥 FIXED: EDIT SUBCONTRACTOR DIALOG WITH ARIA FIX */}
+            <Dialog 
+                open={!!editingSubId} 
+                onClose={() => setEditingSubId(null)} 
+                maxWidth="xs" 
+                fullWidth
+                disableRestoreFocus 
+            >
                 <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>EDIT_BIDDER_NAME</DialogTitle>
                 <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                     <TextField

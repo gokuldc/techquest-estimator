@@ -203,7 +203,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
         return { minDate: min, maxDate: max, totalDays: span };
     }, [tasks]);
 
-    // ZOOM LOGIC
     const baseDayWidth = 30;
     const ganttColumnWidth = totalDays > 0 ? Math.max(400, totalDays * baseDayWidth * zoomLevel) : 400;
     const pixelsPerDay = totalDays > 0 ? ganttColumnWidth / totalDays : 0;
@@ -357,54 +356,61 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
     return (
         <Box display="flex" flexDirection="column" gap={4}>
 
-            {/* --- 1. TASK CREATION FORM --- */}
-            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+            {/* --- 1. RESPONSIVE TASK CREATION FORM --- */}
+            <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
                     ADD_SCHEDULE_ITEM
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                    <TextField select size="small" label="TYPE" value={taskType} onChange={e => setTaskType(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                        <MenuItem value="Task" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Task</MenuItem>
-                        <MenuItem value="Milestone" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Milestone</MenuItem>
-                    </TextField>
-                    <TextField size="small" label="NAME" value={taskName} onChange={e => setTaskName(e.target.value)} sx={{ flex: 2, minWidth: 200 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                    <Autocomplete freeSolo options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} sx={{ flex: 1, minWidth: 150 }} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
-                    <TextField type="date" size="small" label="START" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                    <TextField type="date" size="small" label="END" value={taskType === "Milestone" ? startDate : endDate} onChange={e => setEndDate(e.target.value)} disabled={taskType === "Milestone"} inputProps={{ min: startDate }} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-
-                    <Box display="flex" gap={1} flex={1} minWidth={300}>
-                        <TextField select size="small" label="PREDECESSOR" value={predecessorId} onChange={e => setPredecessorId(e.target.value)} sx={{ flex: 2 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                            <MenuItem value="">-- NONE --</MenuItem>
-                            {tasks.map(t => <MenuItem key={t.id} value={t.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{t.name}</MenuItem>)}
+                <Box display="flex" flexDirection="column" gap={2}>
+                    <Box display="flex" gap={2} flexDirection={{ xs: 'column', md: 'row' }}>
+                        <TextField select fullWidth size="small" label="TYPE" value={taskType} onChange={e => setTaskType(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                            <MenuItem value="Task" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Task</MenuItem>
+                            <MenuItem value="Milestone" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Milestone</MenuItem>
                         </TextField>
-                        <TextField select size="small" label="TYPE" value={dependencyType} onChange={e => setDependencyType(e.target.value)} disabled={!predecessorId} sx={{ flex: 1.5 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                            {dependencyOptions.map(opt => <MenuItem key={opt.value} value={opt.value} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{opt.value}</MenuItem>)}
-                        </TextField>
-                        <TextField type="number" size="small" label="LAG (Days)" value={dependencyLag} onChange={e => setDependencyLag(e.target.value)} disabled={!predecessorId} sx={{ width: 80 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField fullWidth size="small" label="NAME" value={taskName} onChange={e => setTaskName(e.target.value)} sx={{ flex: 2 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <Autocomplete fullWidth freeSolo options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
                     </Box>
-
-                    <Button variant="contained" color="primary" onClick={addTask} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD</Button>
+                    
+                    <Box display="flex" gap={2} flexDirection={{ xs: 'column', lg: 'row' }} alignItems={{ xs: 'stretch', lg: 'flex-start' }}>
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} flex={1}>
+                            <TextField type="date" fullWidth size="small" label="START" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                            <TextField type="date" fullWidth size="small" label="END" value={taskType === "Milestone" ? startDate : endDate} onChange={e => setEndDate(e.target.value)} disabled={taskType === "Milestone"} inputProps={{ min: startDate }} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Box>
+                        
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} flex={2}>
+                            <TextField select fullWidth size="small" label="PREDECESSOR" value={predecessorId} onChange={e => setPredecessorId(e.target.value)} sx={{ flex: 2 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                                <MenuItem value="">-- NONE --</MenuItem>
+                                {tasks.map(t => <MenuItem key={t.id} value={t.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'normal' }}>{t.name}</MenuItem>)}
+                            </TextField>
+                            <TextField select fullWidth size="small" label="TYPE" value={dependencyType} onChange={e => setDependencyType(e.target.value)} disabled={!predecessorId} sx={{ flex: 1.5 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                                {dependencyOptions.map(opt => <MenuItem key={opt.value} value={opt.value} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{opt.value}</MenuItem>)}
+                            </TextField>
+                            <TextField type="number" fullWidth size="small" label="LAG (Days)" value={dependencyLag} onChange={e => setDependencyLag(e.target.value)} disabled={!predecessorId} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        </Box>
+                        
+                        <Button variant="contained" color="primary" onClick={addTask} startIcon={<AddIcon />} sx={{ height: 40, flexShrink: 0, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', width: { xs: '100%', lg: 'auto' } }}>ADD</Button>
+                    </Box>
                 </Box>
             </Paper>
 
             {/* --- 2. THE WBS DATA TABLE --- */}
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Paper elevation={0} sx={{ p: { xs: 1, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} px={{ xs: 1, sm: 0 }}>
                     <Typography variant="subtitle2" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: 1 }}>
                         <AccountTreeIcon color="primary" fontSize="small" /> WORK BREAKDOWN STRUCTURE (WBS)
                     </Typography>
                 </Box>
 
-                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                    <Table size="small">
+                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 900 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
                                 <TableCell sx={{ width: 40 }}></TableCell>
-                                <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TASK NAME</TableCell>
-                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>START</TableCell>
-                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>END</TableCell>
-                                <TableCell sx={{ width: '20%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DEPENDENCY</TableCell>
-                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>STATUS</TableCell>
+                                <TableCell sx={{ width: '30%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>TASK NAME</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>START</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>END</TableCell>
+                                <TableCell sx={{ width: '20%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DEPENDENCY</TableCell>
+                                <TableCell sx={{ width: '15%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>STATUS</TableCell>
                                 <TableCell align="center" sx={{ width: '5%', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}></TableCell>
                             </TableRow>
                         </TableHead>
@@ -428,15 +434,15 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                                                     <TableCell sx={{ cursor: 'grab', py: 0 }}><DragIndicatorIcon color="action" fontSize="small" sx={{ verticalAlign: 'middle' }} /></TableCell>
                                                     <TableCell>
                                                         <Box display="flex" alignItems="center">
-                                                            <input type="text" value={task.name} onChange={e => updateTaskInline(task.id, "name", e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold', width: '100%', outline: 'none' }} />
+                                                            <input type="text" value={task.name} onChange={e => updateTaskInline(task.id, "name", e.target.value)} style={{ background: 'transparent', color: 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold', width: '100%', minWidth: '150px', outline: 'none' }} />
                                                             {isMilestone && <Typography component="span" color="warning.main" ml={0.5}>◆</Typography>}
                                                         </Box>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <input type="date" value={task.startDate || task.actualStart} onChange={e => updateTaskInline(task.id, "startDate", e.target.value)} disabled={isStartLocked} style={{ background: 'transparent', color: isStartLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none' }} />
+                                                        <input type="date" value={task.startDate || task.actualStart} onChange={e => updateTaskInline(task.id, "startDate", e.target.value)} disabled={isStartLocked} style={{ background: 'transparent', color: isStartLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', minWidth: '110px', outline: 'none' }} />
                                                     </TableCell>
                                                     <TableCell>
-                                                        <input type="date" value={task.endDate || task.actualEnd} onChange={e => updateTaskInline(task.id, "endDate", e.target.value)} disabled={isEndLocked} style={{ background: 'transparent', color: isEndLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', outline: 'none' }} />
+                                                        <input type="date" value={task.endDate || task.actualEnd} onChange={e => updateTaskInline(task.id, "endDate", e.target.value)} disabled={isEndLocked} style={{ background: 'transparent', color: isEndLocked ? 'gray' : 'inherit', border: 'none', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', width: '100%', minWidth: '110px', outline: 'none' }} />
                                                     </TableCell>
                                                     <TableCell sx={{ whiteSpace: 'nowrap' }}>
                                                         <select value={task.dependency?.taskId || ""} onChange={e => updateDependency(task.id, e.target.value, task.dependency?.type || "FS", task.dependency?.lag || 0)} style={{ ...nativeSelectStyle, width: '80px', marginRight: '6px' }}>
@@ -451,7 +457,7 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                                                         <Typography variant="caption" color="text.secondary" ml={0.5}>d</Typography>
                                                     </TableCell>
                                                     <TableCell>
-                                                        <select value={task.status || "Not Started"} onChange={e => updateTaskInline(task.id, "status", e.target.value)} style={{ ...nativeSelectStyle, width: '100%' }}>
+                                                        <select value={task.status || "Not Started"} onChange={e => updateTaskInline(task.id, "status", e.target.value)} style={{ ...nativeSelectStyle, width: '100%', minWidth: '100px' }}>
                                                             <option value="Not Started" style={{ color: 'black' }}>Not Started</option>
                                                             <option value="Pending Procurement" style={{ color: 'black' }}>Procurement</option>
                                                             <option value="In Progress" style={{ color: 'black' }}>In Progress</option>
@@ -473,10 +479,10 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 </TableContainer>
             </Paper>
 
-            {/* --- 3. THE GANTT TIMELINE MATRIX --- */}
+            {/* --- 3. THE RESPONSIVE GANTT TIMELINE MATRIX --- */}
             <Paper elevation={0} sx={{ overflow: "hidden", borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box sx={{ p: 2, display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', flexWrap: 'wrap', gap: 2 }}>
-                    <Box display="flex" alignItems="center" gap={3}>
+                <Box sx={{ p: 2, display: 'flex', flexDirection: { xs: 'column', md: 'row' }, justifyContent: 'space-between', alignItems: { xs: 'flex-start', md: 'center' }, borderBottom: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', gap: 2 }}>
+                    <Box display="flex" flexWrap="wrap" alignItems="center" gap={2}>
                         <Typography variant="subtitle1" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', display: 'flex', alignItems: 'center', gap: 1 }}>
                             <TimelineIcon color="primary" fontSize="small" /> VISUAL GANTT MATRIX
                         </Typography>
@@ -485,8 +491,8 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                             <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '40px', textAlign: 'center' }}>{Math.round(zoomLevel * 100)}%</Typography>
                             <IconButton size="small" onClick={() => setZoomLevel(z => Math.min(4, z + 0.2))} color="primary"><ZoomInIcon fontSize="small" /></IconButton>
                         </Box>
-                        <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={exportGanttToExcel} sx={{ ml: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
-                            EXPORT MATRIX
+                        <Button variant="outlined" size="small" startIcon={<DownloadIcon />} onClick={exportGanttToExcel} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>
+                            EXPORT
                         </Button>
                     </Box>
                     <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
@@ -498,12 +504,10 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                     <Table size="small" sx={{ minWidth: 'max-content' }}>
                         <TableHead sx={{ bgcolor: STICKY_BG }}>
                             <TableRow>
-                                {/* STICKY TASK COLUMN */}
-                                <TableCell sx={{ width: 300, minWidth: 300, position: 'sticky', left: 0, zIndex: 20, bgcolor: STICKY_BG, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
+                                {/* 🔥 THE FIX: Responsive Width for the Sticky Column */}
+                                <TableCell sx={{ width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 }, position: 'sticky', left: 0, zIndex: 20, bgcolor: STICKY_BG, fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '10px', md: '11px' }, borderRight: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     TASK / MILESTONE
                                 </TableCell>
-
-                                {/* SCROLLING TIMELINE HEADER */}
                                 <TableCell sx={{ width: ganttColumnWidth, minWidth: ganttColumnWidth, maxWidth: ganttColumnWidth, p: 0, verticalAlign: 'bottom' }}>
                                     {renderTimelineHeader()}
                                 </TableCell>
@@ -514,8 +518,9 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                                 Object.entries(groupedTasks).map(([phaseName, phaseTasks]) => (
                                     <React.Fragment key={`gantt-phase-${phaseName}`}>
                                         <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.1)' }}>
-                                            <TableCell sx={{ py: 1.5, position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)' }}>
-                                                <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', whiteSpace: 'nowrap' }}>
+                                            {/* 🔥 THE FIX: Match Header Responsiveness */}
+                                            <TableCell sx={{ py: 1.5, position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)', width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: { xs: '11px', md: '14px' } }}>
                                                     ❖ PHASE: {phaseName.toUpperCase()}
                                                 </Typography>
                                             </TableCell>
@@ -528,15 +533,13 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
 
                                             return (
                                                 <TableRow key={`matrix-${task.id}`} hover>
-                                                    {/* STICKY TASK NAME */}
-                                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold' }}>
+                                                    {/* 🔥 THE FIX: Match Header Responsiveness */}
+                                                    <TableCell sx={{ position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold', width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 } }}>
                                                         <Box display="flex" alignItems="center" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {task.name}
                                                             {isMilestone && <Typography component="span" color="warning.main" ml={0.5}>◆</Typography>}
                                                         </Box>
                                                     </TableCell>
-
-                                                    {/* SCROLLING TIMELINE BAR */}
                                                     <TableCell sx={{ position: 'relative', borderLeft: '1px dashed rgba(255,255,255,0.1)', p: 1, backgroundImage: totalDays > 0 ? `repeating-linear-gradient(to right, transparent, transparent calc(100% / ${totalDays} - 1px), rgba(255,255,255,0.05) calc(100% / ${totalDays}))` : 'none' }}>
                                                         <Box sx={{ width: '100%', height: '24px', position: 'relative', borderRadius: 1 }}>
                                                             {isMilestone ? (

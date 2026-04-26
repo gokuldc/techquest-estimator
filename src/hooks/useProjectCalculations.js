@@ -11,7 +11,6 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
 
         let expr = str.substring(1).replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
 
-        // 🔥 SHORTHAND FEATURE: Allow formulas like `= no * 2` or `= L + B` within the exact same row!
         if (currentRowPartial) {
             expr = expr.replace(/\b(no)\b/g, currentRowPartial.computedNo || 0);
             expr = expr.replace(/\b(l)\b/g, currentRowPartial.computedL || 0);
@@ -24,7 +23,6 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
             const rowIndex = rowStr ? parseInt(rowStr, 10) - 1 : 0;
             const property = prop || 'qty';
 
-            // 🔥 PARTIAL ROW MEMORY: Allow checking the current row before it finishes computing
             if (slNo === currentItemSlNo && currentRowPartial && rowIndex === currentMeasurements.length) {
                 if (property === 'no') return currentRowPartial.computedNo || 0;
                 if (property === 'l') return currentRowPartial.computedL || 0;
@@ -66,18 +64,29 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
             let masterBoq = null;
 
             if (item.isCustom) {
-                rate = item.rate || 0;
+                rate = Number(item.rate) || 0; 
                 displayCode = item.itemCode || "";
                 displayDesc = item.description || "";
                 displayUnit = item.unit || "";
             } else {
-                masterBoq = masterBoqs.find(m => m.id === item.masterBoqId);
+                masterBoq = masterBoqs.find(m => String(m.id) === String(item.masterBoqId));
                 if (masterBoq) {
-                    if (project?.isPriceLocked && item.lockedRate !== null && item.lockedRate !== undefined) { rate = item.lockedRate; }
-                    else { rate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project?.region); }
+                    if (project?.isPriceLocked && item.lockedRate !== null && item.lockedRate !== undefined) { 
+                        rate = Number(item.lockedRate) || 0; 
+                    } else { 
+                        // 🔥 THE FIX: Calculate live rate, but fallback to the database rate if it fails!
+                        const calculatedRate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project?.region);
+                        rate = Number(calculatedRate) || Number(item.rate) || 0; 
+                    }
                     displayCode = masterBoq.itemCode || "";
                     displayDesc = masterBoq.description || "";
                     displayUnit = masterBoq.unit || "";
+                } else {
+                    // Fallback if Master BOQ was deleted but item still exists in Project BOQ
+                    rate = Number(item.rate) || 0;
+                    displayCode = item.itemCode || "N/A";
+                    displayDesc = item.description || "Master Item Missing";
+                    displayUnit = item.unit || "-";
                 }
             }
 
@@ -90,21 +99,16 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                 const u = (displayUnit || "").toLowerCase();
                 for (let i = 0; i < item.measurements.length; i++) {
                     const m = item.measurements[i];
-
-                    // 🔥 Initialize partial tracking for sequential calculation within THIS row
                     let partial = { computedNo: 1, computedL: 1, computedB: 1, computedD: 1 };
 
                     const cNo = (m.no === "" || m.no === undefined) ? 1 : computeQty(m.no, computedItems, item.slNo, computedMeasurements, partial);
-                    partial.computedNo = cNo; // Save to partial memory immediately
-
+                    partial.computedNo = cNo; 
                     const cL = (m.l === "" || m.l === undefined) ? 1 : computeQty(m.l, computedItems, item.slNo, computedMeasurements, partial);
-                    partial.computedL = cL; // Save to partial memory immediately
-
+                    partial.computedL = cL; 
                     const cB = (m.b === "" || m.b === undefined) ? 1 : computeQty(m.b, computedItems, item.slNo, computedMeasurements, partial);
-                    partial.computedB = cB; // Save to partial memory immediately
-
+                    partial.computedB = cB; 
                     const cD = (m.d === "" || m.d === undefined) ? 1 : computeQty(m.d, computedItems, item.slNo, computedMeasurements, partial);
-                    partial.computedD = cD; // Save to partial memory immediately
+                    partial.computedD = cD; 
 
                     let rowQty = 0;
                     if (u.includes("cum") || u === "m3" || u === "m³") rowQty = cNo * cL * cB * cD;
@@ -121,10 +125,12 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                 computedQty = computeQty(item.formulaStr !== undefined ? item.formulaStr : item.qty, computedItems, item.slNo, []);
             }
 
-            amount = computedQty * rate;
+            amount = (Number(computedQty) || 0) * rate;
             total += amount;
+            
             computedItems.push({ ...item, computedQty, computedMeasurements, rate, amount, displayCode, displayDesc, displayUnit, masterBoq, hasMBook });
         }
+        
         return { renderedProjectBoq: computedItems, totalAmount: total };
     }, [projectBoqItems, masterBoqs, resources, project?.region, project?.isPriceLocked]);
 
@@ -132,14 +138,17 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
         const map = {};
         renderedProjectBoq.forEach(item => {
             if (item.isCustom) return;
-            const master = masterBoqs.find(m => m.id === item.masterBoqId);
+            const master = masterBoqs.find(m => String(m.id) === String(item.masterBoqId));
             if (!master || !master.components) return;
             master.components.forEach(comp => {
                 if (comp.itemType === 'resource') {
-                    const res = resources.find(r => r.id === comp.itemId);
+                    const res = resources.find(r => String(r.id) === String(comp.itemId));
                     if (!res) return;
                     if (!map[res.id]) map[res.id] = { code: res.code, description: res.description, unit: res.unit, estimatedQty: 0 };
-                    map[res.id].estimatedQty += (Number(comp.qty) * (item.computedQty || 0));
+                    
+                    // Defensively calculate resource requirements
+                    const compQty = Number(comp.qty) || 0;
+                    map[res.id].estimatedQty += (compQty * (item.computedQty || 0));
                 }
             });
         });

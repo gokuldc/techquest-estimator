@@ -36,8 +36,12 @@ contextBridge.exposeInMainWorld('api', {
         // --- CHAT MESSAGES ---
         getMessages: (projectId) => ipcRenderer.invoke('db:get-messages', projectId),
         saveMessage: (data) => ipcRenderer.invoke('db:save-message', data),
+        deleteMessage: (id) => ipcRenderer.invoke('db:delete-message', id), // 🔥 ADDED
+        
         getPrivateMessages: (user1, user2) => ipcRenderer.invoke('db:get-private-messages', user1, user2),
         savePrivateMessage: (data) => ipcRenderer.invoke('db:save-private-message', data),
+        deletePrivateMessage: (id) => ipcRenderer.invoke('db:delete-private-message', id), // 🔥 ADDED
+        
         checkNotifications: (userId, lastChecked) => ipcRenderer.invoke('db:check-notifications', userId, lastChecked),
 
         // --- PROJECT BOQ & MEASUREMENTS ---
@@ -90,7 +94,13 @@ contextBridge.exposeInMainWorld('api', {
     os: {
         pickFile: () => ipcRenderer.invoke('os:pick-file'),
         openFile: (filePath) => ipcRenderer.invoke('os:open-file', filePath),
-        getBase64: (filePath) => ipcRenderer.invoke('os:get-base64', filePath)
+        getBase64: (filePath) => ipcRenderer.invoke('os:get-base64', filePath),
+
+        //  DIRECTORY HANDLERS
+        pickDirectory: () => ipcRenderer.invoke('os:pick-directory'),
+        scaffoldProject: (data) => ipcRenderer.invoke('os:scaffold-project', data),
+        renameProjectFolder: (data) => ipcRenderer.invoke('os:rename-project-folder', data),
+        uploadFileWeb: (fileName, base64Data, projectId) => ipcRenderer.invoke('os:upload-file-web', fileName, base64Data, projectId)
     },
 
     server: {

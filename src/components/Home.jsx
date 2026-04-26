@@ -338,7 +338,7 @@ export default function Home({ onOpenProject, onOpenDb, onOpenDirectory, onOpenW
                             startIcon={<RouterIcon sx={{ fontSize: 16 }} />}
                             sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 3, height: '36px' }}
                         >
-                            HOST_NETWORK
+                            NETWORK_MANAGER
                         </Button>
                     )}
                     {hasClearance(2) && (

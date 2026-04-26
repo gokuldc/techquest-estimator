@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Box, Typography, Paper, Button, Table, TableBody, TableCell,
     TableContainer, TableHead, TableRow, IconButton, TextField, MenuItem, Chip,
-    Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText
+    Dialog, DialogTitle, DialogContent, DialogActions, List, ListItem, ListItemText, Grid
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -10,7 +10,7 @@ import ViewColumnIcon from '@mui/icons-material/ViewColumn';
 import ArrowUpwardIcon from '@mui/icons-material/ArrowUpward';
 import ArrowDownwardIcon from '@mui/icons-material/ArrowDownward';
 import SortIcon from '@mui/icons-material/Sort';
-import DownloadIcon from '@mui/icons-material/Download'; // 🔥 Export Icon
+import DownloadIcon from '@mui/icons-material/Download';
 
 import { useAuth } from '../context/AuthContext';
 
@@ -33,20 +33,17 @@ export default function StaffWorkLog({ onBack }) {
     const [staff, setStaff] = useState([]);
     const [projects, setProjects] = useState([]);
 
-    // --- NEW: MONTH FILTER STATE ---
     const [filterMonth, setFilterMonth] = useState(() => {
         const d = new Date();
         const y = d.getFullYear();
         const m = String(d.getMonth() + 1).padStart(2, '0');
-        return `${y}-${m}`; // Defaults to Current Month (e.g., "2024-05")
+        return `${y}-${m}`; 
     });
 
-    // --- TABLE CONFIG STATE ---
     const [sortConfig, setSortConfig] = useState({ key: 'date', direction: 'desc' });
     const [columnOrder, setColumnOrder] = useState(ALL_COLUMNS);
     const [colSettingsOpen, setColSettingsOpen] = useState(false);
 
-    // --- NEW LOG FORM STATE ---
     const [formData, setFormData] = useState({
         date: new Date().toISOString().split('T')[0],
         staffId: currentUser?.id || "",
@@ -58,7 +55,6 @@ export default function StaffWorkLog({ onBack }) {
 
     const loadData = async () => {
         try {
-            // Fetch individually to prevent Promise.all from failing if one table is empty
             const logData = await window.api.db.getWorkLogs();
             const staffData = await window.api.db.getOrgStaff();
             const projData = await window.api.db.getProjects();
@@ -73,20 +69,17 @@ export default function StaffWorkLog({ onBack }) {
 
     useEffect(() => { loadData(); }, []);
 
-    // --- FILTER & SORTING LOGIC ---
     const handleSort = (key) => {
         let direction = 'asc';
         if (sortConfig.key === key && sortConfig.direction === 'asc') direction = 'desc';
         setSortConfig({ key, direction });
     };
 
-    // 1. Filter by Selected Month
     const currentMonthLogs = useMemo(() => {
         if (!filterMonth) return logs;
         return logs.filter(log => log.date && log.date.startsWith(filterMonth));
     }, [logs, filterMonth]);
 
-    // 2. Sort the filtered logs
     const sortedLogs = useMemo(() => {
         let sortable = [...currentMonthLogs];
         if (sortConfig.key) {
@@ -94,7 +87,6 @@ export default function StaffWorkLog({ onBack }) {
                 let aVal = a[sortConfig.key] || "";
                 let bVal = b[sortConfig.key] || "";
 
-                // Map IDs to Names for sorting alphabetically instead of by raw ID
                 if (sortConfig.key === 'staffId') {
                     aVal = staff.find(s => s.id === a.staffId)?.name || "";
                     bVal = staff.find(s => s.id === b.staffId)?.name || "";
@@ -112,13 +104,11 @@ export default function StaffWorkLog({ onBack }) {
         return sortable;
     }, [currentMonthLogs, sortConfig, staff, projects]);
 
-    // --- EXPORT TO EXCEL ---
     const handleExportExcel = async () => {
         if (sortedLogs.length === 0) return alert("No logs found for the selected month to export.");
         try {
             const XLSX = await import('xlsx');
 
-            // Map the data exactly how we want the columns to appear in Excel
             const exportData = sortedLogs.map(log => ({
                 "Sl No": log.slNo,
                 "Date": log.date,
@@ -133,7 +123,6 @@ export default function StaffWorkLog({ onBack }) {
             const workbook = XLSX.utils.book_new();
             XLSX.utils.book_append_sheet(workbook, worksheet, `Logs_${filterMonth}`);
 
-            // Generate the file directly (works natively in Chromium/Electron)
             XLSX.writeFile(workbook, `Staff_Work_Logs_${filterMonth}.xlsx`);
         } catch (err) {
             console.error("Export Error: ", err);
@@ -141,7 +130,6 @@ export default function StaffWorkLog({ onBack }) {
         }
     };
 
-    // --- COLUMN REARRANGEMENT LOGIC ---
     const moveColumn = (index, direction) => {
         const newOrder = [...columnOrder];
         if (direction === 'up' && index > 0) {
@@ -152,7 +140,6 @@ export default function StaffWorkLog({ onBack }) {
         setColumnOrder(newOrder);
     };
 
-    // --- DATA MUTATION ---
     const handleSaveLog = async () => {
         if (!formData.details && !formData.status.includes('Leave')) {
             return alert("Work details are required unless logging a Leave.");
@@ -168,7 +155,6 @@ export default function StaffWorkLog({ onBack }) {
 
         await window.api.db.saveWorkLog(newLog);
 
-        // Reset form but keep date and staff intact for quick sequential logging
         setFormData(prev => ({ ...prev, details: "", remarks: "", projectId: "", status: "Office / Site" }));
         loadData();
     };
@@ -180,40 +166,39 @@ export default function StaffWorkLog({ onBack }) {
         }
     };
 
-    // Render cells dynamically based on the current column order
     const renderCell = (log, colId) => {
         switch (colId) {
             case 'slNo': return log.slNo;
             case 'date': return log.date;
-            case 'staffId': return <Typography fontWeight="bold" fontSize="13px">{staff.find(s => s.id === log.staffId)?.name || 'Unknown'}</Typography>;
-            case 'projectId': return log.projectId ? (projects.find(p => p.id === log.projectId)?.name || 'Unknown') : <Typography color="text.secondary" fontStyle="italic">N/A</Typography>;
-            case 'details': return log.details || '-';
-            case 'remarks': return log.remarks || '-';
+            case 'staffId': return <Typography fontWeight="bold" fontSize="13px" sx={{ whiteSpace: 'nowrap' }}>{staff.find(s => s.id === log.staffId)?.name || 'Unknown'}</Typography>;
+            case 'projectId': return log.projectId ? <Typography sx={{ whiteSpace: 'nowrap', fontSize: '12px' }}>{projects.find(p => p.id === log.projectId)?.name || 'Unknown'}</Typography> : <Typography color="text.secondary" fontStyle="italic" sx={{ fontSize: '12px' }}>N/A</Typography>;
+            case 'details': return <Typography sx={{ minWidth: 200, fontSize: '12px' }}>{log.details || '-'}</Typography>;
+            case 'remarks': return <Typography sx={{ minWidth: 150, fontSize: '12px' }}>{log.remarks || '-'}</Typography>;
             case 'status':
                 let color = "default";
                 if (log.status.includes("Leave")) color = "error";
                 if (log.status.includes("Home")) color = "secondary";
                 if (log.status.includes("Office")) color = "success";
-                return <Chip label={log.status} color={color} size="small" sx={{ fontSize: '10px', fontFamily: "'JetBrains Mono', monospace" }} />;
+                return <Chip label={log.status} color={color} size="small" sx={{ fontSize: '10px', fontFamily: "'JetBrains Mono', monospace", whiteSpace: 'nowrap' }} />;
             default: return null;
         }
     };
 
     return (
-        <Box sx={{ maxWidth: 1400, mx: "auto", p: 3 }}>
-            {/* HEADER */}
-            <Box display="flex" justifyContent="space-between" alignItems="center" mb={3} flexWrap="wrap" gap={2}>
-                <Box display="flex" alignItems="center" gap={2}>
+        <Box sx={{ maxWidth: 1400, mx: "auto", p: { xs: 1, sm: 2, md: 3 } }}>
+            {/* 🔥 MOBILE RESPONSIVE HEADER */}
+            <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} mb={3} gap={2}>
+                <Box display="flex" alignItems="center" gap={2} flexWrap="wrap" justifyContent={{ xs: 'center', md: 'flex-start' }}>
                     <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" color="inherit" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                         {'< '}HOME
                     </Button>
-                    <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
+                    <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '1.2rem', sm: '1.5rem' } }}>
                         ORGANIZATION_WORK_LOG
                     </Typography>
                 </Box>
 
-                {/* 🔥 NEW CONTROLS (Month Picker, Export, Columns) */}
-                <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap">
+                {/* CONTROLS (Month Picker, Export, Columns) */}
+                <Box display="flex" alignItems="center" gap={1.5} flexWrap="wrap" justifyContent={{ xs: 'center', md: 'flex-end' }}>
                     <TextField
                         type="month"
                         size="small"
@@ -222,52 +207,63 @@ export default function StaffWorkLog({ onBack }) {
                         onChange={(e) => setFilterMonth(e.target.value)}
                         InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }}
                         InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', height: 36 } }}
+                        sx={{ width: { xs: '100%', sm: 'auto' } }}
                     />
-                    <Button variant="outlined" color="success" startIcon={<DownloadIcon />} onClick={handleExportExcel} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 36 }}>
+                    <Button fullWidth={{ xs: true, sm: false }} variant="outlined" color="success" startIcon={<DownloadIcon />} onClick={handleExportExcel} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 36, flex: { xs: 1, sm: 'none' } }}>
                         EXPORT
                     </Button>
-                    <Button variant="outlined" color="primary" startIcon={<ViewColumnIcon />} onClick={() => setColSettingsOpen(true)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 36 }}>
+                    <Button fullWidth={{ xs: true, sm: false }} variant="outlined" color="primary" startIcon={<ViewColumnIcon />} onClick={() => setColSettingsOpen(true)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', height: 36, flex: { xs: 1, sm: 'none' } }}>
                         COLUMNS
                     </Button>
                 </Box>
             </Box>
 
-            {/* QUICK ADD FORM */}
-            <Paper sx={{ p: 3, mb: 4, bgcolor: 'rgba(13, 31, 60, 0.5)', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+            {/* 🔥 MOBILE RESPONSIVE QUICK ADD FORM */}
+            <Paper sx={{ p: { xs: 2, md: 3 }, mb: 4, bgcolor: 'rgba(13, 31, 60, 0.5)', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
                 <Typography variant="subtitle2" mb={2} color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>// SUBMIT_DAILY_LOG</Typography>
-                <Box display="flex" gap={2} flexWrap="wrap">
-                    <TextField type="date" size="small" label="DATE" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-
-                    <TextField select size="small" label="BY (STAFF)" value={formData.staffId} onChange={e => setFormData({ ...formData, staffId: e.target.value })} sx={{ minWidth: 150 }} disabled={!hasClearance(4)}>
-                        {staff.map(s => <MenuItem key={s.id} value={s.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{s.name}</MenuItem>)}
-                    </TextField>
-
-                    <TextField select size="small" label="STATUS" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value, projectId: e.target.value.includes('Leave') ? "" : formData.projectId })} sx={{ minWidth: 150 }}>
-                        {STATUS_OPTIONS.map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{s}</MenuItem>)}
-                    </TextField>
-
-                    <TextField select size="small" label="PROJECT" value={formData.projectId} onChange={e => setFormData({ ...formData, projectId: e.target.value })} sx={{ minWidth: 200 }} disabled={formData.status.includes('Leave')}>
-                        <MenuItem value="" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontStyle: 'italic' }}>-- General / N/A --</MenuItem>
-                        {projects.map(p => <MenuItem key={p.id} value={p.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{p.name}</MenuItem>)}
-                    </TextField>
-
-                    <TextField size="small" label="WORK DETAILS / TASKS COMPLETED" value={formData.details} onChange={e => setFormData({ ...formData, details: e.target.value })} sx={{ flexGrow: 1 }} disabled={formData.status.includes('Leave')} />
-                    <TextField size="small" label="REMARKS (Optional)" value={formData.remarks} onChange={e => setFormData({ ...formData, remarks: e.target.value })} sx={{ minWidth: 150 }} />
-
-                    <Button variant="contained" color="success" onClick={handleSaveLog} sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>LOG_ENTRY</Button>
-                </Box>
+                
+                <Grid container spacing={2} alignItems="center">
+                    <Grid item xs={12} sm={4} md={2}>
+                        <TextField fullWidth type="date" size="small" label="DATE" value={formData.date} onChange={e => setFormData({ ...formData, date: e.target.value })} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={2}>
+                        <TextField fullWidth select size="small" label="BY (STAFF)" value={formData.staffId} onChange={e => setFormData({ ...formData, staffId: e.target.value })} disabled={!hasClearance(4)}>
+                            {staff.map(s => <MenuItem key={s.id} value={s.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{s.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={4} md={3}>
+                        <TextField fullWidth select size="small" label="STATUS" value={formData.status} onChange={e => setFormData({ ...formData, status: e.target.value, projectId: e.target.value.includes('Leave') ? "" : formData.projectId })}>
+                            {STATUS_OPTIONS.map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{s}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} sm={12} md={5}>
+                        <TextField fullWidth select size="small" label="PROJECT" value={formData.projectId} onChange={e => setFormData({ ...formData, projectId: e.target.value })} disabled={formData.status.includes('Leave')}>
+                            <MenuItem value="" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontStyle: 'italic' }}>-- General / N/A --</MenuItem>
+                            {projects.map(p => <MenuItem key={p.id} value={p.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{p.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={12} md={5}>
+                        <TextField fullWidth size="small" label="WORK DETAILS / TASKS COMPLETED" value={formData.details} onChange={e => setFormData({ ...formData, details: e.target.value })} disabled={formData.status.includes('Leave')} />
+                    </Grid>
+                    <Grid item xs={12} md={5}>
+                        <TextField fullWidth size="small" label="REMARKS (Optional)" value={formData.remarks} onChange={e => setFormData({ ...formData, remarks: e.target.value })} />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <Button fullWidth variant="contained" color="success" onClick={handleSaveLog} sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', height: 40 }}>LOG_ENTRY</Button>
+                    </Grid>
+                </Grid>
             </Paper>
 
-            {/* DYNAMIC DATA TABLE */}
-            <TableContainer component={Paper} elevation={0} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider', bgcolor: 'transparent' }}>
-                <Table stickyHeader size="small">
+            {/* DYNAMIC DATA TABLE (Horizontal scroll handles overflow) */}
+            <TableContainer component={Paper} elevation={0} sx={{ maxHeight: '60vh', border: '1px solid', borderColor: 'divider', bgcolor: 'transparent', overflowX: 'auto' }}>
+                <Table stickyHeader size="small" sx={{ minWidth: 800 }}>
                     <TableHead>
                         <TableRow>
                             {columnOrder.map((col) => (
                                 <TableCell
                                     key={col.id}
                                     onClick={() => handleSort(col.id)}
-                                    sx={{ bgcolor: 'rgba(0,0,0,0.4)', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', cursor: 'pointer', '&:hover': { color: 'primary.main' } }}
+                                    sx={{ bgcolor: 'rgba(0,0,0,0.8)', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', cursor: 'pointer', '&:hover': { color: 'primary.main' }, whiteSpace: 'nowrap' }}
                                 >
                                     <Box display="flex" alignItems="center" gap={0.5}>
                                         {col.label}
@@ -277,7 +273,7 @@ export default function StaffWorkLog({ onBack }) {
                                     </Box>
                                 </TableCell>
                             ))}
-                            {hasClearance(4) && <TableCell align="right" sx={{ bgcolor: 'rgba(0,0,0,0.4)', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTIONS</TableCell>}
+                            {hasClearance(4) && <TableCell align="right" sx={{ bgcolor: 'rgba(0,0,0,0.8)', color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTIONS</TableCell>}
                         </TableRow>
                     </TableHead>
                     <TableBody>

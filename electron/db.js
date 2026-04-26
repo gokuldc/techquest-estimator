@@ -112,7 +112,6 @@ export function initDatabase() {
     `;
     db.exec(initSql);
 
-
     try {
         db.exec(`
             CREATE TABLE IF NOT EXISTS staff_work_logs (
@@ -132,7 +131,7 @@ export function initDatabase() {
         console.error("❌ Failed to create work logs table:", err);
     }
 
-    // Automated patches
+    // 🔥 AUTOMATED PATCHES MUST RUN BEFORE QUERYING THE DATA 🔥
     try { db.exec("ALTER TABLE projects ADD COLUMN createdAt INTEGER;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN dailySchedules TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN resourceTrackingMode TEXT DEFAULT 'manual';"); } catch (err) { }
@@ -141,11 +140,26 @@ export function initDatabase() {
     try { db.exec("ALTER TABLE projects ADD COLUMN materialRequests TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN grns TEXT;"); } catch (err) { }
     try { db.exec("ALTER TABLE resources ADD COLUMN rateHistory TEXT;"); } catch (e) { }
-    try { db.exec("ALTER TABLE org_staff ADD COLUMN accessLevel INTEGER DEFAULT 1;"); } catch (err) { }
     try { db.exec("ALTER TABLE projects ADD COLUMN assignedStaff TEXT DEFAULT '[]';"); } catch (e) { }
+    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_project ON project_documents(projectId);"); } catch (e) { }
+    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_category ON project_documents(category);"); } catch (e) { }
 
+    // Staff Table Patches (Ensuring old DBs get the login columns)
+    try { db.exec("ALTER TABLE org_staff ADD COLUMN username TEXT;"); } catch (e) { console.log("Patch skip:", e.message); }
+    try { db.exec("ALTER TABLE org_staff ADD COLUMN password TEXT;"); } catch (e) { }
+    try { db.exec("ALTER TABLE org_staff ADD COLUMN role TEXT DEFAULT 'Staff';"); } catch (e) { }
+    try { db.exec("ALTER TABLE org_staff ADD COLUMN accessLevel INTEGER DEFAULT 1;"); } catch (err) { }
+
+    // FOR METADATA & SCAFFOLDING
+    try { db.exec("ALTER TABLE projects ADD COLUMN type TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN location TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN isScaffolded INTEGER DEFAULT 0;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN scaffoldPath TEXT;"); } catch (err) { }
+    try { db.exec("ALTER TABLE projects ADD COLUMN isManuallyLinked INTEGER DEFAULT 0;"); } catch (err) { }
+    //  INJECT THE ADMIN 
     try {
-        const row = db.prepare("SELECT COUNT(*) as count FROM org_staff").get();
+        // We specifically check if 'admin' exists. If not, we make it.
+        const row = db.prepare("SELECT COUNT(*) as count FROM org_staff WHERE username = 'admin'").get();
         if (row && row.count === 0) {
             db.prepare(`
                 INSERT INTO org_staff (id, name, designation, department, status, username, password, role, createdAt, accessLevel)
@@ -169,8 +183,9 @@ export function initDatabase() {
     }
 
     try { db.prepare("UPDATE org_staff SET accessLevel = 5 WHERE role = 'SuperAdmin'").run(); } catch (e) { }
-    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_project ON project_documents(projectId);"); } catch (e) { }
-    try { db.exec("CREATE INDEX IF NOT EXISTS idx_docs_category ON project_documents(category);"); } catch (e) { }
+
+    try { db.exec("ALTER TABLE messages ADD COLUMN replyToId TEXT;"); } catch (e) { }
+    try { db.exec("ALTER TABLE private_messages ADD COLUMN replyToId TEXT;"); } catch (e) { }
 
     return db;
 }

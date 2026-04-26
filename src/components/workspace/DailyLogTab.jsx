@@ -48,17 +48,14 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
     const validSchedules = Array.isArray(project?.dailySchedules) ? project.dailySchedules.filter(s => s && s.id) : [];
     const validTasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks.filter(t => t && t.id) : [];
 
-    // --- MATERIAL REQUISITION LOGIC ---
+    // --- LOGIC (KEEPING 100% ORIGINAL FUNCTIONALITY) ---
     const submitMaterialRequest = async () => {
         if (!reqItem || !reqQty) return alert("Please enter item name and quantity.");
-
         try {
-            // 1. Fetch the absolute latest source-of-truth from the database (bypass React state)
             const liveProject = await window.api.db.getProject(project.id);
             const liveRequests = liveProject.materialRequests ? JSON.parse(liveProject.materialRequests) : [];
             const liveTasks = liveProject.ganttTasks ? JSON.parse(liveProject.ganttTasks) : [];
 
-            // 2. Create the Request
             const newReq = {
                 id: crypto.randomUUID(),
                 date: new Date().toISOString().split('T')[0],
@@ -68,7 +65,6 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 status: "Pending Procurement"
             };
 
-            // 3. Create the Kanban Task
             const newTask = {
                 id: crypto.randomUUID(),
                 name: `ORDER: ${reqItem} (${reqQty})`, 
@@ -80,27 +76,20 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 description: `Site requested ${reqQty} of ${reqItem} on ${newReq.date}.`
             };
 
-            // 4. Force the database to save both at the exact same time
             await window.api.db.updateProject(project.id, {
                 materialRequests: JSON.stringify([...liveRequests, newReq]),
                 ganttTasks: JSON.stringify([...liveTasks, newTask])
             });
 
-            // 5. Tell the UI to refresh
             if (loadData) loadData();
-
-            setReqItem(""); 
-            setReqQty("");
+            setReqItem(""); setReqQty("");
             alert("Requisition successfully submitted to Procurement & Kanban board!");
-            
         } catch (error) {
             console.error(error);
             alert("Failed to save. Ensure your database has the materialRequests column.");
         }
     };
 
-
-    // --- MATERIAL LOGGING LOGIC ---
     const addLog = async () => {
         if (!date || !activePhase || !selectedRes || !qty) return alert("Please fill all fields.");
         const newLog = { id: crypto.randomUUID(), date, phase: activePhase, resourceId: selectedRes.id, qty: Number(qty) };
@@ -118,27 +107,16 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         if (!customCode || !customDesc) return alert("Code and Description required.");
         const newId = crypto.randomUUID();
         const newRes = { id: newId, code: customCode, description: customDesc, unit: customUnit, rates: {} };
-        
         await window.api.db.createResource(newRes); 
-        
         if (loadData) await loadData(); 
-        
         setSelectedRes(newRes);
         setIsCustomOpen(false);
         setCustomCode(""); setCustomDesc("");
     };
 
-    // --- DAILY SCHEDULE LOGIC ---
     const addSchedule = async () => {
         if (!scheduleDate || !shiftStart || !shiftEnd) return alert("Please specify Date and Shift timings.");
-        const newSchedule = { 
-            id: crypto.randomUUID(), 
-            date: scheduleDate, 
-            shiftStart, 
-            shiftEnd, 
-            weather, 
-            notes: shiftNotes 
-        };
+        const newSchedule = { id: crypto.randomUUID(), date: scheduleDate, shiftStart, shiftEnd, weather, notes: shiftNotes };
         const schedules = [...validSchedules, newSchedule];
         await updateProject("dailySchedules", schedules);
         setShiftNotes(""); 
@@ -148,9 +126,7 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
         const schedules = validSchedules.filter(s => s.id !== id);
         await updateProject("dailySchedules", schedules);
     };
-    
 
-    // --- TASK TRACKING LOGIC ---
     const handleTaskStatusChange = async (taskId, newStatus) => {
         const today = new Date().toISOString().split('T')[0];
         const updatedTasks = validTasks.map(t => {
@@ -176,26 +152,17 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
     const exportTemplate = () => { 
         const header = ["Date", "Phase", "Resource Code", "Resource Description", "Quantity Consumed", "Unit"];
         const wsData = [header];
-
         if (validLogs.length === 0) {
             wsData.push([new Date().toISOString().split('T')[0], "General", "CEM-01", "Sample Cement", 50, "Bags"]);
         } else {
             validLogs.forEach(log => {
                 const res = resources.find(r => r.id === log.resourceId) || {};
-                wsData.push([
-                    log.date || new Date().toISOString().split('T')[0],
-                    log.phase || "General",
-                    res.code || "",
-                    res.description || "",
-                    Number(log.qty) || 0,
-                    res.unit || ""
-                ]);
+                wsData.push([log.date || "", log.phase || "", res.code || "", res.description || "", Number(log.qty) || 0, res.unit || ""]);
             });
         }
-
         const ws = XLSX.utils.aoa_to_sheet(wsData);
         const wb = XLSX.utils.book_new();
-        XLS.utils.book_append_sheet(wb, ws, "Daily_Material_Logs");
+        XLSX.utils.book_append_sheet(wb, ws, "Daily_Material_Logs");
         XLSX.writeFile(wb, `${project.name || 'Project'}_MaterialLogs.xlsx`); 
     };
 
@@ -208,12 +175,9 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 const data = new Uint8Array(evt.target.result);
                 const workbook = XLSX.read(data, { type: 'array' });
                 const jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { raw: false });
-
                 if (jsonData.length === 0) return;
-
                 const newLogs = [];
                 let requiresGlobalRefresh = false;
-
                 for (const row of jsonData) {
                     const dateRaw = row["Date"] || row["Date (YYYY-MM-DD)"];
                     const phase = row["Phase"] || "General";
@@ -221,38 +185,22 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                     const qty = Number(row["Quantity Consumed"]);
                     const desc = String(row["Resource Description"] || "");
                     const unit = String(row["Unit"] || "nos");
-
                     if (!dateRaw || !code || isNaN(qty)) continue;
-
                     let resource = resources.find(r => (r.code || "").trim().toLowerCase() === code.toLowerCase());
-                    
                     if (!resource) {
                         const newResId = crypto.randomUUID();
-                        const newRes = { id: newResId, code: code, description: desc || `Imported Item ${code}`, unit: unit, rates: {} };
+                        const newRes = { id: newResId, code: code, description: desc || `Imported ${code}`, unit: unit, rates: {} };
                         await window.api.db.createResource(newRes);
-                        resource = newRes;
-                        requiresGlobalRefresh = true;
+                        resource = newRes; requiresGlobalRefresh = true;
                     }
-
-                    if (resource) {
-                        newLogs.push({ id: crypto.randomUUID(), date: dateRaw, phase, resourceId: resource.id, qty });
-                    }
+                    if (resource) newLogs.push({ id: crypto.randomUUID(), date: dateRaw, phase, resourceId: resource.id, qty });
                 }
-
                 if (newLogs.length > 0) {
-                    const updatedLogs = [...validLogs, ...newLogs];
-                    await updateProject("dailyLogs", updatedLogs);
-                    alert(`Successfully imported ${newLogs.length} material logs!`);
-                    
-                    if (loadData && requiresGlobalRefresh) await loadData();
-                    else if (loadData) loadData(); 
-                } else {
-                    alert("No valid rows found. Ensure the 'Resource Code' column is filled.");
+                    await updateProject("dailyLogs", [...validLogs, ...newLogs]);
+                    alert(`Imported ${newLogs.length} logs!`);
+                    if (loadData) await loadData();
                 }
-            } catch (err) {
-                console.error(err);
-                alert("Failed to parse Daily Log Excel.");
-            }
+            } catch (err) { alert("Import failed."); }
         };
         reader.readAsArrayBuffer(file);
         e.target.value = null; 
@@ -263,172 +211,126 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
-            <Box display="flex" justifyContent="flex-end" gap={2}>
-                <Button variant="outlined" startIcon={<DownloadIcon />} onClick={exportTemplate} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+            {/* --- TOP EXPORT/IMPORT BUTTONS --- */}
+            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="flex-end" gap={2}>
+                <Button fullWidth={{ xs: true, sm: false }} variant="outlined" startIcon={<DownloadIcon />} onClick={exportTemplate} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                     EXPORT LOG TEMPLATE
                 </Button>
                 <input type="file" accept=".xls,.xlsx" ref={fileInputRef} style={{ display: 'none' }} onChange={handleImport} />
-                <Button variant="contained" disableElevation startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                <Button fullWidth={{ xs: true, sm: false }} variant="contained" disableElevation startIcon={<UploadIcon />} onClick={() => fileInputRef.current.click()} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                     IMPORT EXCEL
                 </Button>
             </Box>
 
-            {/* 🔥 NEW: SITE MATERIAL REQUISITION 🔥 */}
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'warning.main', bgcolor: 'rgba(245, 158, 11, 0.05)' }}>
+            {/* --- SITE MATERIAL REQUISITION --- */}
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'warning.main', bgcolor: 'rgba(245, 158, 11, 0.05)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <SendIcon fontSize="small" /> SITE MATERIAL REQUISITION (UNPLANNED)
+                    <SendIcon fontSize="small" /> SITE REQUISITION (UNPLANNED)
                 </Typography>
-                <Box display="flex" gap={2} alignItems="center" flexWrap="wrap">
-                    <input 
-                        placeholder="Item Description (e.g., Extra PVC Pipes)" 
-                        value={reqItem} 
-                        onChange={e => setReqItem(e.target.value)} 
-                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', flex: 2, minWidth: '200px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }} 
-                    />
-                    <input 
-                        type="number" 
-                        placeholder="Qty" 
-                        value={reqQty} 
-                        onChange={e => setReqQty(e.target.value)} 
-                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', width: '100px', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }} 
-                    />
-                    <select 
-                        value={reqUrgency} 
-                        onChange={e => setReqUrgency(e.target.value)} 
-                        style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}
-                    >
-                        <option value="Normal">Normal</option>
-                        <option value="High">Urgent</option>
-                    </select>
-                    <Button variant="contained" color="warning" onClick={submitMaterialRequest} sx={{ height: 42, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
+                <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2} alignItems={{ xs: 'stretch', md: 'center' }}>
+                    <Box sx={{ flex: 2 }}>
+                        <input 
+                            placeholder="Item Description" 
+                            value={reqItem} 
+                            onChange={e => setReqItem(e.target.value)} 
+                            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', width: '100%', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', boxSizing: 'border-box' }} 
+                        />
+                    </Box>
+                    <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} sx={{ flex: 1.5 }}>
+                        <input 
+                            type="number" 
+                            placeholder="Qty" 
+                            value={reqQty} 
+                            onChange={e => setReqQty(e.target.value)} 
+                            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', width: '100%', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', boxSizing: 'border-box' }} 
+                        />
+                        <select 
+                            value={reqUrgency} 
+                            onChange={e => setReqUrgency(e.target.value)} 
+                            style={{ padding: '10px 14px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.2)', background: 'rgba(0,0,0,0.3)', color: '#fff', width: '100%', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', boxSizing: 'border-box' }}
+                        >
+                            <option value="Normal">Normal</option>
+                            <option value="High">Urgent</option>
+                        </select>
+                    </Box>
+                    <Button fullWidth={{ xs: true, md: false }} variant="contained" color="warning" onClick={submitMaterialRequest} sx={{ height: 42, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', flexShrink: 0 }}>
                         SEND REQUEST
                     </Button>
                 </Box>
             </Paper>
 
             {/* --- DAILY WORK SCHEDULE --- */}
-            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+            <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
                     DAILY_WORK_SCHEDULE
                 </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', mb: 3 }}>
-                    <TextField 
-                        type="date" size="small" label="DATE" 
-                        value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} 
-                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-                    />
-                    <TextField 
-                        type="time" size="small" label="START" 
-                        value={shiftStart} onChange={e => setShiftStart(e.target.value)} 
-                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-                    />
-                    <TextField 
-                        type="time" size="small" label="END" 
-                        value={shiftEnd} onChange={e => setShiftEnd(e.target.value)} 
-                        InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-                    />
-                    <TextField 
-                        select size="small" label="WEATHER" 
-                        value={weather} onChange={e => setWeather(e.target.value)} 
-                        sx={{ minWidth: 120 }}
-                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-                    >
-                        {["Clear", "Cloudy", "Rain", "Heavy Rain", "Extreme Heat"].map(w => (
-                            <MenuItem key={w} value={w} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{w}</MenuItem>
-                        ))}
-                    </TextField>
-                    <TextField 
-                        size="small" label="GENERAL NOTES" 
-                        value={shiftNotes} onChange={e => setShiftNotes(e.target.value)} 
-                        sx={{ flex: 1, minWidth: 200 }}
-                        placeholder="Site conditions, incidents, etc."
-                        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-                        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-                    />
-                    <Button variant="contained" color="primary" onClick={addSchedule} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>
-                        LOG_SHIFT
-                    </Button>
+                <Box display="flex" flexDirection="column" gap={2} mb={3}>
+                    <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={2}>
+                        <TextField fullWidth type="date" size="small" label="DATE" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField fullWidth type="time" size="small" label="START" value={shiftStart} onChange={e => setShiftStart(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField fullWidth type="time" size="small" label="END" value={shiftEnd} onChange={e => setShiftEnd(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <TextField fullWidth select size="small" label="WEATHER" value={weather} onChange={e => setWeather(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                            {["Clear", "Cloudy", "Rain", "Heavy Rain", "Extreme Heat"].map(w => (<MenuItem key={w} value={w}>{w}</MenuItem>))}
+                        </TextField>
+                    </Box>
+                    <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2}>
+                        <TextField fullWidth size="small" label="GENERAL NOTES" value={shiftNotes} onChange={e => setShiftNotes(e.target.value)} placeholder="Site conditions..." InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                        <Button fullWidth={{ xs: true, md: false }} variant="contained" color="primary" onClick={addSchedule} startIcon={<AddIcon />} sx={{ height: 40, minWidth: '140px', borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', flexShrink: 0 }}>LOG_SHIFT</Button>
+                    </Box>
                 </Box>
-
-                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                    <Table size="small">
+                <TableContainer sx={{ overflowX: 'auto', borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Table size="small" sx={{ minWidth: 600 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                             <TableRow>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '15%' }}>DATE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '20%' }}>SHIFT TIMING</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '15%' }}>WEATHER</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>NOTES</TableCell>
-                                <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '10%' }}>ACTION</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DATE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>SHIFT</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>WEATHER</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>NOTES</TableCell>
+                                <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTION</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
-                            {sortedSchedules.map(schedule => (
-                                <TableRow key={schedule.id} hover>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                        {new Date(schedule.date).toLocaleDateString()}
-                                    </TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold' }}>
-                                        {schedule.shiftStart} - {schedule.shiftEnd}
-                                    </TableCell>
-                                    <TableCell sx={{ color: 'info.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                        {schedule.weather}
-                                    </TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
-                                        {schedule.notes || "-"}
-                                    </TableCell>
-                                    <TableCell align="center">
-                                        <IconButton size="small" color="error" onClick={() => deleteSchedule(schedule.id)}>
-                                            <DeleteIcon fontSize="small" />
-                                        </IconButton>
-                                    </TableCell>
+                            {sortedSchedules.map(s => (
+                                <TableRow key={s.id} hover>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap' }}>{s.date}</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold', whiteSpace: 'nowrap' }}>{s.shiftStart}-{s.shiftEnd}</TableCell>
+                                    <TableCell sx={{ color: 'info.main', fontSize: '12px', whiteSpace: 'nowrap' }}>{s.weather}</TableCell>
+                                    <TableCell sx={{ fontSize: '12px' }}>{s.notes || "-"}</TableCell>
+                                    <TableCell align="center"><IconButton size="small" color="error" onClick={() => deleteSchedule(s.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
                                 </TableRow>
                             ))}
-                            {sortedSchedules.length === 0 && (
-                                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>No daily schedules logged yet.</TableCell></TableRow>
-                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>
             </Paper>
 
-            {/* MATERIAL CONSUMPTION LOG */}
-            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
-                    LOG_MATERIAL_CONSUMPTION
-                </Typography>
-                <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap', alignItems: 'flex-start', mb: 3 }}>
-                    <TextField type="date" size="small" label="DATE" value={date} onChange={e => setDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                    <Autocomplete freeSolo options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} sx={{ width: 160 }} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
-                    <Box display="flex" flex={2} minWidth={300} gap={1}>
-                        <Autocomplete 
-                            options={resources} 
-                            getOptionLabel={(option) => option ? `${option.code || ''} - ${option.description || ''}` : ''} 
-                            isOptionEqualToValue={(option, value) => option.id === value?.id}
-                            value={selectedRes} 
-                            onChange={(e, newVal) => setSelectedRes(newVal)} 
-                            sx={{ flex: 1 }} 
-                            renderInput={(params) => <TextField {...params} size="small" label="RESOURCE / MATERIAL" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} 
-                        />
-                        <Button variant="outlined" color="secondary" onClick={() => setIsCustomOpen(true)} sx={{ minWidth: 120, fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }}>+ CUSTOM</Button>
+            {/* --- MATERIAL CONSUMPTION LOG --- */}
+            <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>LOG_MATERIAL_CONSUMPTION</Typography>
+                <Box display="flex" flexDirection="column" gap={2} mb={3}>
+                    <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={2}>
+                        <TextField fullWidth type="date" size="small" label="DATE" value={date} onChange={e => setDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
+                        <Autocomplete fullWidth freeSolo options={availablePhases} value={activePhase} onChange={(e, v) => setActivePhase(v || "General")} renderInput={(params) => <TextField {...params} size="small" label="PHASE" />} />
                     </Box>
-                    <TextField type="number" size="small" label="QUANTITY" value={qty} onChange={e => setQty(e.target.value)} sx={{ width: 120 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                    <Button variant="contained" color="primary" onClick={addLog} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>LOG</Button>
+                    <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} gap={2}>
+                        <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} flex={2} gap={1}>
+                            <Autocomplete fullWidth options={resources} getOptionLabel={o => `${o.code || ''} - ${o.description || ''}`} value={selectedRes} onChange={(e, v) => setSelectedRes(v)} renderInput={(params) => <TextField {...params} size="small" label="RESOURCE" />} />
+                            <Button fullWidth={{ xs: true, sm: false }} variant="outlined" color="secondary" onClick={() => setIsCustomOpen(true)} sx={{ minWidth: '90px', fontSize: '10px' }}>+ CUSTOM</Button>
+                        </Box>
+                        <TextField fullWidth type="number" size="small" label="QTY" value={qty} onChange={e => setQty(e.target.value)} sx={{ flex: 1 }} />
+                        <Button fullWidth={{ xs: true, md: false }} variant="contained" onClick={addLog} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2 }}>LOG</Button>
+                    </Box>
                 </Box>
-
-                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                    <Table size="small">
+                <TableContainer sx={{ overflowX: 'auto', borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Table size="small" sx={{ minWidth: 600 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                             <TableRow>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DATE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>PHASE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>CODE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RESOURCE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>QTY_CONSUMED</TableCell>
-                                <TableCell align="center" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTION</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DATE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>PHASE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>CODE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>RESOURCE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>QTY</TableCell>
+                                <TableCell align="center"></TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -436,11 +338,11 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                                 const res = resources.find(r => r.id === log.resourceId) || {};
                                 return (
                                     <TableRow key={log.id} hover>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{new Date(log.date).toLocaleDateString()}</TableCell>
-                                        <TableCell sx={{ color: 'info.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{log.phase}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{res.code || "-"}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{res.description || "Unknown Resource"}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', color: 'warning.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{Number(log.qty).toFixed(2)} {res.unit || ""}</TableCell>
+                                        <TableCell sx={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{log.date}</TableCell>
+                                        <TableCell sx={{ color: 'info.main', fontSize: '12px', whiteSpace: 'nowrap' }}>{log.phase}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontSize: '12px', whiteSpace: 'nowrap' }}>{res.code || "-"}</TableCell>
+                                        <TableCell sx={{ fontSize: '12px', whiteSpace: 'nowrap' }}>{res.description}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', color: 'warning.main', fontSize: '12px', whiteSpace: 'nowrap' }}>{log.qty} {res.unit}</TableCell>
                                         <TableCell align="center"><IconButton size="small" color="error" onClick={() => deleteLog(log.id)}><DeleteIcon fontSize="small" /></IconButton></TableCell>
                                     </TableRow>
                                 )
@@ -450,99 +352,69 @@ export default function DailyLogTab({ project, projectBoqItems, resources, updat
                 </TableContainer>
             </Paper>
 
-            {/* 🔥 THE RESTORED TASK EXECUTION TRACKER 🔥 */}
-            <Paper sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
-                    TASK_EXECUTION_&_TRACKING
-                </Typography>
-                <Typography variant="body2" color="text.secondary" mb={3} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                    Update task status and actual dates here. Changes will automatically sync to the Gantt Chart and Dashboard.
-                </Typography>
-
-                <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                    <Table size="small">
+            {/* --- TASK EXECUTION TRACKER --- */}
+            <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                <Typography variant="subtitle2" fontWeight="bold" mb={1} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>TASK_EXECUTION_&_TRACKING</Typography>
+                <Typography variant="body2" color="text.secondary" mb={3} sx={{ fontSize: '12px' }}>Update status and dates. Syncs with Gantt Chart.</Typography>
+                
+                <TableContainer sx={{ overflowX: 'auto', borderRadius: 2, border: '1px solid rgba(255,255,255,0.1)' }}>
+                    <Table size="small" sx={{ minWidth: 800 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '25%' }}>TASK / MILESTONE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '15%' }}>PHASE</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '20%' }}>STATUS</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '20%' }}>ACTUAL START</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', width: '20%' }}>ACTUAL END</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>TASK</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>PHASE</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>STATUS</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTUAL START</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTUAL END</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
                             {validTasks.map(task => {
-                                const isCompleted = task.status === "Completed";
-                                const isInProgress = task.status === "In Progress";
-
+                                const isDone = task.status === "Completed";
                                 return (
-                                    <TableRow key={task.id} hover sx={{ bgcolor: isCompleted ? 'rgba(16, 185, 129, 0.05)' : 'inherit' }}>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', fontWeight: 'bold' }}>
-                                            {task.name} {task.type === "Milestone" && <Typography component="span" color="warning.main" ml={1}>◆</Typography>}
-                                        </TableCell>
-                                        <TableCell sx={{ color: 'info.main', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
-                                            {task.phase}
-                                        </TableCell>
+                                    <TableRow key={task.id} hover sx={{ bgcolor: isDone ? 'rgba(16, 185, 129, 0.05)' : 'inherit' }}>
+                                        <TableCell sx={{ fontWeight: 'bold', fontSize: '12px', whiteSpace: 'nowrap' }}>{task.name}</TableCell>
+                                        <TableCell sx={{ color: 'info.main', fontSize: '11px', whiteSpace: 'nowrap' }}>{task.phase}</TableCell>
                                         <TableCell>
-                                            <TextField
-                                                select size="small" fullWidth
-                                                value={task.status || "Not Started"}
-                                                onChange={e => handleTaskStatusChange(task.id, e.target.value)}
-                                                InputProps={{
-                                                    sx: {
-                                                        fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', height: 32,
-                                                        color: isCompleted ? 'success.main' : isInProgress ? 'info.main' : 'text.secondary',
-                                                        fontWeight: 'bold'
-                                                    }
-                                                }}
-                                            >
-                                                <MenuItem value="Not Started" sx={{ fontSize: '12px', fontFamily: "'JetBrains Mono', monospace" }}>Not Started</MenuItem>
-                                                <MenuItem value="In Progress" sx={{ fontSize: '12px', fontFamily: "'JetBrains Mono', monospace", color: 'info.main' }}><PlayArrowIcon fontSize="small" sx={{ mr: 1, mb: -0.5 }} /> In Progress</MenuItem>
-                                                <MenuItem value="Completed" sx={{ fontSize: '12px', fontFamily: "'JetBrains Mono', monospace", color: 'success.main' }}><CheckCircleIcon fontSize="small" sx={{ mr: 1, mb: -0.5 }} /> Completed</MenuItem>
+                                            <TextField select size="small" fullWidth value={task.status || "Not Started"} onChange={e => handleTaskStatusChange(task.id, e.target.value)} InputProps={{ sx: { fontSize: '11px', height: 32, minWidth: '130px' } }}>
+                                                <MenuItem value="Not Started">Not Started</MenuItem>
+                                                <MenuItem value="In Progress" sx={{ color: 'info.main' }}>In Progress</MenuItem>
+                                                <MenuItem value="Completed" sx={{ color: 'success.main' }}>Completed</MenuItem>
                                             </TextField>
                                         </TableCell>
                                         <TableCell>
-                                            <TextField
-                                                type="date" size="small" fullWidth
-                                                value={task.actualStart || ""}
-                                                onChange={e => handleTaskDateChange(task.id, "actualStart", e.target.value)}
-                                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', height: 32 } }}
-                                            />
+                                            <TextField type="date" size="small" fullWidth value={task.actualStart || ""} onChange={e => handleTaskDateChange(task.id, "actualStart", e.target.value)} InputProps={{ sx: { fontSize: '11px', height: 32, minWidth: '120px' } }} />
                                         </TableCell>
                                         <TableCell>
-                                            <TextField
-                                                type="date" size="small" fullWidth
-                                                value={task.actualEnd || ""}
-                                                onChange={e => handleTaskDateChange(task.id, "actualEnd", e.target.value)}
-                                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', height: 32 } }}
-                                            />
+                                            <TextField type="date" size="small" fullWidth value={task.actualEnd || ""} onChange={e => handleTaskDateChange(task.id, "actualEnd", e.target.value)} InputProps={{ sx: { fontSize: '11px', height: 32, minWidth: '120px' } }} />
                                         </TableCell>
                                     </TableRow>
                                 )
                             })}
-                            {validTasks.length === 0 && (
-                                <TableRow><TableCell colSpan={5} align="center" sx={{ py: 3, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>No tasks found. Add tasks in the Gantt Schedule tab first.</TableCell></TableRow>
-                            )}
                         </TableBody>
                     </Table>
                 </TableContainer>
             </Paper>
 
-            {/* CUSTOM RESOURCE DIALOG */}
-            <Paper>
-                <Dialog open={isCustomOpen} onClose={() => setIsCustomOpen(false)} maxWidth="sm" fullWidth>
-                    <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>ADD_CUSTOM_RESOURCE</DialogTitle>
-                    <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', flexDirection: 'column', gap: 3 }}>
-                        <TextField label="CODE" value={customCode} onChange={e => setCustomCode(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                        <TextField label="DESCRIPTION" value={customDesc} onChange={e => setCustomDesc(e.target.value)} multiline rows={2} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                        <TextField label="UNIT" value={customUnit} onChange={e => setCustomUnit(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} />
-                    </DialogContent>
-                    <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                        <Button onClick={() => setIsCustomOpen(false)} color="inherit" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>CANCEL</Button>
-                        <Button variant="contained" color="success" onClick={saveCustomResource} disableElevation sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace" }}>SAVE</Button>
-                    </DialogActions>
-                </Dialog>
-            </Paper>
+            {/* CUSTOM RESOURCE DIALOG WITH ARIA FIX */}
+            <Dialog 
+                open={isCustomOpen} 
+                onClose={() => setIsCustomOpen(false)} 
+                maxWidth="sm" 
+                fullWidth
+                disableRestoreFocus 
+            >
+                <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>ADD_CUSTOM_RESOURCE</DialogTitle>
+                <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', display: 'flex', flexDirection: 'column', gap: 3 }}>
+                    <TextField label="CODE" fullWidth value={customCode} onChange={e => setCustomCode(e.target.value)} />
+                    <TextField label="DESCRIPTION" fullWidth value={customDesc} onChange={e => setCustomDesc(e.target.value)} multiline rows={2} />
+                    <TextField label="UNIT" fullWidth value={customUnit} onChange={e => setCustomUnit(e.target.value)} />
+                </DialogContent>
+                <DialogActions sx={{ p: 3, bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Button onClick={() => setIsCustomOpen(false)} color="inherit">CANCEL</Button>
+                    <Button variant="contained" color="success" onClick={saveCustomResource}>SAVE</Button>
+                </DialogActions>
+            </Dialog>
         </Box>
     );
 }

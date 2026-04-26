@@ -44,9 +44,40 @@ export function startWebServer(port, db) {
 
         // 🔥 FILE STREAMING ROUTE
         app.get('/api/download', (req, res) => {
-            const filePath = decodeURIComponent(req.query.path);
-            if (!filePath || !fs.existsSync(filePath)) return res.status(404).send("File not found");
-            res.download(filePath);
+            try {
+                // Ensure the path is absolute and properly decoded
+                const filePath = path.resolve(decodeURIComponent(req.query.path));
+                
+                if (!filePath || !fs.existsSync(filePath)) {
+                    return res.status(404).send("File not found on Host computer.");
+                }
+
+                const stat = fs.statSync(filePath);
+                if (stat.isDirectory()) {
+                    return res.status(400).send("Target is a directory, not a file.");
+                }
+
+                const fileName = path.basename(filePath);
+                
+                // Force the browser to download the file instead of trying to render it
+                res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
+                res.setHeader('Content-Length', stat.size);
+                res.setHeader('Content-Type', 'application/octet-stream');
+
+                // Pipe the file directly to the network request
+                const readStream = fs.createReadStream(filePath);
+                
+                readStream.on('error', (err) => {
+                    console.error("Read Stream Error:", err);
+                    if (!res.headersSent) res.status(500).send("Error reading file.");
+                });
+
+                readStream.pipe(res);
+
+            } catch (err) {
+                console.error("Download endpoint crashed:", err);
+                if (!res.headersSent) res.status(500).send("Internal Server Error");
+            }
         });
 
         app.post('/api/rpc', (req, res) => {
@@ -96,7 +127,6 @@ export function startWebServer(port, db) {
                 else if (channel === 'db:get-resources') {
                     result = db.prepare('SELECT * FROM resources ORDER BY code ASC').all().map(r => ({ ...r, rates: JSON.parse(r.rates || '{}') }));
                 }
-                // 🔥 RE-ADDED RESOURCE EDIT/SAVE
                 else if (channel === 'db:create-resource') {
                     const d = args[0];
                     db.prepare('INSERT INTO resources (id, code, description, unit, rates) VALUES (?, ?, ?, ?, ?)').run(d.id || crypto.randomUUID(), d.code, d.description, d.unit, '{}');
@@ -114,7 +144,6 @@ export function startWebServer(port, db) {
                 else if (channel === 'db:get-master-boqs') {
                     result = db.prepare('SELECT * FROM master_boq').all().map(b => ({ ...b, components: JSON.parse(b.components || '[]') }));
                 }
-                // 🔥 RE-ADDED MASTER BOQ EDIT/SAVE
                 else if (channel === 'db:save-master-boq') {
                     const [payload, id, isNew] = args;
                     const compStr = JSON.stringify(payload.components);
@@ -167,16 +196,55 @@ export function startWebServer(port, db) {
                 }
                 else if (channel === 'db:save-message') {
                     const d = args[0];
-                    db.prepare(`INSERT INTO messages (id, projectId, senderId, content, createdAt) VALUES (?, ?, ?, ?, ?)`).run(d.id, d.projectId || null, d.senderId, d.content, d.createdAt);
+                    db.prepare(`INSERT INTO messages (id, projectId, senderId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.projectId || null, d.senderId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
+                // DELETE HANDLER
+                else if (channel === 'db:delete-message') {
+                    db.prepare('DELETE FROM messages WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+                // UNIFIED FILE UPLOADER FOR WEB SESSIONS
+                else if (channel === 'os:upload-file-web') {
+                    const [fileName, base64Data, projectId] = args;
+                    const base64String = base64Data.split(';base64,').pop();
+                    const buffer = Buffer.from(base64String, 'base64');
+                    
+                    // Save to a universal uploads directory on the Host
+                    const uploadDir = path.join(os.homedir(), '.openprix', 'uploads');
+                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+                    
+                    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+                    const filePath = path.join(uploadDir, safeName);
+                    
+                    fs.writeFileSync(filePath, buffer);
+                    result = { success: true, path: filePath };
+                }
+
+                // --- DIRECT MESSAGES ---
                 else if (channel === 'db:get-private-messages') {
                     result = db.prepare(`SELECT * FROM private_messages WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?) ORDER BY createdAt ASC`).all(args[0], args[1], args[1], args[0]);
                 }
                 else if (channel === 'db:save-private-message') {
                     const d = args[0];
-                    db.prepare(`INSERT INTO private_messages (id, senderId, receiverId, content, createdAt) VALUES (?, ?, ?, ?, ?)`).run(d.id, d.senderId, d.receiverId, d.content, d.createdAt);
+                    db.prepare(`INSERT INTO private_messages (id, senderId, receiverId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.senderId, d.receiverId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
+                }
+                // 🔥 ADDED DELETE HANDLER
+                else if (channel === 'db:delete-private-message') {
+                    db.prepare('DELETE FROM private_messages WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+
+                // 🔥 ADDED NOTIFICATION ENGINE FOR NETWORK USERS
+                else if (channel === 'db:check-notifications') {
+                    const userId = args[0];
+                    const lastChecked = args[1] || 0;
+                    
+                    const globalUnread = db.prepare(`SELECT COUNT(*) as count FROM messages WHERE projectId IS NULL AND senderId != ? AND createdAt > ?`).get(userId, lastChecked);
+                    const dmUnread = db.prepare(`SELECT COUNT(*) as count FROM private_messages WHERE receiverId = ? AND createdAt > ?`).get(userId, lastChecked);
+
+                    result = (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
                 }
 
                 else { return res.status(404).json({ error: 'Unknown Channel: ' + channel }); }

@@ -84,8 +84,12 @@ if (!window.api) {
             // --- COMMLINK (MESSAGING) ---
             getMessages: (pid) => fetchRpc('db:get-messages', pid),
             saveMessage: (data) => fetchRpc('db:save-message', data),
+            deleteMessage: (id) => fetchRpc('db:delete-message', id), // 🔥 ADDED
+
             getPrivateMessages: (u1, u2) => fetchRpc('db:get-private-messages', u1, u2),
             savePrivateMessage: (data) => fetchRpc('db:save-private-message', data),
+            deletePrivateMessage: (id) => fetchRpc('db:delete-private-message', id), // 🔥 ADDED
+            
             checkNotifications: (id, lc) => fetchRpc('db:check-notifications', id, lc),
             getKanbanTasks: () => fetchRpc('db:get-kanban-tasks'),
 
@@ -104,10 +108,14 @@ if (!window.api) {
         server: {
             start: desktopOnly,
             stop: desktopOnly,
-            getIp: () => '127.0.0.1'
+            getIp: async () => '127.0.0.1'
         },
         os: {
             pickFile: desktopOnly,
+            pickDirectory: desktopOnly,
+            scaffoldProject: desktopOnly,
+            renameProjectFolder: desktopOnly,
+            uploadFileWeb: (fileName, base64Data, projectId) => fetchRpc('os:upload-file-web', fileName, base64Data, projectId),
             openFile: (filePath) => {
                 // Network download logic
                 const downloadUrl = `/api/download?path=${encodeURIComponent(filePath)}`;

@@ -118,38 +118,35 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
 
     if (isCreating) {
         return (
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                {/* 🔥 FIXED: Responsive Header */}
+                <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2} mb={3}>
                     <Box>
-                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>
+                        <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '16px', sm: '20px' } }}>
                             GENERATE NEW RA BILL: <span style={{ color: '#3b82f6' }}>{billNo}</span>
                         </Typography>
                         <Typography variant="caption" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'text.secondary' }}>
                             BILLING PHASE: {billingPhase.toUpperCase()}
                         </Typography>
                     </Box>
-                    <Button variant="outlined" color="error" onClick={() => setIsCreating(false)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                    <Button variant="outlined" color="error" fullWidth={{ xs: true, sm: false }} onClick={() => setIsCreating(false)} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
                         CANCEL
                     </Button>
                 </Box>
 
-                <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)' }}>
-                    <Table size="small">
+                {/* 🔥 FIXED: Horizontal Scrolling for Table */}
+                <TableContainer component={Paper} elevation={0} variant="outlined" sx={{ mb: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.2)', overflowX: 'auto' }}>
+                    <Table size="small" sx={{ minWidth: 800 }}>
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SL.NO</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DESCRIPTION</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UNIT</TableCell>
-
-                                {/* 🔥 Dynamic Rate Header */}
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>RATE ({settings.currencySymbol})</TableCell>
-
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'info.main' }}>MBOOK QTY</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'warning.main' }}>PREV BILLED</TableCell>
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'success.main' }}>CURRENT BILL QTY</TableCell>
-
-                                {/* 🔥 Dynamic Amount Header */}
-                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>AMOUNT ({settings.currencySymbol})</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>SL.NO</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap', width: '30%' }}>DESCRIPTION</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>UNIT</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>RATE ({settings.currencySymbol})</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'info.main', whiteSpace: 'nowrap' }}>MBOOK QTY</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'warning.main', whiteSpace: 'nowrap' }}>PREV BILLED</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'success.main', whiteSpace: 'nowrap' }}>CURRENT BILL QTY</TableCell>
+                                <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>AMOUNT ({settings.currencySymbol})</TableCell>
                             </TableRow>
                         </TableHead>
                         <TableBody>
@@ -161,12 +158,11 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.slNo}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.displayDesc}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{item.displayUnit}</TableCell>
-
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{Number(rowData.rate || 0).toFixed(2)}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'info.light' }}>{Number(rowData.mbookQty || 0).toFixed(2)}</TableCell>
                                         <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'warning.light' }}>{Number(rowData.prevQty || 0).toFixed(2)}</TableCell>
                                         <TableCell>
-                                            <input type="number" value={rowData.currentQty} onChange={(e) => updateCurrentQty(item.id, e.target.value)} style={tableInputActiveStyle} />
+                                            <input type="number" value={rowData.currentQty} onChange={(e) => updateCurrentQty(item.id, e.target.value)} style={{ ...tableInputActiveStyle, minWidth: '80px' }} />
                                         </TableCell>
                                         <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>
                                             {(Number(rowData.currentQty || 0) * Number(rowData.rate || 0)).toFixed(2)}
@@ -178,10 +174,9 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                     </Table>
                 </TableContainer>
 
-                <Box display="flex" justifyContent="flex-end">
-                    <Paper elevation={0} variant="outlined" sx={{ width: 400, p: 3, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
-
-                        {/* 🔥 Applied formatCurrency */}
+                {/* 🔥 FIXED: Responsive Totals Panel */}
+                <Box display="flex" justifyContent={{ xs: 'center', sm: 'flex-end' }}>
+                    <Paper elevation={0} variant="outlined" sx={{ width: { xs: '100%', sm: 400 }, p: { xs: 2, sm: 3 }, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider' }}>
                         <Box display="flex" justifyContent="space-between" mb={2}>
                             <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>SUBTOTAL:</Typography>
                             <Typography fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(currentSubTotal)}</Typography>
@@ -195,12 +190,12 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                             <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{formatCurrency(currentTax)}</Typography>
                         </Box>
 
-                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main">
-                            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>GRAND_TOTAL:</Typography>
-                            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' }}>{formatCurrency(currentGrandTotal)}</Typography>
+                        <Box display="flex" justifyContent="space-between" mb={3} color="success.main" flexWrap="wrap" gap={1}>
+                            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '14px', sm: '16px' } }}>GRAND_TOTAL:</Typography>
+                            <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '14px', sm: '16px' } }}>{formatCurrency(currentGrandTotal)}</Typography>
                         </Box>
 
-                        <Button variant="contained" color="success" fullWidth size="large" onClick={saveBill} startIcon={<SaveIcon />} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>APPROVE & SAVE RA BILL</Button>
+                        <Button variant="contained" color="success" fullWidth size="large" onClick={saveBill} startIcon={<SaveIcon />} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '12px', sm: '14px' } }}>APPROVE & SAVE RA BILL</Button>
                     </Paper>
                 </Box>
             </Paper>
@@ -209,39 +204,41 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
 
     return (
         <Box>
-            <Grid container spacing={3} mb={4}>
-                {/* 🔥 Applied formatCurrency to Summary Cards */}
+            <Grid container spacing={2} mb={4}>
                 <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>TOTAL_CONTRACT_VALUE</Typography>
-                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{formatCurrency(totalContractValue)}</Typography>
+                        <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '18px', sm: '24px' } }}>{formatCurrency(totalContractValue)}</Typography>
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>CUMULATIVE_BILLED</Typography>
-                        <Typography variant="h5" fontWeight="bold" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{formatCurrency(totalBilled)}</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="success.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '18px', sm: '24px' } }}>{formatCurrency(totalBilled)}</Typography>
                     </Paper>
                 </Grid>
                 <Grid item xs={12} md={4}>
-                    <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                    <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
                         <Typography variant="body2" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1 }}>UNBILLED_BALANCE</Typography>
-                        <Typography variant="h5" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{formatCurrency(unbilledAmount)}</Typography>
+                        <Typography variant="h5" fontWeight="bold" color="warning.main" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '18px', sm: '24px' } }}>{formatCurrency(unbilledAmount)}</Typography>
                     </Paper>
                 </Grid>
             </Grid>
 
-            <Paper elevation={0} sx={{ p: 3, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={3} flexWrap="wrap" gap={2}>
-                    <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", pt: 1 }}>APPROVED_RA_BILLS</Typography>
-                    <Box display="flex" gap={2} alignItems="center">
+            <Paper elevation={0} sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
+                {/* 🔥 FIXED: Responsive Controls Header */}
+                <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'stretch', md: 'center' }} mb={3} gap={2}>
+                    <Typography variant="h6" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", pt: { md: 1 }, fontSize: { xs: '16px', sm: '20px' } }}>
+                        APPROVED_RA_BILLS
+                    </Typography>
+                    <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} gap={2} alignItems={{ xs: 'stretch', sm: 'center' }}>
                         <TextField
                             select
                             size="small"
                             label="SELECT PHASE"
                             value={billingPhase}
                             onChange={(e) => setBillingPhase(e.target.value)}
-                            sx={{ minWidth: 200 }}
+                            sx={{ minWidth: { xs: '100%', sm: 200 } }}
                             InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
                             InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
                         >
@@ -252,7 +249,7 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                                 </MenuItem>
                             ))}
                         </TextField>
-                        <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={handleCreateNewBill} disableElevation sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>
+                        <Button variant="contained" color="primary" fullWidth={{ xs: true, sm: false }} startIcon={<AddIcon />} onClick={handleCreateNewBill} disableElevation sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', flexShrink: 0 }}>
                             GENERATE BILL
                         </Button>
                     </Box>
@@ -261,37 +258,31 @@ export default function ClientBillingTab({ project, renderedProjectBoq, updatePr
                 {bills.length === 0 ? (
                     <Typography sx={{ textAlign: 'center', p: 4, color: 'text.secondary', fontFamily: "'JetBrains Mono', monospace" }}>NO BILLS GENERATED YET</Typography>
                 ) : (
-                    <TableContainer>
-                        <Table size="small">
+                    <TableContainer sx={{ overflowX: 'auto' }}>
+                        <Table size="small" sx={{ minWidth: 800 }}>
                             <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                                 <TableRow>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>BILL_NO</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>PHASE</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>DATE</TableCell>
-
-                                    {/* 🔥 Dynamic Headers */}
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>SUBTOTAL ({settings.currencySymbol})</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>TAX ({settings.currencySymbol})</TableCell>
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>GRAND_TOTAL ({settings.currencySymbol})</TableCell>
-
-                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>STATUS</TableCell>
-                                    <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>ACTIONS</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>BILL_NO</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>PHASE</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>DATE</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>SUBTOTAL ({settings.currencySymbol})</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>TAX ({settings.currencySymbol})</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>GRAND_TOTAL ({settings.currencySymbol})</TableCell>
+                                    <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>STATUS</TableCell>
+                                    <TableCell align="right" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', whiteSpace: 'nowrap' }}>ACTIONS</TableCell>
                                 </TableRow>
                             </TableHead>
                             <TableBody>
                                 {bills.map((bill) => (
                                     <TableRow key={bill.id} hover>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#3b82f6' }}>{bill.billNo}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.phase || "All Phases"}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{bill.date}</TableCell>
-
-                                        {/* 🔥 Applied formatCurrency without printing duplicate symbol using formatCurrency(val, false) */}
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{formatCurrency(bill.subTotal, false)}</TableCell>
-                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{formatCurrency(bill.taxAmount, false)}</TableCell>
-                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main' }}>{formatCurrency(bill.grandTotal, false)}</TableCell>
-
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: '#3b82f6', whiteSpace: 'nowrap' }}>{bill.billNo}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap' }}>{bill.phase || "All Phases"}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap' }}>{bill.date}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap' }}>{formatCurrency(bill.subTotal, false)}</TableCell>
+                                        <TableCell sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'nowrap' }}>{formatCurrency(bill.taxAmount, false)}</TableCell>
+                                        <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'success.main', whiteSpace: 'nowrap' }}>{formatCurrency(bill.grandTotal, false)}</TableCell>
                                         <TableCell><Chip label={bill.status} color="success" size="small" icon={<CheckCircleIcon />} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} /></TableCell>
-                                        <TableCell align="right">
+                                        <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                                             <IconButton size="small" color="info" onClick={() => exportRaBillPdf(project, bill, renderedProjectBoq)}><PictureAsPdfIcon fontSize="small" /></IconButton>
                                             <IconButton size="small" color="error" onClick={() => deleteBill(bill.id)}><DeleteIcon fontSize="small" /></IconButton>
                                         </TableCell>
