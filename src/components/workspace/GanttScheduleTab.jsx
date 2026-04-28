@@ -1,7 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import {
     Box, Paper, Typography, Table, TableBody, TableCell, TableContainer,
-    TableHead, TableRow, TextField, Button, Autocomplete, IconButton, MenuItem, Chip
+    TableHead, TableRow, TextField, Button, Autocomplete, IconButton, MenuItem, Chip, Grid
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -13,7 +13,6 @@ import AccountTreeIcon from '@mui/icons-material/AccountTree';
 import TimelineIcon from '@mui/icons-material/Timeline';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { tableInputActiveStyle } from '../../styles';
 
 const STICKY_BG = '#0b172d';
 
@@ -361,36 +360,50 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                 <Typography variant="subtitle2" fontWeight="bold" mb={2} sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '14px' }}>
                     ADD_SCHEDULE_ITEM
                 </Typography>
-                <Box display="flex" flexDirection="column" gap={2}>
-                    <Box display="flex" gap={2} flexDirection={{ xs: 'column', md: 'row' }}>
+                
+                {/* 🔥 FIX: Flattened into a full Grid Container to perfectly align textboxes on all screen sizes */}
+                <Grid container spacing={2} alignItems="flex-start">
+                    
+                    {/* Row 1 */}
+                    <Grid item xs={12} md={2}>
                         <TextField select fullWidth size="small" label="TYPE" value={taskType} onChange={e => setTaskType(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                             <MenuItem value="Task" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Task</MenuItem>
                             <MenuItem value="Milestone" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>Milestone</MenuItem>
                         </TextField>
-                        <TextField fullWidth size="small" label="NAME" value={taskName} onChange={e => setTaskName(e.target.value)} sx={{ flex: 2 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        <Autocomplete fullWidth freeSolo options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
-                    </Box>
-                    
-                    <Box display="flex" gap={2} flexDirection={{ xs: 'column', lg: 'row' }} alignItems={{ xs: 'stretch', lg: 'flex-start' }}>
-                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} flex={1}>
-                            <TextField type="date" fullWidth size="small" label="START" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                            <TextField type="date" fullWidth size="small" label="END" value={taskType === "Milestone" ? startDate : endDate} onChange={e => setEndDate(e.target.value)} disabled={taskType === "Milestone"} inputProps={{ min: startDate }} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        </Box>
-                        
-                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }} flex={2}>
-                            <TextField select fullWidth size="small" label="PREDECESSOR" value={predecessorId} onChange={e => setPredecessorId(e.target.value)} sx={{ flex: 2 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                                <MenuItem value="">-- NONE --</MenuItem>
-                                {tasks.map(t => <MenuItem key={t.id} value={t.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'normal' }}>{t.name}</MenuItem>)}
-                            </TextField>
-                            <TextField select fullWidth size="small" label="TYPE" value={dependencyType} onChange={e => setDependencyType(e.target.value)} disabled={!predecessorId} sx={{ flex: 1.5 }} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                                {dependencyOptions.map(opt => <MenuItem key={opt.value} value={opt.value} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{opt.value}</MenuItem>)}
-                            </TextField>
-                            <TextField type="number" fullWidth size="small" label="LAG (Days)" value={dependencyLag} onChange={e => setDependencyLag(e.target.value)} disabled={!predecessorId} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
-                        </Box>
-                        
-                        <Button variant="contained" color="primary" onClick={addTask} startIcon={<AddIcon />} sx={{ height: 40, flexShrink: 0, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px', width: { xs: '100%', lg: 'auto' } }}>ADD</Button>
-                    </Box>
-                </Box>
+                    </Grid>
+                    <Grid item xs={12} md={6}>
+                        <TextField fullWidth size="small" label="NAME" value={taskName} onChange={e => setTaskName(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                        <Autocomplete freeSolo fullWidth options={availablePhases} value={activePhase} onChange={(e, newVal) => setActivePhase(newVal || "General")} onInputChange={(e, newVal) => setActivePhase(newVal || "General")} renderInput={(params) => <TextField {...params} size="small" label="PHASE" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ ...params.InputProps, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />} />
+                    </Grid>
+
+                    {/* Row 2 */}
+                    <Grid item xs={6} md={2}>
+                        <TextField type="date" fullWidth size="small" label="START" value={startDate} onChange={e => setStartDate(e.target.value)} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    </Grid>
+                    <Grid item xs={6} md={2}>
+                        <TextField type="date" fullWidth size="small" label="END" value={taskType === "Milestone" ? startDate : endDate} onChange={e => setEndDate(e.target.value)} disabled={taskType === "Milestone"} inputProps={{ min: startDate }} InputLabelProps={{ shrink: true, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={3}>
+                        <TextField select fullWidth size="small" label="PREDECESSOR" value={predecessorId} onChange={e => setPredecessorId(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                            <MenuItem value="">-- NONE --</MenuItem>
+                            {tasks.map(t => <MenuItem key={t.id} value={t.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'normal' }}>{t.name}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={6} md={2}>
+                        <TextField select fullWidth size="small" label="DEP TYPE" value={dependencyType} onChange={e => setDependencyType(e.target.value)} disabled={!predecessorId} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
+                            {dependencyOptions.map(opt => <MenuItem key={opt.value} value={opt.value} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}>{opt.value}</MenuItem>)}
+                        </TextField>
+                    </Grid>
+                    <Grid item xs={6} md={1}>
+                        <TextField type="number" fullWidth size="small" label="LAG (Days)" value={dependencyLag} onChange={e => setDependencyLag(e.target.value)} disabled={!predecessorId} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                    </Grid>
+                    <Grid item xs={12} md={2}>
+                        <Button fullWidth variant="contained" color="primary" onClick={addTask} startIcon={<AddIcon />} sx={{ height: 40, borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: '12px' }}>ADD</Button>
+                    </Grid>
+                </Grid>
+
             </Paper>
 
             {/* --- 2. THE WBS DATA TABLE --- */}
@@ -504,7 +517,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                     <Table size="small" sx={{ minWidth: 'max-content' }}>
                         <TableHead sx={{ bgcolor: STICKY_BG }}>
                             <TableRow>
-                                {/* 🔥 THE FIX: Responsive Width for the Sticky Column */}
                                 <TableCell sx={{ width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 }, position: 'sticky', left: 0, zIndex: 20, bgcolor: STICKY_BG, fontFamily: "'JetBrains Mono', monospace", fontSize: { xs: '10px', md: '11px' }, borderRight: '1px solid rgba(255,255,255,0.05)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                     TASK / MILESTONE
                                 </TableCell>
@@ -518,7 +530,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
                                 Object.entries(groupedTasks).map(([phaseName, phaseTasks]) => (
                                     <React.Fragment key={`gantt-phase-${phaseName}`}>
                                         <TableRow sx={{ bgcolor: 'rgba(59, 130, 246, 0.1)' }}>
-                                            {/* 🔥 THE FIX: Match Header Responsiveness */}
                                             <TableCell sx={{ py: 1.5, position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderBottom: '1px solid rgba(59, 130, 246, 0.3)', borderRight: '1px solid rgba(255,255,255,0.05)', width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 }, overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 <Typography variant="subtitle2" color="primary.main" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontSize: { xs: '11px', md: '14px' } }}>
                                                     ❖ PHASE: {phaseName.toUpperCase()}
@@ -533,7 +544,6 @@ export default function GanttScheduleTab({ project, projectBoqItems, updateProje
 
                                             return (
                                                 <TableRow key={`matrix-${task.id}`} hover>
-                                                    {/* 🔥 THE FIX: Match Header Responsiveness */}
                                                     <TableCell sx={{ position: 'sticky', left: 0, zIndex: 10, bgcolor: STICKY_BG, borderRight: '1px solid rgba(255,255,255,0.05)', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: 'bold', width: { xs: 120, sm: 200, md: 300 }, minWidth: { xs: 120, sm: 200, md: 300 }, maxWidth: { xs: 120, sm: 200, md: 300 } }}>
                                                         <Box display="flex" alignItems="center" sx={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                             {task.name}

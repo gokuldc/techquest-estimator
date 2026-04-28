@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import {
     Box, Typography, Paper, Button, TextField, Chip, Divider, IconButton, Grid
 } from '@mui/material';
-import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import PlayArrowIcon from '@mui/icons-material/PlayArrow';
 import StopIcon from '@mui/icons-material/Stop';
 import RouterIcon from '@mui/icons-material/Router';
@@ -10,7 +9,7 @@ import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 import CastConnectedIcon from '@mui/icons-material/CastConnected';
 import LinkIcon from '@mui/icons-material/Link';
 
-export default function ServerManager({ onBack }) {
+export default function ServerManager() {
     // --- HOST STATE ---
     const [isRunning, setIsRunning] = useState(false);
     const [port, setPort] = useState("3000");
@@ -79,30 +78,28 @@ export default function ServerManager({ onBack }) {
     };
 
     return (
-        <Box sx={{ maxWidth: 900, mx: "auto", p: { xs: 2, md: 3 } }}>
-            {/* MOBILE RESPONSIVE HEADER */}
-            <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} alignItems={{ xs: 'flex-start', sm: 'center' }} gap={2} mb={4}>
-                <Button startIcon={<ArrowBackIcon />} onClick={onBack} variant="outlined" color="inherit" sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", alignSelf: { xs: 'flex-start', sm: 'auto' } }}>
-                    {'< '}HOME
-                </Button>
-                <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '1.5rem', sm: '2rem' } }}>
+        // 🔥 OPTIMIZED LAYOUT: Full height, full width, no artificial max-width caps
+        <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 3 } }}>
+            
+            {/* HEADER */}
+            <Box sx={{ mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '24px' } }}>
                     NETWORK_MANAGER
                 </Typography>
             </Box>
 
+            {/* 🔥 GRID CONTAINER: Now natively stretches to 100% of the parent box */}
             <Grid container spacing={4}>
                 {/* ---------------------------------------------------- */}
                 {/* CARD 1: HOST MODE (Run Server)                       */}
                 {/* ---------------------------------------------------- */}
                 <Grid item xs={12}>
-                    <Paper sx={{ p: { xs: 2, sm: 3, md: 4 }, bgcolor: 'rgba(13, 31, 60, 0.5)', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
-                        <Box display="flex" flexDirection={{ xs: 'column', md: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', md: 'center' }} mb={3} gap={3}>
+                    <Paper sx={{ p: { xs: 3, md: 4 }, bgcolor: 'rgba(13, 31, 60, 0.5)', border: '1px solid', borderColor: 'divider', borderRadius: 2 }}>
+                        <Box display="flex" flexDirection={{ xs: 'column', sm: 'row' }} justifyContent="space-between" alignItems={{ xs: 'flex-start', sm: 'center' }} mb={3} gap={2}>
                             <Box display="flex" alignItems="center" gap={2}>
-                                <RouterIcon color={isRunning ? "success" : "disabled"} sx={{ fontSize: { xs: 32, sm: 40 } }} />
+                                <RouterIcon color={isRunning ? "success" : "disabled"} sx={{ fontSize: 40 }} />
                                 <Box>
-                                    <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
-                                        HOST MODE (LOCAL SERVER)
-                                    </Typography>
+                                    <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', fontSize: { xs: '15px', sm: '18px' } }}>HOST MODE (LOCAL SERVER)</Typography>
                                     <Chip
                                         label={isRunning ? "ONLINE & LISTENING" : "OFFLINE"}
                                         color={isRunning ? "success" : "default"}
@@ -113,7 +110,7 @@ export default function ServerManager({ onBack }) {
                                 </Box>
                             </Box>
 
-                            <Box width={{ xs: '100%', md: 'auto' }}>
+                            <Box width={{ xs: '100%', sm: 'auto' }}>
                                 {!isRunning ? (
                                     <Button fullWidth variant="contained" color="success" size="large" startIcon={<PlayArrowIcon />} onClick={handleStart} sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>
                                         START SERVER
@@ -146,14 +143,12 @@ export default function ServerManager({ onBack }) {
 
                             <Grid item xs={12} md={6}>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 1, display: 'block' }}>ACTIVE ENDPOINT</Typography>
-                                <Paper sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(255,255,255,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', minHeight: '56px', overflow: 'hidden' }}>
-                                    <Typography noWrap sx={{ fontFamily: "'JetBrains Mono', monospace", color: isRunning ? 'info.main' : 'text.secondary', fontWeight: 'bold', fontSize: { xs: '11px', sm: '14px' }, flexGrow: 1, mr: 1 }}>
+                                <Paper sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(255,255,255,0.2)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', height: '40px' }}>
+                                    <Typography sx={{ fontFamily: "'JetBrains Mono', monospace", color: isRunning ? 'info.main' : 'text.secondary', fontWeight: 'bold', fontSize: { xs: '12px', sm: '14px' } }}>
                                         {serverUrl || "---"}
                                     </Typography>
                                     {isRunning && (
-                                        <IconButton size="small" color="info" onClick={handleCopy} sx={{ flexShrink: 0 }}>
-                                            <ContentCopyIcon fontSize="small" />
-                                        </IconButton>
+                                        <IconButton size="small" color="info" onClick={handleCopy}><ContentCopyIcon fontSize="small" /></IconButton>
                                     )}
                                 </Paper>
                             </Grid>
@@ -161,7 +156,7 @@ export default function ServerManager({ onBack }) {
 
                         {isRunning && (
                             <Box mt={4} p={2} bgcolor="rgba(16, 185, 129, 0.1)" border="1px solid rgba(16, 185, 129, 0.3)" borderRadius={2}>
-                                <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#10b981', fontSize: { xs: '12px', sm: '14px' } }}>
+                                <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", color: '#10b981' }}>
                                     <strong>Server is Live!</strong> Anyone on your local Wi-Fi network can now access OPENPRIX by navigating to <strong>{serverUrl}</strong> in their web browser. Do not close this application window while hosting.
                                 </Typography>
                             </Box>
@@ -173,16 +168,12 @@ export default function ServerManager({ onBack }) {
                 {/* CARD 2: CLIENT MODE (Connect to existing)            */}
                 {/* ---------------------------------------------------- */}
                 <Grid item xs={12}>
-                    <Paper sx={{ p: { xs: 2, sm: 3, md: 4 }, bgcolor: 'rgba(59, 130, 246, 0.05)', border: '1px solid', borderColor: 'primary.dark', borderRadius: 2 }}>
+                    <Paper sx={{ p: { xs: 3, md: 4 }, bgcolor: 'rgba(59, 130, 246, 0.05)', border: '1px solid', borderColor: 'primary.dark', borderRadius: 2 }}>
                         <Box display="flex" alignItems="center" gap={2} mb={2}>
-                            <CastConnectedIcon color="primary" sx={{ fontSize: { xs: 28, sm: 32 } }} />
+                            <CastConnectedIcon color="primary" sx={{ fontSize: 32 }} />
                             <Box>
-                                <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.light', fontSize: { xs: '1.1rem', sm: '1.25rem' } }}>
-                                    CLIENT MODE (CONNECT TO HOST)
-                                </Typography>
-                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", display: 'block', mt: 0.5 }}>
-                                    Connect this PC to an existing OpenPrix server on your network.
-                                </Typography>
+                                <Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'primary.light', fontSize: { xs: '15px', sm: '18px' } }}>CLIENT MODE (CONNECT TO HOST)</Typography>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace" }}>Connect this PC to an existing OpenPrix server on your network.</Typography>
                             </Box>
                         </Box>
 
@@ -203,7 +194,7 @@ export default function ServerManager({ onBack }) {
                                 size="large"
                                 onClick={handleConnectRemote}
                                 startIcon={<LinkIcon />}
-                                sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', whiteSpace: 'nowrap', height: { sm: '40px' } }}
+                                sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', whiteSpace: 'nowrap' }}
                             >
                                 CONNECT
                             </Button>

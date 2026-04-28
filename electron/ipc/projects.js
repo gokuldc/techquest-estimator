@@ -203,6 +203,12 @@ export function registerProjectsIpc(db) {
         db.prepare(`INSERT OR REPLACE INTO staff_work_logs (${cols}) VALUES (${placeholders})`).run(...Object.values(data));
     });
 
+    ipcMain.handle('db:update-work-log', (e, id, data) => {
+        const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
+        const values = Object.values(data);
+        db.prepare(`UPDATE staff_work_logs SET ${fields} WHERE id = ?`).run(...values, id);
+    });
+
     ipcMain.handle('db:delete-work-log', (e, id) => {
         db.prepare('DELETE FROM staff_work_logs WHERE id = ?').run(id);
     });

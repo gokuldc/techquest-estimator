@@ -45,7 +45,6 @@ export function startWebServer(port, db) {
         // 🔥 FILE STREAMING ROUTE
         app.get('/api/download', (req, res) => {
             try {
-                // Ensure the path is absolute and properly decoded
                 const filePath = path.resolve(decodeURIComponent(req.query.path));
                 
                 if (!filePath || !fs.existsSync(filePath)) {
@@ -58,20 +57,15 @@ export function startWebServer(port, db) {
                 }
 
                 const fileName = path.basename(filePath);
-                
-                // Force the browser to download the file instead of trying to render it
                 res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
                 res.setHeader('Content-Length', stat.size);
                 res.setHeader('Content-Type', 'application/octet-stream');
 
-                // Pipe the file directly to the network request
                 const readStream = fs.createReadStream(filePath);
-                
                 readStream.on('error', (err) => {
                     console.error("Read Stream Error:", err);
                     if (!res.headersSent) res.status(500).send("Error reading file.");
                 });
-
                 readStream.pipe(res);
 
             } catch (err) {
@@ -80,6 +74,7 @@ export function startWebServer(port, db) {
             }
         });
 
+        // 🔥 MAIN DATABASE RPC BRIDGE
         app.post('/api/rpc', (req, res) => {
             const { channel, args } = req.body;
             try {
@@ -185,10 +180,28 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- DIRECTORY & LOGS ---
+                // --- DIRECTORY ---
                 else if (channel === 'db:get-org-staff') result = db.prepare('SELECT * FROM org_staff').all();
                 else if (channel === 'db:get-crm-contacts') result = db.prepare('SELECT * FROM crm_contacts').all();
-                else if (channel === 'db:get-work-logs') result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC').all();
+
+                // 🔥 STAFF WORK LOGS (CRUD ENABLED FOR NETWORK) 🔥
+                else if (channel === 'db:get-work-logs') {
+                    result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();
+                }
+                else if (channel === 'db:save-work-log') {
+                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    db.prepare(`INSERT OR REPLACE INTO staff_work_logs (${cols}) VALUES (${placeholders})`).run(...values);
+                    result = { success: true };
+                }
+                else if (channel === 'db:update-work-log') {
+                    const { fields, values } = mapUpdate(args[1]);
+                    db.prepare(`UPDATE staff_work_logs SET ${fields} WHERE id = ?`).run(...values, args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:delete-work-log') {
+                    db.prepare('DELETE FROM staff_work_logs WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
 
                 // --- COMMLINK (MESSAGING) ---
                 else if (channel === 'db:get-messages') {
@@ -199,18 +212,17 @@ export function startWebServer(port, db) {
                     db.prepare(`INSERT INTO messages (id, projectId, senderId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.projectId || null, d.senderId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
-                // DELETE HANDLER
                 else if (channel === 'db:delete-message') {
                     db.prepare('DELETE FROM messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
-                // UNIFIED FILE UPLOADER FOR WEB SESSIONS
+
+                // --- UNIFIED FILE UPLOADER FOR WEB SESSIONS ---
                 else if (channel === 'os:upload-file-web') {
                     const [fileName, base64Data, projectId] = args;
                     const base64String = base64Data.split(';base64,').pop();
                     const buffer = Buffer.from(base64String, 'base64');
                     
-                    // Save to a universal uploads directory on the Host
                     const uploadDir = path.join(os.homedir(), '.openprix', 'uploads');
                     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
                     
@@ -230,20 +242,17 @@ export function startWebServer(port, db) {
                     db.prepare(`INSERT INTO private_messages (id, senderId, receiverId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.senderId, d.receiverId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
-                // 🔥 ADDED DELETE HANDLER
                 else if (channel === 'db:delete-private-message') {
                     db.prepare('DELETE FROM private_messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
 
-                // 🔥 ADDED NOTIFICATION ENGINE FOR NETWORK USERS
+                // --- NOTIFICATION ENGINE ---
                 else if (channel === 'db:check-notifications') {
                     const userId = args[0];
                     const lastChecked = args[1] || 0;
-                    
                     const globalUnread = db.prepare(`SELECT COUNT(*) as count FROM messages WHERE projectId IS NULL AND senderId != ? AND createdAt > ?`).get(userId, lastChecked);
                     const dmUnread = db.prepare(`SELECT COUNT(*) as count FROM private_messages WHERE receiverId = ? AND createdAt > ?`).get(userId, lastChecked);
-
                     result = (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
                 }
 

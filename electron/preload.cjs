@@ -36,11 +36,11 @@ contextBridge.exposeInMainWorld('api', {
         // --- CHAT MESSAGES ---
         getMessages: (projectId) => ipcRenderer.invoke('db:get-messages', projectId),
         saveMessage: (data) => ipcRenderer.invoke('db:save-message', data),
-        deleteMessage: (id) => ipcRenderer.invoke('db:delete-message', id), // 🔥 ADDED
+        deleteMessage: (id) => ipcRenderer.invoke('db:delete-message', id), 
         
         getPrivateMessages: (user1, user2) => ipcRenderer.invoke('db:get-private-messages', user1, user2),
         savePrivateMessage: (data) => ipcRenderer.invoke('db:save-private-message', data),
-        deletePrivateMessage: (id) => ipcRenderer.invoke('db:delete-private-message', id), // 🔥 ADDED
+        deletePrivateMessage: (id) => ipcRenderer.invoke('db:delete-private-message', id), 
         
         checkNotifications: (userId, lastChecked) => ipcRenderer.invoke('db:check-notifications', userId, lastChecked),
 
@@ -85,8 +85,10 @@ contextBridge.exposeInMainWorld('api', {
         saveSettings: (key, value) => ipcRenderer.invoke('db:save-settings', key, value),
         verifyEmployeeLogin: (username, password) => ipcRenderer.invoke('db:verify-login', username, password),
 
+        // 🔥 WORK LOGS (Added updateWorkLog)
         getWorkLogs: () => ipcRenderer.invoke('db:get-work-logs'),
         saveWorkLog: (data) => ipcRenderer.invoke('db:save-work-log', data),
+        updateWorkLog: (id, data) => ipcRenderer.invoke('db:update-work-log', id, data),
         deleteWorkLog: (id) => ipcRenderer.invoke('db:delete-work-log', id),
     },
 

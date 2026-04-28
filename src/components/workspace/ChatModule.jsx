@@ -34,7 +34,7 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
     const [projectDocs, setProjectDocs] = useState([]); 
     const [replyingTo, setReplyingTo] = useState(null); 
     
-    // 🔥 NEW: State to track which message is currently flashing
+    // State to track which message is currently flashing
     const [highlightedMsgId, setHighlightedMsgId] = useState(null);
 
     const messagesEndRef = useRef(null);
@@ -92,18 +92,12 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
 
     const formatTime = (ts) => new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
-    // 🔥 NEW: Scroll to Message and Flash Background
     const scrollToMessage = (msgId) => {
         const element = document.getElementById(`msg-${msgId}`);
         if (element) {
-            // Scroll it to the center of the view
             element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-            // Set the highlight state
             setHighlightedMsgId(msgId);
-            // Clear the highlight after 1.5 seconds so it fades out
-            setTimeout(() => {
-                setHighlightedMsgId(null);
-            }, 1500);
+            setTimeout(() => setHighlightedMsgId(null), 1500);
         }
     };
 
@@ -140,8 +134,6 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
             const reader = new FileReader();
             reader.onload = async (evt) => {
                 const base64Data = evt.target.result;
-                
-                // Transmit Base64 through our new unified bridge
                 const res = await window.api.os.uploadFileWeb(file.name, base64Data, projectId);
                 
                 if (res && res.success) {
@@ -150,11 +142,11 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                     alert("File upload failed: " + (res?.error || "Unknown error"));
                 }
             };
-            reader.readAsDataURL(file); // Triggers the onload event above
+            reader.readAsDataURL(file); 
         }
         
         setAnchorEl(null);
-        if (e.target) e.target.value = null; // Reset the input so the same file can be uploaded twice if needed
+        if (e.target) e.target.value = null; 
     };
 
     const handleLinkExistingDoc = (doc) => {
@@ -222,7 +214,7 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
 
         return (
             <Box 
-                onClick={() => scrollToMessage(replyToId)} // 🔥 Click to Scroll Trigger
+                onClick={() => scrollToMessage(replyToId)} 
                 sx={{ 
                     p: 0.5, px: 1, mb: 0.5, 
                     bgcolor: 'rgba(0,0,0,0.15)', 
@@ -230,7 +222,7 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                     borderLeft: '2px solid', 
                     borderColor: 'primary.main', 
                     cursor: 'pointer',
-                    '&:hover': { bgcolor: 'rgba(0,0,0,0.25)' } // Slight hover effect
+                    '&:hover': { bgcolor: 'rgba(0,0,0,0.25)' } 
                 }}
             >
                 <Typography variant="caption" sx={{ display: 'block', fontWeight: 'bold', color: 'primary.light', fontSize: '9px' }}>{origSender?.name}</Typography>
@@ -288,7 +280,8 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
         <Paper sx={{ 
             display: 'flex', 
             flexDirection: 'column', 
-            height: isGlobal ? '100vh' : { xs: 'calc(100vh - 200px)', md: 'calc(100vh - 280px)' }, 
+            // 🔥 FIX: Height is now exactly 100% of the drawer, ensuring the bottom input isn't cut off
+            height: isGlobal ? '100%' : { xs: 'calc(100vh - 200px)', md: 'calc(100vh - 280px)' }, 
             border: isGlobal ? 'none' : '1px solid', 
             borderColor: 'divider', 
             bgcolor: 'rgba(13, 31, 60, 0.5)', 
@@ -313,14 +306,15 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                         </Box>
                     </Box>
                 ) : (
-                    <Box display="flex" alignItems="center">
-                        <Tabs value={viewMode === 'dm_chat' ? 'dm_list' : viewMode} onChange={(e, v) => setViewMode(v)} variant="fullWidth" sx={{ flexGrow: 1 }}>
-                            <Tab value="global" label="GLOBAL" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }} />
-                            <Tab value="dm_list" label="DIRECT MESSAGES" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }} />
+                    // 🔥 FIX: Restricted Tabs to calc(100% - 40px) to guarantee the close button never gets pushed off screen
+                    <Box display="flex" alignItems="center" justifyContent="space-between" width="100%" sx={{ pr: 1 }}>
+                        <Tabs value={viewMode === 'dm_chat' ? 'dm_list' : viewMode} onChange={(e, v) => setViewMode(v)} variant="scrollable" scrollButtons={false} sx={{ flexGrow: 1, minHeight: 48, maxWidth: 'calc(100% - 40px)' }}>
+                            <Tab value="global" label="GLOBAL" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minWidth: 0, px: { xs: 1, sm: 2 } }} />
+                            <Tab value="dm_list" label="DIRECT MESSAGES" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', minWidth: 0, px: { xs: 1, sm: 2 } }} />
                         </Tabs>
 
                         {onClose && (
-                            <IconButton onClick={onClose} sx={{ mr: 1, ml: 1, color: 'text.secondary' }}>
+                            <IconButton onClick={onClose} sx={{ color: 'text.secondary', flexShrink: 0 }}>
                                 <CloseIcon />
                             </IconButton>
                         )}
@@ -359,12 +353,10 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                             const showDateDivider = !lastDate || !isSameDay(lastDate, msgDate);
                             lastDate = msgDate;
 
-                            // Determine if this message is currently being flashed
                             const isFlashing = highlightedMsgId === msg.id;
 
                             return (
                                 <React.Fragment key={msg.id}>
-                                    {/* DATE DIVIDER */}
                                     {showDateDivider && (
                                         <Divider sx={{ my: 1 }}>
                                             <Chip label={formatDateLabel(msg.createdAt)} size="small" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', bgcolor: 'rgba(0,0,0,0.4)', color: 'text.secondary' }} />
@@ -372,32 +364,31 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                                     )}
 
                                     <Box 
-                                        id={`msg-${msg.id}`} // 🔥 Required for Scroll Anchor
+                                        id={`msg-${msg.id}`} 
                                         sx={{ display: 'flex', flexDirection: isMe ? 'row-reverse' : 'row', gap: 1.5, alignItems: 'flex-end' }}
                                     >
                                         {!isMe && <Avatar sx={{ width: 28, height: 28 }}>{sender?.name?.charAt(0)}</Avatar>}
                                         
                                         <Box sx={{ maxWidth: '85%', display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
                                             
-                                            {/* NAME TAG */}
                                             {!isMe && viewMode !== 'dm_chat' && (
                                                 <Typography variant="caption" sx={{ px: 0.5, pb: 0.5, fontSize: '10px', fontWeight: 'bold', color: 'text.secondary' }}>
                                                     {sender?.name || 'Unknown'}
                                                 </Typography>
                                             )}
 
-                                            {/* 🔥 THE MESSAGE BUBBLE (With Transition) */}
                                             <Box sx={{ 
                                                 p: 1.5, 
                                                 borderRadius: 2, 
                                                 bgcolor: isFlashing ? 'rgba(59, 130, 246, 0.4)' : (isMe ? 'primary.main' : 'rgba(255,255,255,0.05)'), 
                                                 color: '#fff',
-                                                transition: 'background-color 0.5s ease' // Smooth fade out
+                                                transition: 'background-color 0.5s ease'
                                             }}>
                                                 {renderReplyContext(msg.replyToId)}
-                                                <Typography variant="body2" sx={{ fontFamily: "'Inter', sans-serif" }}>
+                                                
+                                                <Box sx={{ typography: 'body2', fontFamily: "'Inter', sans-serif" }}>
                                                     {renderMessageContent(msg)}
-                                                </Typography>
+                                                </Box>
                                             </Box>
                                             
                                             {/* ACTION BAR */}
@@ -427,7 +418,6 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
             {viewMode !== 'dm_list' && (
                 <Box sx={{ p: 2, borderTop: '1px solid', borderColor: 'divider', bgcolor: 'rgba(0,0,0,0.3)', position: 'relative', flexShrink: 0 }}>
 
-                    {/* MENTION SUGGESTIONS */}
                     {mentionSearch !== null && (
                         <Paper sx={{ position: 'absolute', bottom: '100%', left: 16, width: 250, maxHeight: 200, overflowY: 'auto', zIndex: 10, border: '1px solid', borderColor: 'primary.main' }}>
                             <List dense>{orgStaff.filter(s => s.username?.toLowerCase().includes(mentionSearch)).map(u => (
@@ -438,7 +428,6 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                         </Paper>
                     )}
 
-                    {/* REPLY PREVIEW BANNER */}
                     {replyingTo && (
                         <Box sx={{ p: 1, px: 2, mb: 1, bgcolor: 'rgba(0,0,0,0.2)', borderLeft: '3px solid', borderColor: 'primary.main', borderRadius: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <Box sx={{ overflow: 'hidden' }}>

@@ -1,0 +1,276 @@
+import React, { useState, useEffect, useMemo } from 'react';
+import {
+    Box, TextField, Button, Typography, Avatar, IconButton,
+    MenuItem, Divider, Paper, Grid, Tooltip, List, ListItem, 
+    ListItemButton, ListItemIcon, ListItemText, alpha, useTheme
+} from '@mui/material';
+import BusinessIcon from '@mui/icons-material/Business';
+import CloudUploadIcon from '@mui/icons-material/CloudUpload';
+import DeleteIcon from '@mui/icons-material/Delete';
+import FolderSpecialIcon from '@mui/icons-material/FolderSpecial';
+import PublicIcon from '@mui/icons-material/Public';
+import MenuIcon from '@mui/icons-material/Menu';
+import MenuOpenIcon from '@mui/icons-material/MenuOpen';
+import SaveIcon from '@mui/icons-material/Save';
+
+import { useSettings } from '../context/SettingsContext';
+
+export default function CompanySettings() {
+    const theme = useTheme();
+    const { refreshSettings } = useSettings();
+
+    // --- SIDEBAR STATE ---
+    const [sidebarOpen, setSidebarOpen] = useState(false);
+    const SIDEBAR_CLOSED_WIDTH = 68;
+    const SIDEBAR_OPEN_WIDTH = 260;
+
+    const [activeTab, setActiveTab] = useState("profile");
+
+    const [info, setInfo] = useState({
+        name: "", address: "", email: "", phone: "", taxId: "", logo: "",
+        currencySymbol: "₹", currencyLocale: "en-IN", unitSystem: "Metric",
+        scaffoldRoot: "", 
+        scaffoldPathTemplate: "./{TYPE}/{CODE}_{NAME}", 
+        templateFolders: ["01_Drawings", "02_Permits", "03_Site_Photos", "04_Invoices", "05_Communications"]
+    });
+
+    const [newFolderName, setNewFolderName] = useState("");
+    const [selectedParent, setSelectedParent] = useState("");
+
+    useEffect(() => {
+        window.api.db.getSettings('company_info').then(data => {
+            if (data) {
+                let parsedFolders = data.templateFolders || ["01_Drawings", "02_Permits", "03_Site_Photos", "04_Invoices", "05_Communications"];
+                if (typeof parsedFolders === 'string') parsedFolders = parsedFolders.split(',').map(s => s.trim());
+
+                setInfo(prev => ({ 
+                    ...prev, 
+                    ...data,
+                    templateFolders: parsedFolders,
+                    currencySymbol: data.currencySymbol || "₹",
+                    currencyLocale: data.currencyLocale || "en-IN",
+                    unitSystem: data.unitSystem || "Metric",
+                    scaffoldPathTemplate: data.scaffoldPathTemplate || "./{TYPE}/{CODE}_{NAME}"
+                }));
+            }
+        });
+    }, []);
+
+    const handlePickRoot = async () => {
+        if (window.api?.os?.pickDirectory) {
+            const path = await window.api.os.pickDirectory(); 
+            if (path) setInfo({ ...info, scaffoldRoot: path });
+        } else {
+            alert("This feature requires the Desktop Host application.");
+        }
+    };
+
+    const handleLogoUpload = async () => {
+        const path = await window.api.os.pickFile();
+        if (!path) return;
+        const base64Data = await window.api.os.getBase64(path);
+        if (base64Data) setInfo(prev => ({ ...prev, logo: base64Data }));
+    };
+
+    const handleAddFolder = () => {
+        if (!newFolderName.trim()) return;
+        const cleanName = newFolderName.trim().replace(/[\/\\]/g, ''); 
+        const fullPath = selectedParent ? `${selectedParent}/${cleanName}` : cleanName;
+        if (!info.templateFolders.includes(fullPath)) {
+            setInfo({ ...info, templateFolders: [...info.templateFolders, fullPath].sort() });
+        }
+        setNewFolderName("");
+    };
+
+    const handleRemoveFolder = (pathToRemove) => {
+        const updated = info.templateFolders.filter(f => f !== pathToRemove && !f.startsWith(`${pathToRemove}/`));
+        setInfo({ ...info, templateFolders: updated });
+        if (selectedParent === pathToRemove || selectedParent.startsWith(`${pathToRemove}/`)) {
+            setSelectedParent("");
+        }
+    };
+
+    const handleSave = async () => {
+        await window.api.db.saveSettings('company_info', info);
+        await refreshSettings();
+        alert("System settings synchronized successfully.");
+    };
+
+    const NAV_ITEMS = [
+        { id: "profile", label: "COMPANY PROFILE", icon: <BusinessIcon />, color: '#3b82f6' },
+        { id: "regional", label: "REGIONAL STANDARDS", icon: <PublicIcon />, color: '#10b981' },
+        { id: "automation", label: "FILE AUTOMATION", icon: <FolderSpecialIcon />, color: '#f59e0b' },
+    ];
+
+    return (
+        <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
+            
+            {/* SIDEBAR */}
+            <Paper 
+                elevation={0}
+                sx={{ 
+                    width: sidebarOpen ? SIDEBAR_OPEN_WIDTH : { xs: 0, md: SIDEBAR_CLOSED_WIDTH },
+                    flexShrink: 0,
+                    bgcolor: 'rgba(13, 31, 60, 0.5)',
+                    borderRight: '1px solid', borderColor: 'divider',
+                    transition: 'width 0.225s cubic-bezier(0.4, 0, 0.2, 1)',
+                    overflowX: 'hidden',
+                    display: 'flex', flexDirection: 'column',
+                    position: { xs: 'fixed', md: 'relative' },
+                    height: '100%',
+                    zIndex: { xs: 1100, md: 1 },
+                    left: 0, top: 0
+                }}
+            >
+                <Box sx={{ p: 1, display: 'flex', justifyContent: sidebarOpen ? 'flex-end' : 'center', alignItems: 'center', height: 60 }}>
+                    <IconButton onClick={() => setSidebarOpen(!sidebarOpen)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }}}>
+                        {sidebarOpen ? <MenuOpenIcon /> : <MenuIcon />}
+                    </IconButton>
+                </Box>
+                
+                <Box sx={{ 
+                    flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', pb: 2,
+                    scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } 
+                }}>
+                    <List sx={{ px: 1 }}>
+                        <Typography variant="caption" sx={{ px: sidebarOpen ? 2 : 0, pt: 1, pb: 1, display: 'block', fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'text.secondary', textAlign: sidebarOpen ? 'left' : 'center', opacity: sidebarOpen ? 0.6 : 0 }}>
+                            {sidebarOpen ? "SYSTEM CONFIG" : ""}
+                        </Typography>
+
+                        {NAV_ITEMS.map((item) => (
+                            <Tooltip key={item.id} title={!sidebarOpen ? item.label : ""} placement="right" disableInteractive>
+                                <ListItem disablePadding sx={{ mb: 0.5 }}>
+                                    <ListItemButton 
+                                        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 900) setSidebarOpen(false); }} 
+                                        selected={activeTab === item.id}
+                                        sx={{ 
+                                            borderRadius: 1.5, minHeight: 40, justifyContent: sidebarOpen ? 'initial' : 'center', px: 2.5,
+                                            '&.Mui-selected': { bgcolor: alpha(item.color, 0.15) },
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } 
+                                        }}
+                                    >
+                                        <ListItemIcon sx={{ minWidth: 0, mr: sidebarOpen ? 2 : 'auto', justifyContent: 'center', color: activeTab === item.id ? item.color : 'text.secondary' }}>
+                                            {item.icon}
+                                        </ListItemIcon>
+                                        <ListItemText 
+                                            primary={item.label} 
+                                            sx={{ opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.2s', m: 0 }}
+                                            primaryTypographyProps={{ sx: { fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: activeTab === item.id ? 'bold' : 'normal', color: activeTab === item.id ? item.color : 'text.primary', whiteSpace: 'nowrap' } }} 
+                                        />
+                                    </ListItemButton>
+                                </ListItem>
+                            </Tooltip>
+                        ))}
+                    </List>
+                </Box>
+            </Paper>
+
+            {/* MAIN CONTENT AREA */}
+            {/* 🔥 Removed constraints: Now uses width: '100%' and max-width is cleared */}
+            <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 4 } }}>
+                
+                {/* DYNAMIC HEADER */}
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                        <IconButton onClick={() => setSidebarOpen(true)} sx={{ display: { xs: 'block', md: 'none' }, color: 'text.secondary' }}>
+                            <MenuIcon />
+                        </IconButton>
+                        <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '22px' } }}>
+                            SETTINGS: <span style={{ color: theme.palette.primary.main }}>{activeTab.toUpperCase()}</span>
+                        </Typography>
+                    </Box>
+
+                    <Button variant="contained" color="primary" startIcon={<SaveIcon />} onClick={handleSave} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 4 }}>
+                        SAVE_CHANGES
+                    </Button>
+                </Box>
+
+                {/* 🔥 TAB CONTENT WRAPPER: Now width 100% */}
+                <Box sx={{ width: '100%', flexGrow: 1 }}>
+                    {activeTab === "profile" && (
+                        <Grid container spacing={3}>
+                            <Grid item xs={12}>
+                                <Box display="flex" alignItems="center" gap={3} mb={2}>
+                                    <Avatar src={info.logo} variant="rounded" sx={{ width: 100, height: 100, bgcolor: 'rgba(0,0,0,0.3)', border: '1px dashed rgba(255,255,255,0.2)' }}>
+                                        <BusinessIcon sx={{ fontSize: 40, opacity: 0.2 }} />
+                                    </Avatar>
+                                    <Box>
+                                        <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={handleLogoUpload} size="small" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UPLOAD LOGO</Button>
+                                        <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1, fontFamily: "'JetBrains Mono', monospace" }}>Required for PDF report branding.</Typography>
+                                    </Box>
+                                    {info.logo && <IconButton color="error" onClick={() => setInfo({ ...info, logo: "" })}><DeleteIcon /></IconButton>}
+                                </Box>
+                            </Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="COMPANY / FIRM NAME" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => setInfo({ ...info, taxId: e.target.value })} size="small" /></Grid>
+                            <Grid item xs={12} lg={8}><TextField fullWidth multiline rows={2} label="OFFICE ADDRESS" value={info.address} onChange={e => setInfo({ ...info, address: e.target.value })} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="OFFICIAL EMAIL" value={info.email} onChange={e => setInfo({ ...info, email: e.target.value })} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => setInfo({ ...info, phone: e.target.value })} size="small" /></Grid>
+                        </Grid>
+                    )}
+
+                    {activeTab === "regional" && (
+                        <Grid container spacing={3}>
+                            <Grid item xs={12}><Typography variant="caption" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>CURRENCY & MEASUREMENTS</Typography></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="CURRENCY SYMBOL" value={info.currencySymbol} onChange={e => setInfo({ ...info, currencySymbol: e.target.value })} size="small"><MenuItem value="₹">INR (₹)</MenuItem><MenuItem value="$">USD ($)</MenuItem><MenuItem value="€">EUR (€)</MenuItem><MenuItem value="AED">AED</MenuItem></TextField></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="NUMBER FORMAT" value={info.currencyLocale} onChange={e => setInfo({ ...info, currencyLocale: e.target.value })} size="small"><MenuItem value="en-IN">Indian (1,00,000.00)</MenuItem><MenuItem value="en-US">Western (100,000.00)</MenuItem></TextField></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="UNIT SYSTEM" value={info.unitSystem} onChange={e => setInfo({ ...info, unitSystem: e.target.value })} size="small"><MenuItem value="Metric">Metric (m, kg)</MenuItem><MenuItem value="Imperial">Imperial (ft, lb)</MenuItem></TextField></Grid>
+                        </Grid>
+                    )}
+
+                    {activeTab === "automation" && (
+                        <Grid container spacing={3}>
+                            <Grid item xs={12}>
+                                <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2), borderRadius: 2 }}>
+                                    <Typography variant="caption" color="primary.main" fontWeight="bold" sx={{ display: 'block', mb: 1, fontFamily: "'JetBrains Mono', monospace" }}>HOST_SCAFFOLD_ROOT</Typography>
+                                    <Box display="flex" gap={1}>
+                                        <TextField fullWidth size="small" value={info.scaffoldRoot} disabled InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}} />
+                                        <Button variant="contained" size="small" onClick={handlePickRoot} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>BROWSE</Button>
+                                    </Box>
+                                </Paper>
+                            </Grid>
+
+                            <Grid item xs={12} md={6}>
+                                <TextField fullWidth label="SCAFFOLD PATH TEMPLATE" value={info.scaffoldPathTemplate} onChange={e => setInfo({ ...info, scaffoldPathTemplate: e.target.value })} helperText="Example: ./{type}/{status}/{code}_{name}/" size="small" />
+                            </Grid>
+
+                            <Grid item xs={12}><Divider sx={{ opacity: 0.1 }} /></Grid>
+                            
+                            <Grid item xs={12}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'block' }}>PROJECT FOLDER TEMPLATE BUILDER</Typography>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12} md={4}>
+                                        <TextField select fullWidth size="small" label="Parent Folder" value={selectedParent} onChange={(e) => setSelectedParent(e.target.value)}><MenuItem value="" sx={{ fontStyle: 'italic' }}>-- Root --</MenuItem>{info.templateFolders.map(f => <MenuItem key={f} value={f}>{f}</MenuItem>)}</TextField>
+                                    </Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <TextField fullWidth size="small" label="New Folder Name" value={newFolderName} onChange={e => setNewFolderName(e.target.value)} />
+                                    </Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <Button fullWidth variant="outlined" onClick={handleAddFolder} sx={{ fontFamily: "'JetBrains Mono', monospace", height: '40px' }}>ADD_FOLDER</Button>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <Paper sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', maxHeight: 500, overflowY: 'auto' }}>
+                                    {info.templateFolders.map(path => {
+                                        const depth = (path.match(/\//g) || []).length;
+                                        const folderName = path.split('/').pop();
+                                        return (
+                                            <Box key={path} display="flex" alignItems="center" justifyContent="space-between" sx={{ ml: depth * 3, mb: 0.5, p: 0.8, borderLeft: '2px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 1 }}>
+                                                <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: depth === 0 ? 'primary.light' : 'text.primary' }}>
+                                                    {depth > 0 ? '↳ ' : '📁 '}{folderName}
+                                                </Typography>
+                                                <IconButton size="small" color="error" onClick={() => handleRemoveFolder(path)}><DeleteIcon sx={{ fontSize: '16px' }} /></IconButton>
+                                            </Box>
+                                        )
+                                    })}
+                                </Paper>
+                            </Grid>
+                        </Grid>
+                    )}
+                </Box>
+            </Box>
+        </Box>
+    );
+}

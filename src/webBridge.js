@@ -77,18 +77,21 @@ if (!window.api) {
             getOrgStaff: () => fetchRpc('db:get-org-staff'),
             saveOrgStaff: (data) => fetchRpc('db:save-org-staff', data),
             deleteOrgStaff: (id) => fetchRpc('db:delete-org-staff', id),
+            
+            // 🔥 WORK LOGS SYNCED FOR BROWSER 🔥
             getWorkLogs: () => fetchRpc('db:get-work-logs'),
             saveWorkLog: (data) => fetchRpc('db:save-work-log', data),
+            updateWorkLog: (id, data) => fetchRpc('db:update-work-log', id, data),
             deleteWorkLog: (id) => fetchRpc('db:delete-work-log', id),
 
             // --- COMMLINK (MESSAGING) ---
             getMessages: (pid) => fetchRpc('db:get-messages', pid),
             saveMessage: (data) => fetchRpc('db:save-message', data),
-            deleteMessage: (id) => fetchRpc('db:delete-message', id), // 🔥 ADDED
+            deleteMessage: (id) => fetchRpc('db:delete-message', id), 
 
             getPrivateMessages: (u1, u2) => fetchRpc('db:get-private-messages', u1, u2),
             savePrivateMessage: (data) => fetchRpc('db:save-private-message', data),
-            deletePrivateMessage: (id) => fetchRpc('db:delete-private-message', id), // 🔥 ADDED
+            deletePrivateMessage: (id) => fetchRpc('db:delete-private-message', id), 
             
             checkNotifications: (id, lc) => fetchRpc('db:check-notifications', id, lc),
             getKanbanTasks: () => fetchRpc('db:get-kanban-tasks'),
@@ -117,7 +120,6 @@ if (!window.api) {
             renameProjectFolder: desktopOnly,
             uploadFileWeb: (fileName, base64Data, projectId) => fetchRpc('os:upload-file-web', fileName, base64Data, projectId),
             openFile: (filePath) => {
-                // Network download logic
                 const downloadUrl = `/api/download?path=${encodeURIComponent(filePath)}`;
                 window.open(downloadUrl, '_blank');
             },
