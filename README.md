@@ -1,85 +1,97 @@
-# 🏗️ OPENPRIX
+🛸 OPENPRIX
 
-An advanced, offline-first desktop application designed for civil engineers and construction professionals. OPENPRIX bridges the gap between Rate Analysis, Estimation with Project Management.
+The Operating System for Modern Engineering & Construction Firms.
 
-![Tech Stack](https://img.shields.io/badge/React-19-blue?logo=react)
-![Tech Stack](https://img.shields.io/badge/Vite-6-purple?logo=vite)
-![Tech Stack](https://img.shields.io/badge/Electron-Desktop-47848F?logo=electron)
-![Tech Stack](https://img.shields.io/badge/MUI-Material%20Design-007FFF?logo=mui)
+OPENPRIX is a high-performance project management ecosystem built for engineering firms that need local speed with network flexibility. It bridges the gap between a robust Electron Desktop App and a Localized Web Server, allowing teams to sync tasks, logs, and communications across an office network without relying on slow, expensive cloud subscriptions.
+💎 The Ghost Architecture
 
----
+OPENPRIX is designed around a Local-First philosophy. Data lives in a high-speed SQLite engine on your host machine, while an integrated Express server provides real-time access to mobile devices and browsers on the same network.
+🛠 Core Modules
 
-## ✨ Core Features
+    ⚡ Operations Interface: * Hot-Editable Logs: Excel-like efficiency. Edit daily work logs, serial numbers, and statuses directly in the grid with auto-save triggers.
 
-* **Master Database Management:** Create and manage construction resources (labor, materials) and build recursive Master BOQ assemblies (e.g., nesting concrete mixes inside foundation tasks).
-* **LMR Excel Import:** Instantly update regional pricing by importing standard PWD Local Market Rate Excel sheets.
-* **Project Workspaces:** Isolate client projects. Automatically pull rates based on the project's assigned region.
-* **Measurement Books (MBook):** Track exact dimensions (Length, Breadth, Depth/Height) for specific locations. Quantities automatically sync with the BOQ.
-* **One-Click Excel Export:** Generate production-ready Excel files containing the BOQ, Measurement Books, and detailed Rate Analysis (using SheetJS).
-* **100% Offline & Secure:** All data is stored locally on the user's machine using IndexedDB (via Dexie.js).
-* **Data Portability:** Export and import Master Templates or Client Projects as JSON files to share between machines or backup data safely.
-* **Project Management Tools like Gantt Chart and KanBan Board
-* **Integrated Human Resource Management Tools
-* **Modern UI:** Built with Material UI (MUI) featuring a responsive Navy & Amber color scheme and native Dark/Light mode toggling.
+        Intelligent Filtering: Instantly pivot data by month, staff, or project code.
 
----
+    📋 Global Kanban Engine: * Aggregated Tasks: Automatically pulls ganttTasks from every active project into one master board.
 
-## 🛠️ Technology Stack
+        Native Drag & Drop: Move tasks across lanes (Backlog, Procurement, Progress, QC, Done) with instant database synchronization.
 
-* **Frontend Framework:** React 19 + Vite 6
-* **Desktop Wrapper:** Electron & Electron-Builder
-* **UI/Styling:** Material UI (MUI) v6 + Emotion
-* **Local Database:** Dexie.js (IndexedDB wrapper)
-* **Excel Engine:** SheetJS (XLSX)
+    💬 Commlink (Channels):
 
----
+        Threaded Conversations: WhatsApp-style inline replies and nested threads using replyToId logic.
 
-## 🚀 Getting Started (Development)
+        Rich Mentions: Discord-style @username popups to notify specific personnel.
 
-### Prerequisites
-Make sure you have [Node.js](https://nodejs.org/) installed on your machine.
+        File Infrastructure: Seamless attachment handling with automated local directory scaffolding.
 
-### Installation
-1. Clone the repository or copy the project folder.
-2. Open your terminal in the project root directory.
-3. Install all dependencies:
-   ```bash
-   npm install
+    📊 Market Analytics (LMR): * Labor-Material-Resource Database: Manage regional price sheets with high-speed "Ghost" inputs.
 
-Running the App
+        Inflation Tracking: Real-time trend visualization using Recharts to monitor price fluctuations over time.
 
-You can run the application in two different modes:
+        Excel Power-Import: Bulk-load thousands of resource items directly into the SQLite core.
 
-Mode 1: Pure Web Browser (Fast UI Development)
-Starts the Vite dev server on http://127.0.0.1:5173.
-Bash
+🚀 Tech Stack
 
-npm run dev
+    Frontend: React 18, Vite, Material UI (MUI).
 
-Mode 2: Electron Desktop App (Full Desktop Testing)
-Starts Vite in the background and automatically launches the standalone Windows desktop shell.
-Bash
+    Desktop Engine: Electron (with secure IPC Preload bridge).
 
-npm run dev:electron
+    Backend: Node.js, Better-SQLite3.
 
-📦 Building for Production
+    Network Layer: Express (REST API + Local RPC Bridge).
 
-To package the application into a standalone Windows installer (.exe) that can be shared with clients or coworkers:
-Bash
+    Visualization: Recharts (D3-based high-performance graphing).
 
-npm run build:electron
+🛠 Installation & Setup
+Prerequisites
 
-Once the build process completes, navigate to the newly created release/ folder to find your executable file (e.g., OPENPRIX 2.0.0.exe).
+    Node.js (LTS recommended)
 
+    npm or yarn
 
-🔒 Data Architecture & Privacy
+Deployment
 
-This application operates entirely offline.
+    Clone the Repository:
+    Bash
 
-    Master Data (Regions, Resources, BOQs) and Project Data are strictly separated in the database to prevent accidental overwrites.
+    git clone https://github.com/gokuldc/openprix.git
+    cd openprix
 
-    No data is ever sent to an external server.
+    Install Dependencies:
+    Bash
 
-    Users must manually back up their data using the built-in JSON export tools.
+    npm install
 
+    Run in Development Mode:
+    Bash
 
+    npm run dev
+
+    Build Production Executables:
+    Bash
+
+    npm run build
+
+🌐 Network Server Mode
+
+To allow other engineers on your local Wi-Fi/LAN to access the dashboard:
+
+    Open the Server Manager inside the app.
+
+    Assign a Port (Default: 3000).
+
+    Click Start Server.
+
+    Other users can navigate to http://[Your-IP]:3000 to access the Web Bridge.
+
+🛡 Security
+
+    Preload Isolation: Core database commands are never exposed to the frontend; they are mediated through a secure IPC bridge.
+
+    Clearance Levels: Integrated RBAC (Role-Based Access Control) with five levels of administrative clearance.
+
+📝 License
+
+Built for internal use at engineering firms. Standard MIT license applies to the open-source core.
+
+    Engineer's Note: "Data is the new concrete. Build it solid, or the project won't stand." 🏗️
