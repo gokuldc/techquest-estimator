@@ -24,7 +24,7 @@ export default function About({ isPopup }) {
                         // OPENPRIX
                     </Typography>
                     <Box display="flex" flexWrap="wrap" gap={1} mt={1}>
-                        <Chip label="v2.0.0 RC1" size="small" sx={{ bgcolor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
+                        <Chip label="v2.0.0" size="small" sx={{ bgcolor: 'rgba(59, 130, 246, 0.2)', color: '#3b82f6', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
                         <Chip label="CORE_ENGINE: ACTIVE" size="small" sx={{ bgcolor: 'rgba(16, 185, 129, 0.2)', color: '#10b981', fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", borderRadius: 1 }} />
                     </Box>
                 </Box>
