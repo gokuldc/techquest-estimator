@@ -4,18 +4,23 @@ OPENPRIX is a high-performance project management ecosystem built for engineerin
 ## 💎 The Ghost Architecture
 OPENPRIX is designed around a **Local-First** philosophy. Data lives in a high-speed SQLite engine on your host machine, while an integrated Express server provides real-time access to mobile devices and browsers on the same network.
 ## 🛠 Core Modules
- * **⚡ Operations Interface:**
-   * **Hot-Editable Logs:** Excel-like efficiency. Edit daily work logs, serial numbers, and statuses directly in the grid with auto-save triggers.
-   * **Intelligent Filtering:** Instantly pivot data by month, staff, or project code.
- * **📋 Global Kanban Engine:**
-   * **Aggregated Tasks:** Automatically pulls ganttTasks from every active project into one master board.
-   * **Native Drag & Drop:** Move tasks across lanes (Backlog, Procurement, Progress, QC, Done) with instant database synchronization.
- * **💬 Commlink (Channels):**
-   * **Threaded Conversations:** WhatsApp-style inline replies and nested threads using replyToId logic.
-   * **Rich Mentions:** Discord-style @username popups to notify specific personnel.
- * **📊 Market Analytics (LMR):**
-   * **Labor-Material-Resource Database:** Manage regional price sheets with high-speed "Ghost" inputs.
-   * **Inflation Tracking:** Real-time trend visualization using Recharts to monitor price fluctuations over time.
+### 🏗️ Site & Project Operations
+ * **Site Management:** Real-time oversight of field operations, progress tracking, and daily site diary integration.
+ * **M-Book (Measurement Book):** Digitalized engineering measurement records for civil works, ensuring audit-ready compliance and accuracy.
+ * **Kanban Task Engine:** Automated aggregation of ganttTasks into a visual flow (Backlog, Procurement, Progress, QC, Done).
+ * **File Versioning:** Integrated document control system for blueprints and CAD files, preventing "outdated drawing" errors on-site.
+### 💰 Financials & Procurement
+ * **Estimation Engine:** High-speed calculation of project tenders and internal cost-to-complete projections.
+ * **RA (Running Account) Billing:** Automated generation and tracking of progress-based invoices for clients and subcontractors.
+ * **Supply Chain Management (SCM):** End-to-end procurement tracking from requisition to site delivery.
+ * **One-Click Purchase Order (PO):** Convert approved estimations directly into vendor POs with a single trigger.
+ * **Inventory Management:** Real-time stock tracking across multiple store locations with low-stock alerts.
+### 👥 Resource & Org Management
+ * **Resource Management:** Dynamic allocation of workforce and heavy machinery across active project sites.
+ * **CRM:** Lead tracking and client relationship management tailored for engineering contract cycles.
+ * **Organization Management:** Structural control of departments, and complex RBAC (Role-Based Access Control).
+### 💬 Commlink (Unified Chat)
+ * **Channels & Chat:** WhatsApp-style threaded conversations and Discord-style mentions.
 ## 🚀 Installation & Setup
 ### Prerequisites
  * Node.js (LTS recommended)
@@ -47,16 +52,11 @@ Upon first launch, use the following credentials to access the administrative da
 > **Username:** admin
 > **Password:** admin123
 > 
-**Note:** For security, please navigate to the User Management settings and update your password immediately after your first successful login.
-## 🌐 Network Server Mode
-To allow other engineers on your local Wi-Fi/LAN to access the dashboard:
- 1. Open the **Server Manager** inside the app.
- 2. Assign a **Port** (Default: 3000).
- 3. Click **Start Server**.
- 4. Other users can navigate to http://[Your-IP]:3000 to access the Web Bridge.
-## 🛡 Security
- * **Preload Isolation:** Core database commands are never exposed to the frontend; they are mediated through a secure IPC bridge.
- * **Clearance Levels:** Integrated RBAC (Role-Based Access Control) with five levels of administrative clearance.
+*Note: For security, navigate to Organization Management to update your password immediately after first login.*
+## 🛡 Security & Networking
+ * **Preload Isolation:** Core database commands are mediated through a secure IPC bridge.
+ * **Network Server Mode:** Enable the "Web Bridge" to allow local Wi-Fi/LAN devices to access the dashboard via http://[Your-IP]:3000.
+ * **Clearance Levels:** Five levels of administrative clearance to protect sensitive financial and M-Book data.
 ## 📝 License & Copyright
 Built for internal use at engineering firms. Standard MIT license applies to the open-source core.
 **© 2026 gokuldc. All rights reserved.**
