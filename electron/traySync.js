@@ -13,12 +13,26 @@ export function initTray(mainWindow, db) {
     // Prevent creating multiple tray icons if the function runs twice
     if (tray) return;
 
-    // 🔥 SMART PATH RESOLUTION
-    // This checks both the Dev environment and the Production packaged environment
-    let iconPath = path.join(__dirname, '../public/icon.ico');
-    if (!fs.existsSync(iconPath)) {
-        // Fallback for compiled production build
-        iconPath = path.join(process.resourcesPath, 'public/icon.ico');
+    // 🔥 BULLETPROOF PATH RESOLUTION
+    // Bundlers (like Vite or electron-builder) move static assets around during the build.
+    // This array checks every possible location the icon might be hiding in Dev or Prod.
+    const possiblePaths = [
+        path.join(__dirname, '../public/icon.ico'),          // 1. Standard Dev environment
+        path.join(__dirname, '../../public/icon.ico'),       // 2. Deep Dev environment
+        path.join(__dirname, '../dist/icon.ico'),            // 3. Vite Packaged (Public gets moved to Dist)
+        path.join(app.getAppPath(), 'dist/icon.ico'),        // 4. Root ASAR archive (Vite)
+        path.join(app.getAppPath(), 'public/icon.ico'),      // 5. Root ASAR archive (Standard)
+        path.join(process.resourcesPath, 'public/icon.ico'), // 6. electron-builder extraResources
+        path.join(process.resourcesPath, 'icon.ico')         // 7. electron-builder flat extraResources
+    ];
+
+    // Find the first path that actually exists on the hard drive
+    const iconPath = possiblePaths.find(p => fs.existsSync(p));
+
+    if (!iconPath) {
+        console.error("❌ CRITICAL TRAY ERROR: Could not locate icon.ico in any expected directory!");
+        console.error("Current __dirname:", __dirname);
+        return; // Abort tray creation rather than creating an invisible ghost icon
     }
 
     try {
@@ -70,9 +84,9 @@ export function initTray(mainWindow, db) {
             }
         });
 
-        console.log("✅ System Tray Icon successfully pinned.");
+        console.log(`✅ System Tray Icon successfully pinned using path: ${iconPath}`);
 
     } catch (err) {
-        console.error("❌ Failed to create tray icon. Is the icon.ico file missing?", err);
+        console.error("❌ Failed to create tray icon.", err);
     }
 }
