@@ -19,7 +19,6 @@ import VpnKeyIcon from '@mui/icons-material/VpnKey';
 import MenuIcon from '@mui/icons-material/Menu';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 
-// 🔥 Import the Auth Hook
 import { useAuth } from '../context/AuthContext';
 
 export default function Directory() {
@@ -30,7 +29,6 @@ export default function Directory() {
     const SIDEBAR_CLOSED_WIDTH = 68;
     const SIDEBAR_OPEN_WIDTH = 260;
 
-    // Set default tab to Internal Org if they have L4+ clearance, otherwise fallback to CRM
     const [tab, setTab] = useState(hasClearance(4) ? 'org' : 'crm');
     const [isDialogOpen, setIsDialogOpen] = useState(false);
     const [editId, setEditId] = useState(null);
@@ -38,14 +36,21 @@ export default function Directory() {
     const [crmContacts, setCrmContacts] = useState([]);
     const [orgStaff, setOrgStaff] = useState([]);
 
+    const [departments, setDepartments] = useState(["Operations", "Design", "Finance", "Management", "Site Logistics"]);
+
     const loadData = async () => {
         try {
-            const [contacts, staff] = await Promise.all([
+            const [contacts, staff, companyInfo] = await Promise.all([
                 window.api.db.getCrmContacts(),
-                window.api.db.getOrgStaff()
+                window.api.db.getOrgStaff(),
+                window.api.db.getSettings('company_info')
             ]);
             setCrmContacts((contacts || []).sort((a, b) => b.createdAt - a.createdAt));
             setOrgStaff((staff || []).sort((a, b) => b.createdAt - a.createdAt));
+
+            if (companyInfo?.departments && companyInfo.departments.length > 0) {
+                setDepartments(companyInfo.departments);
+            }
         } catch (error) {
             console.error("Failed to load directory data:", error);
         }
@@ -73,7 +78,7 @@ export default function Directory() {
             setEditId(null);
             setFormData(tab === 'crm'
                 ? { name: "", company: "", type: "Client", status: "Active", email: "", phone: "" }
-                : { name: "", designation: "", department: "Operations", status: "Active", email: "", phone: "", username: "", password: "", accessLevel: 1, role: "Staff" }
+                : { name: "", designation: "", department: departments[0] || "Operations", status: "Active", email: "", phone: "", username: "", password: "", accessLevel: 1, role: "Staff" }
             );
         }
         setIsDialogOpen(true);
@@ -82,7 +87,6 @@ export default function Directory() {
     const handleSave = async () => {
         if (!formData.name) return;
 
-        // Server-side failsafe
         if (tab === 'org' && !hasClearance(5)) return alert("Access Denied: Level 5 required to modify system access.");
 
         const payload = {
@@ -106,7 +110,6 @@ export default function Directory() {
     };
 
     const handleDelete = async (id) => {
-        // Server-side failsafe
         if (tab === 'crm' && !hasClearance(4)) return alert("Access Denied: Level 4 required to delete CRM contacts.");
         if (tab === 'org' && !hasClearance(5)) return alert("Access Denied: Level 5 required to delete Org Staff.");
 
@@ -127,7 +130,9 @@ export default function Directory() {
 
     const canCreateEntry = tab === 'crm' ? hasClearance(3) : hasClearance(5);
 
-    // 🔥 SIDEBAR NAVIGATION ITEMS
+    // 🔥 Security Check: Is the currently logged-in user trying to edit someone else's credentials?
+    const isEditingOtherUser = !!editId && formData.id !== currentUser?.id;
+
     const NAV_ITEMS = useMemo(() => {
         const items = [];
         if (hasClearance(4)) {
@@ -149,11 +154,10 @@ export default function Directory() {
 
     return (
         <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
-            
-            {/* OPTIMIZED INTERNAL DIRECTORY SIDEBAR */}
-            <Paper 
+
+            <Paper
                 elevation={0}
-                sx={{ 
+                sx={{
                     width: sidebarOpen ? SIDEBAR_OPEN_WIDTH : { xs: 0, md: SIDEBAR_CLOSED_WIDTH },
                     flexShrink: 0,
                     bgcolor: 'rgba(13, 31, 60, 0.5)',
@@ -168,18 +172,18 @@ export default function Directory() {
                 }}
             >
                 <Box sx={{ p: 1, display: 'flex', justifyContent: sidebarOpen ? 'flex-end' : 'center', alignItems: 'center', height: 60 }}>
-                    <IconButton onClick={() => setSidebarOpen(!sidebarOpen)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }}}>
+                    <IconButton onClick={() => setSidebarOpen(!sidebarOpen)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
                         {sidebarOpen ? <MenuOpenIcon /> : <MenuIcon />}
                     </IconButton>
                 </Box>
-                
-                <Box sx={{ 
-                    flexGrow: 1, 
-                    overflowY: 'auto', 
-                    overflowX: 'hidden', 
+
+                <Box sx={{
+                    flexGrow: 1,
+                    overflowY: 'auto',
+                    overflowX: 'hidden',
                     pb: 2,
-                    scrollbarWidth: 'none', 
-                    '&::-webkit-scrollbar': { display: 'none' } 
+                    scrollbarWidth: 'none',
+                    '&::-webkit-scrollbar': { display: 'none' }
                 }}>
                     <List sx={{ px: 1 }}>
                         <Typography variant="caption" sx={{ px: sidebarOpen ? 2 : 0, pt: 1, pb: 1, display: 'block', fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'text.secondary', letterSpacing: '1px', textAlign: sidebarOpen ? 'left' : 'center', opacity: sidebarOpen ? 0.6 : 0, transition: 'opacity 0.2s' }}>
@@ -191,22 +195,22 @@ export default function Directory() {
                             return (
                                 <Tooltip key={item.id} title={!sidebarOpen ? item.label : ""} placement="right" disableInteractive>
                                     <ListItem disablePadding sx={{ mb: 0.5 }}>
-                                        <ListItemButton 
-                                            onClick={() => handleTabChange(item.id)} 
+                                        <ListItemButton
+                                            onClick={() => handleTabChange(item.id)}
                                             selected={isSelected}
-                                            sx={{ 
+                                            sx={{
                                                 borderRadius: 1.5, minHeight: 40, justifyContent: sidebarOpen ? 'initial' : 'center', px: 2.5,
                                                 '&.Mui-selected': { bgcolor: `rgba(${parseInt(item.color.slice(1, 3), 16)}, ${parseInt(item.color.slice(3, 5), 16)}, ${parseInt(item.color.slice(5, 7), 16)}, 0.15)` },
-                                                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } 
+                                                '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
                                             }}
                                         >
                                             <ListItemIcon sx={{ minWidth: 0, mr: sidebarOpen ? 2 : 'auto', justifyContent: 'center', color: isSelected ? item.color : 'text.secondary' }}>
                                                 {item.icon}
                                             </ListItemIcon>
-                                            <ListItemText 
-                                                primary={item.label} 
+                                            <ListItemText
+                                                primary={item.label}
                                                 sx={{ opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.2s ease-in-out', m: 0 }}
-                                                primaryTypographyProps={{ sx: { fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: isSelected ? 'bold' : 'normal', color: isSelected ? item.color : 'text.primary', whiteSpace: 'nowrap' } }} 
+                                                primaryTypographyProps={{ sx: { fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: isSelected ? 'bold' : 'normal', color: isSelected ? item.color : 'text.primary', whiteSpace: 'nowrap' } }}
                                             />
                                         </ListItemButton>
                                     </ListItem>
@@ -217,15 +221,12 @@ export default function Directory() {
                 </Box>
             </Paper>
 
-            {/* Mobile Overlay */}
             {sidebarOpen && (
                 <Box onClick={() => setSidebarOpen(false)} sx={{ display: { xs: 'block', md: 'none' }, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(0,0,0,0.5)', zIndex: 1000 }} />
             )}
 
-            {/* MAIN CONTENT AREA (Scrolls independently) */}
             <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 3 } }}>
-                
-                {/* HEADER */}
+
                 <Box sx={{
                     display: 'flex',
                     flexDirection: { xs: 'column', sm: 'row' },
@@ -239,7 +240,6 @@ export default function Directory() {
                         <IconButton onClick={() => setSidebarOpen(true)} sx={{ display: { xs: 'block', md: 'none' }, color: 'text.secondary' }}>
                             <MenuIcon />
                         </IconButton>
-                        {/* 🔥 FIX: Dynamic Directory Name based on the active tab */}
                         <Typography variant="h4" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px', fontSize: { xs: '18px', md: '22px' } }}>
                             DIRECTORY: <span style={{ color: '#3b82f6' }}>{tab === 'org' ? 'INTERNAL_DIRECTORY' : 'EXTERNAL_DIRECTORY'}</span>
                         </Typography>
@@ -252,7 +252,6 @@ export default function Directory() {
                     )}
                 </Box>
 
-                {/* METRICS */}
                 <Grid container spacing={2} sx={{ mb: 4 }}>
                     <Grid item xs={12} sm={6} md={3}><MetricCard title="INTERNAL_ORG" value={stats.int} icon={<BadgeIcon />} color="secondary" /></Grid>
                     <Grid item xs={12} sm={6} md={3}><MetricCard title="EXTERNAL_CRM" value={stats.ext} icon={<ApartmentIcon />} color="info" /></Grid>
@@ -260,7 +259,6 @@ export default function Directory() {
                     <Grid item xs={12} sm={6} md={3}><MetricCard title="ACTIVE_CLIENTS" value={stats.clients} icon={<GroupsIcon />} color="success" /></Grid>
                 </Grid>
 
-                {/* DATA TABLE */}
                 <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', overflowX: 'auto' }}>
                     <Table size="small">
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
@@ -325,7 +323,6 @@ export default function Directory() {
                     </Table>
                 </TableContainer>
 
-                {/* RECORD DIALOG */}
                 <Dialog open={isDialogOpen} onClose={() => setIsDialogOpen(false)} fullWidth maxWidth="sm">
                     <DialogTitle sx={{ fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold' }}>{editId ? 'UPDATE_RECORD' : 'INITIALIZE_NEW_RECORD'}</DialogTitle>
                     <DialogContent dividers sx={{ bgcolor: 'rgba(13, 31, 60, 0.5)', pt: 3 }}>
@@ -349,7 +346,7 @@ export default function Directory() {
                                     <Grid item xs={12} md={6}><TextField fullWidth label="OFFICIAL_DESIGNATION" value={formData.designation || ""} onChange={e => setFormData({ ...formData, designation: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} /></Grid>
                                     <Grid item xs={12} md={6}>
                                         <TextField select fullWidth label="DEPT_ASSIGNMENT" value={formData.department || ""} onChange={e => setFormData({ ...formData, department: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
-                                            {['Operations', 'Design', 'Finance', 'Management', 'Site Logistics'].map(opt => <MenuItem key={opt} value={opt} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{opt.toUpperCase()}</MenuItem>)}
+                                            {departments.map(opt => <MenuItem key={opt} value={opt} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{opt.toUpperCase()}</MenuItem>)}
                                         </TextField>
                                     </Grid>
 
@@ -359,11 +356,31 @@ export default function Directory() {
                                         </Divider>
                                     </Grid>
 
+                                    {/* 🔥 SECURITY PATCH: Usernames are permanent, Passwords are masked & locked */}
                                     <Grid item xs={12} md={4}>
-                                        <TextField fullWidth label="USERNAME" value={formData.username || ""} onChange={e => setFormData({ ...formData, username: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                        <TextField
+                                            fullWidth
+                                            label="USERNAME"
+                                            value={formData.username || ""}
+                                            onChange={e => setFormData({ ...formData, username: e.target.value })}
+                                            disabled={!!editId} // Locks after creation
+                                            helperText={!!editId ? "Usernames cannot be changed." : ""}
+                                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
+                                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        />
                                     </Grid>
                                     <Grid item xs={12} md={4}>
-                                        <TextField fullWidth label="PIN / PASSWORD" value={formData.password || ""} onChange={e => setFormData({ ...formData, password: e.target.value })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
+                                        <TextField
+                                            fullWidth
+                                            type="password"
+                                            label="PIN / PASSWORD"
+                                            value={formData.password || ""}
+                                            onChange={e => setFormData({ ...formData, password: e.target.value })}
+                                            disabled={isEditingOtherUser} // Locks for admins viewing other profiles
+                                            helperText={isEditingOtherUser ? "Only the owner can edit this." : ""}
+                                            InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
+                                            InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                                        />
                                     </Grid>
                                     <Grid item xs={12} md={4}>
                                         <TextField select fullWidth label="SYSTEM CLEARANCE" value={formData.accessLevel || 1} onChange={e => setFormData({ ...formData, accessLevel: Number(e.target.value) })} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>

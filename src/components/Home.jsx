@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
-import { 
-    Box, Typography, Paper, Grid, Container, Avatar, 
+import {
+    Box, Typography, Paper, Grid, Avatar,
     useTheme, Divider, Chip, Stack, alpha
 } from "@mui/material";
-import { 
-    PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip, 
-    BarChart, Bar, XAxis, YAxis, CartesianGrid, Radar, RadarChart, 
-    PolarGrid, PolarAngleAxis, Legend 
+import {
+    PieChart, Pie, Cell, ResponsiveContainer, Tooltip as ReTooltip,
+    BarChart, Bar, XAxis, YAxis, CartesianGrid, Radar, RadarChart,
+    PolarGrid, PolarAngleAxis, Legend
 } from 'recharts';
 
 // Icons
@@ -71,7 +71,7 @@ export default function Home() {
     const statsData = useMemo(() => {
         const activeCount = projects.filter(p => p.status === 'Active' || p.status === 'In Progress').length;
         const staffLoad = activeCount > 0 ? (orgStaff.length / activeCount).toFixed(1) : 0;
-        
+
         const crm = { Client: 0, Supplier: 0, Lead: 0, Consultant: 0 };
         crmContacts.forEach(c => {
             const t = c.type || 'Lead';
@@ -81,7 +81,7 @@ export default function Home() {
 
         const typeCounts = {};
         projects.forEach(p => { const t = p.type || 'General'; typeCounts[t] = (typeCounts[t] || 0) + 1; });
-        
+
         const statusCounts = { Active: 0, Completed: 0, Draft: 0 };
         projects.forEach(p => {
             if (p.status === 'In Progress' || p.status === 'Active') statusCounts.Active++;
@@ -104,8 +104,8 @@ export default function Home() {
     const CHART_COLORS = [theme.palette.primary.main, theme.palette.success.main, theme.palette.warning.main, theme.palette.secondary.main];
 
     const StatTile = ({ title, value, icon, color }) => (
-        <Paper elevation={0} sx={{ 
-            p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette[color].main, 0.2), 
+        <Paper elevation={0} sx={{
+            p: 2, borderRadius: 2, border: '1px solid', borderColor: alpha(theme.palette[color].main, 0.2),
             bgcolor: alpha(theme.palette[color].main, 0.03), transition: 'all 0.3s ease', display: 'flex', alignItems: 'center', gap: 1.5, height: '100%',
             '&:hover': { borderColor: theme.palette[color].main, bgcolor: alpha(theme.palette[color].main, 0.08), transform: 'translateY(-2px)', boxShadow: `0 4px 20px -5px ${alpha(theme.palette[color].main, 0.3)}` }
         }}>
@@ -136,8 +136,9 @@ export default function Home() {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflowY: 'auto', p: { xs: 2, md: 4 } }}>
-            <Container maxWidth="xl">
-                
+            {/* 🔥 FIXED: Replaced Container with a 100% width Box */}
+            <Box sx={{ width: '100%' }}>
+
                 <Box sx={{ mb: 4, pb: 4, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-start' }}>
                         {brandLogo ? (
@@ -215,7 +216,7 @@ export default function Home() {
                                             {projectStatusData.map((entry, index) => <Cell key={`cell-${index}`} fill={CHART_COLORS[index % CHART_COLORS.length]} />)}
                                         </Pie>
                                         {/* 🔥 Fixed Tooltip styling to avoid React errors */}
-                                        <ReTooltip 
+                                        <ReTooltip
                                             contentStyle={{ backgroundColor: '#0d1f3c', border: 'none', borderRadius: '8px' }}
                                             itemStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }}
                                         />
@@ -235,7 +236,7 @@ export default function Home() {
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="name" stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
                                         <YAxis stroke="#666" fontSize={10} tickLine={false} axisLine={false} />
-                                        <ReTooltip cursor={{fill: 'rgba(255,255,255,0.05)'}} contentStyle={{ backgroundColor: '#0d1f3c', border: 'none' }} />
+                                        <ReTooltip cursor={{ fill: 'rgba(255,255,255,0.05)' }} contentStyle={{ backgroundColor: '#0d1f3c', border: 'none' }} />
                                         <Bar dataKey="count" fill={theme.palette.primary.main} radius={[6, 6, 0, 0]} barSize={40} />
                                     </BarChart>
                                 </ResponsiveContainer>
@@ -258,7 +259,7 @@ export default function Home() {
                         </Paper>
                     </Grid>
                 </Grid>
-            </Container>
+            </Box>
         </Box>
     );
 }

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import {
-    Box, Typography, Paper, Grid, IconButton, TextField, InputAdornment, 
-    Chip, Button, Pagination, Container, Dialog, DialogTitle, DialogContent, DialogActions
+    Box, Typography, Paper, Grid, IconButton, TextField, InputAdornment,
+    Chip, Button, Pagination, Dialog, DialogTitle, DialogContent, DialogActions
 } from "@mui/material";
 import SearchIcon from '@mui/icons-material/Search';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -33,7 +33,7 @@ export default function ProjectArchive({ onOpenProject }) {
     const visibleProjects = useMemo(() => {
         if (hasClearance(4)) return projects;
         return projects.filter(p => {
-            try { return JSON.parse(p.assignedStaff || '[]').includes(currentUser?.id); } 
+            try { return JSON.parse(p.assignedStaff || '[]').includes(currentUser?.id); }
             catch (e) { return false; }
         });
     }, [projects, currentUser, hasClearance]);
@@ -81,8 +81,9 @@ export default function ProjectArchive({ onOpenProject }) {
 
     return (
         <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%', width: '100%', overflowY: 'auto', p: { xs: 2, md: 4 } }}>
-            <Box sx={{ maxWidth: 1400, mx: 'auto', width: '100%' }}>
-                
+            {/* 🔥 FIXED: Removed the maxWidth constraint here so it flexes to 100% width */}
+            <Box sx={{ width: '100%' }}>
+
                 {/* HEADER */}
                 <Box sx={{ mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2 }}>
                     <Box display="flex" alignItems="center" gap={2}>
@@ -104,21 +105,21 @@ export default function ProjectArchive({ onOpenProject }) {
                 </Box>
 
                 {/* SEARCH */}
-                <TextField 
-                    fullWidth 
-                    placeholder="Search by project name or code..." 
-                    value={searchQuery} 
-                    onChange={(e) => setSearchQuery(e.target.value)} 
+                <TextField
+                    fullWidth
+                    placeholder="Search by project name or code..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
                     sx={{ mb: 4 }}
-                    InputProps={{ 
+                    InputProps={{
                         startAdornment: <InputAdornment position="start"><SearchIcon /></InputAdornment>,
                         sx: { bgcolor: 'rgba(0,0,0,0.2)', fontFamily: "'JetBrains Mono', monospace" }
-                    }} 
+                    }}
                 />
 
                 <Grid container spacing={3}>
                     {paginatedProjects.map(p => (
-                        <Grid item xs={12} sm={6} lg={4} key={p.id}>
+                        <Grid item xs={12} sm={6} lg={4} xl={3} key={p.id}> {/* 🔥 Added xl={3} to take advantage of wider screens */}
                             <Paper sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', transition: '0.2s', '&:hover': { borderColor: 'primary.main', bgcolor: 'rgba(59, 130, 246, 0.05)' } }}>
                                 <Box display="flex" justifyContent="space-between" alignItems="flex-start">
                                     <Box>

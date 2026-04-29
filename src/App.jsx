@@ -21,7 +21,7 @@ import RouterIcon from '@mui/icons-material/Router';
 import SettingsIcon from '@mui/icons-material/Settings';
 import AccountCircleIcon from '@mui/icons-material/AccountCircle';
 import LogoutIcon from '@mui/icons-material/Logout';
-import MenuBookIcon from '@mui/icons-material/MenuBook'; 
+import MenuBookIcon from '@mui/icons-material/MenuBook';
 
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Login from './components/Login';
@@ -34,7 +34,7 @@ import Directory from './components/Directory';
 import ChatModule from './components/workspace/ChatModule';
 import { SettingsProvider } from './context/SettingsContext';
 import ProjectArchive from './components/ProjectArchive';
-import DailyLogs from './components/DailyLogs'; 
+import DailyLogs from './components/DailyLogs';
 import ServerManager from './components/ServerManager';
 import CompanySettings from './components/CompanySettings';
 
@@ -165,14 +165,14 @@ export default function App() {
                 <ThemeProvider theme={theme}>
                     <CssBaseline />
                     <Gatekeeper>
-                        <AppContent 
+                        <AppContent
                             mode={mode} theme={theme} toggleTheme={toggleTheme}
                             currentView={currentView} setCurrentView={setCurrentView}
                             activeProjectId={activeProjectId} setActiveProjectId={setActiveProjectId}
                             aboutOpen={aboutOpen} setAboutOpen={setAboutOpen}
                             sidebarOpen={sidebarOpen} setSidebarOpen={setSidebarOpen}
                             globalChatOpen={globalChatOpen} setGlobalChatOpen={setGlobalChatOpen}
-                            orgStaff={orgStaff} 
+                            orgStaff={orgStaff}
                             syncModalOpen={syncModalOpen} setSyncModalOpen={setSyncModalOpen}
                             syncUrl={syncUrl} setSyncUrl={setSyncUrl} handleSaveSyncUrl={handleSaveSyncUrl}
                             isProfileOpen={isProfileOpen} setIsProfileOpen={setIsProfileOpen}
@@ -196,7 +196,7 @@ function AppContent({
 
     const handleOpenGlobalChat = () => {
         setGlobalChatOpen(true);
-        setSidebarOpen(false); 
+        setSidebarOpen(false);
     };
 
     const handleCreateProject = async () => {
@@ -230,7 +230,7 @@ function AppContent({
         { label: 'Project Archive', icon: <FolderSpecialIcon />, action: () => setCurrentView('archive'), clearance: 1, color: 'info.main' },
         { label: 'Directory', icon: <AutoStoriesIcon />, action: () => setCurrentView('directory'), clearance: 3, color: 'success.main' },
         { label: 'Database Editor', icon: <StorageIcon />, action: () => setCurrentView('database'), clearance: 2, color: 'secondary.main' },
-        { label: 'Organization Work Logs', icon: <MenuBookIcon />, action: () => setCurrentView('logs'), clearance: 1, color: 'warning.main' },
+        { label: 'Organization Logs', icon: <MenuBookIcon />, action: () => setCurrentView('logs'), clearance: 1, color: 'warning.main' },
         { label: 'Network Host', icon: <RouterIcon />, action: () => setCurrentView('servermanager'), clearance: 5, color: 'info.main' },
         { label: 'System Settings', icon: <SettingsIcon />, action: () => setCurrentView('settings'), clearance: 5, color: 'text.secondary' }
     ];
@@ -256,7 +256,7 @@ function AppContent({
             </AppBar>
 
             <Box sx={{ display: 'flex', flexGrow: 1, overflow: 'hidden', position: 'relative' }}>
-                <Paper elevation={0} sx={{ 
+                <Paper elevation={0} sx={{
                     width: sidebarOpen ? SIDEBAR_OPEN_WIDTH : { xs: 0, sm: SIDEBAR_CLOSED_WIDTH },
                     flexShrink: 0, bgcolor: 'background.paper', borderRight: '1px solid', borderColor: 'divider',
                     transition: 'width 0.225s cubic-bezier(0.4, 0, 0.2, 1)', overflowX: 'hidden', display: 'flex', flexDirection: 'column',

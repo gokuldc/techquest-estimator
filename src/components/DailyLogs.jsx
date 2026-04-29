@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import {
-    Box, Typography, Paper, IconButton, List, ListItem, 
+    Box, Typography, Paper, IconButton, List, ListItem,
     ListItemButton, ListItemIcon, ListItemText, Tooltip, alpha, useTheme
 } from '@mui/material';
 
@@ -50,31 +50,40 @@ export default function DailyLogs() {
     // Responsive widths
     const SIDEBAR_WIDTH = sidebarOpen ? 260 : { xs: 0, md: 68 };
 
+    // 🔥 DYNAMIC TITLE HANDLER
+    const getModuleTitle = () => {
+        switch (activeModule) {
+            case 'logs': return 'OPERATIONS_LOGS';
+            case 'tasks': return 'TEAM_TASKS';
+            case 'channels': return 'SYSTEM_CHANNELS';
+            default: return 'LOCKED_MODULE';
+        }
+    };
+
     return (
         <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden', position: 'relative' }}>
-            
+
             {/* MOBILE OVERLAY BACKDROP */}
             {sidebarOpen && (
-                <Box 
+                <Box
                     onClick={() => setSidebarOpen(false)}
-                    sx={{ 
-                        display: { xs: 'block', md: 'none' }, 
-                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, 
-                        bgcolor: 'rgba(0,0,0,0.5)', zIndex: 1200 
-                    }} 
+                    sx={{
+                        display: { xs: 'block', md: 'none' },
+                        position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+                        bgcolor: 'rgba(0,0,0,0.5)', zIndex: 1200
+                    }}
                 />
             )}
 
             {/* SIDEBAR */}
-            <Paper elevation={0} sx={{ 
+            <Paper elevation={0} sx={{
                 width: SIDEBAR_WIDTH,
-                flexShrink: 0, 
-                bgcolor: 'rgba(13, 31, 60, 0.95)', 
+                flexShrink: 0,
+                bgcolor: 'rgba(13, 31, 60, 0.95)',
                 borderRight: '1px solid', borderColor: 'divider',
-                transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)', 
+                transition: 'width 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
                 overflow: 'hidden',
                 display: 'flex', flexDirection: 'column',
-                // 🔥 Critical fix for Mobile visibility
                 position: { xs: 'fixed', md: 'relative' },
                 height: '100%',
                 zIndex: 1300,
@@ -92,12 +101,12 @@ export default function DailyLogs() {
                         {NAV_ITEMS.map((item) => (
                             <Tooltip key={item.id} title={!sidebarOpen ? item.label : ""} placement="right" arrow>
                                 <ListItem disablePadding sx={{ mb: 0.5 }}>
-                                    <ListItemButton 
+                                    <ListItemButton
                                         disabled={item.disabled}
-                                        onClick={() => { setActiveModule(item.id); if (window.innerWidth < 900) setSidebarOpen(false); }} 
+                                        onClick={() => { setActiveModule(item.id); if (window.innerWidth < 900) setSidebarOpen(false); }}
                                         selected={activeModule === item.id}
-                                        sx={{ 
-                                            minHeight: 44, height: 44, borderRadius: 1.5, 
+                                        sx={{
+                                            minHeight: 44, height: 44, borderRadius: 1.5,
                                             justifyContent: sidebarOpen ? 'initial' : 'center', px: 2,
                                             '&.Mui-selected': { bgcolor: alpha(item.color, 0.12) }
                                         }}
@@ -116,35 +125,35 @@ export default function DailyLogs() {
 
             {/* MAIN CONTENT AREA */}
             <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', p: { xs: 2, md: 4 } }}>
-                
+
                 {/* HEADER WITH MOBILE MENU BUTTON */}
                 <Box display="flex" alignItems="center" gap={2} mb={4} pb={2} borderBottom="1px solid" borderColor="divider">
-                    {/* 🔥 Visible only on mobile when sidebar is closed */}
-                    <IconButton 
-                        onClick={() => setSidebarOpen(true)} 
+                    <IconButton
+                        onClick={() => setSidebarOpen(true)}
                         sx={{ display: { xs: 'flex', md: 'none' }, color: 'text.secondary' }}
                     >
                         <MenuIcon />
                     </IconButton>
-                    
+
+                    {/* 🔥 DYNAMIC TITLE INJECTED HERE */}
                     <Typography variant="h5" fontWeight="bold" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>
-                        {activeModule === 'logs' ? 'OPERATIONS_LOGS' : 'SYSTEM_CHANNELS'}
+                        {getModuleTitle()}
                     </Typography>
                 </Box>
 
                 {activeModule === 'logs' ? (
-                    <WorkLogModule 
+                    <WorkLogModule
                         logs={logs} staff={staff} projects={projects}
                         currentUser={currentUser} hasClearance={hasClearance} loadData={loadData}
                     />
                 ) : activeModule === 'channels' ? (
-                    <ChannelsModule 
-                        currentUser={currentUser} staff={staff} projects={projects} 
+                    <ChannelsModule
+                        currentUser={currentUser} staff={staff} projects={projects}
                     />
                 ) : activeModule === 'tasks' ? (
-                    <TasksModule 
-                        currentUser={currentUser} staff={staff} projects={projects} 
-                        loadData={loadData} // 🔥 ADDED THIS LINE
+                    <TasksModule
+                        currentUser={currentUser} staff={staff} projects={projects}
+                        loadData={loadData}
                     />
                 ) : (
                     <Typography sx={{ textAlign: 'center', py: 10, opacity: 0.5 }}>[LOCKED_MODULE]</Typography>

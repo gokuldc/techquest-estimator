@@ -21,16 +21,25 @@ export function getLocalIp() {
     return '127.0.0.1';
 }
 
-const mapInsert = (data) => {
-    const cols = Object.keys(data).join(', ');
-    const placeholders = Object.keys(data).map(() => '?').join(', ');
-    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+// 🔥 THE GLOBAL SANITIZERS 🔥
+const mapInsert = (db, tableName, data) => {
+    const validCols = db.prepare(`PRAGMA table_info(${tableName})`).all().map(c => c.name);
+    const cleanData = {};
+    for (const k in data) { if (validCols.includes(k)) cleanData[k] = data[k]; }
+
+    const cols = Object.keys(cleanData).join(', ');
+    const placeholders = Object.keys(cleanData).map(() => '?').join(', ');
+    const values = Object.values(cleanData).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
     return { cols, placeholders, values };
 };
 
-const mapUpdate = (data) => {
-    const fields = Object.keys(data).map(k => `${k} = ?`).join(', ');
-    const values = Object.values(data).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
+const mapUpdate = (db, tableName, data) => {
+    const validCols = db.prepare(`PRAGMA table_info(${tableName})`).all().map(c => c.name);
+    const cleanData = {};
+    for (const k in data) { if (validCols.includes(k) && k !== 'id') cleanData[k] = data[k]; }
+
+    const fields = Object.keys(cleanData).map(k => `${k} = ?`).join(', ');
+    const values = Object.values(cleanData).map(v => typeof v === 'object' ? JSON.stringify(v) : (typeof v === 'boolean' ? (v ? 1 : 0) : v));
     return { fields, values };
 };
 
@@ -42,42 +51,22 @@ export function startWebServer(port, db) {
         app.use(cors());
         app.use(express.json({ limit: '50mb' }));
 
-        // 🔥 FILE STREAMING ROUTE
         app.get('/api/download', (req, res) => {
             try {
-                // Ensure the path is absolute and properly decoded
                 const filePath = path.resolve(decodeURIComponent(req.query.path));
-
-                if (!filePath || !fs.existsSync(filePath)) {
-                    return res.status(404).send("File not found on Host computer.");
-                }
-
+                if (!filePath || !fs.existsSync(filePath)) return res.status(404).send("File not found.");
                 const stat = fs.statSync(filePath);
-                if (stat.isDirectory()) {
-                    return res.status(400).send("Target is a directory, not a file.");
-                }
+                if (stat.isDirectory()) return res.status(400).send("Target is a directory.");
 
                 const fileName = path.basename(filePath);
-
-                // Force the browser to download the file instead of trying to render it
                 res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
                 res.setHeader('Content-Length', stat.size);
                 res.setHeader('Content-Type', 'application/octet-stream');
 
-                // Pipe the file directly to the network request
                 const readStream = fs.createReadStream(filePath);
-
-                readStream.on('error', (err) => {
-                    console.error("Read Stream Error:", err);
-                    if (!res.headersSent) res.status(500).send("Error reading file.");
-                });
-
+                readStream.on('error', (err) => { if (!res.headersSent) res.status(500).send("Read error."); });
                 readStream.pipe(res);
-
-            } catch (err) {
-                console.error("Download endpoint crashed:", err);
-                if (!res.headersSent) res.status(500).send("Internal Server Error");
-            }
+            } catch (err) { if (!res.headersSent) res.status(500).send("Server Error"); }
         });
 
         app.post('/api/rpc', (req, res) => {
@@ -85,7 +74,6 @@ export function startWebServer(port, db) {
             try {
                 let result;
 
-                // --- AUTH & SETTINGS ---
                 if (channel === 'db:verify-login') {
                     const [un, pw] = args;
                     const user = db.prepare(`SELECT * FROM org_staff WHERE LOWER(username) = LOWER(?) AND password = ? AND status = 'Active'`).get(un, pw);
@@ -100,10 +88,8 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- MASTER DATA (REGIONS/RESOURCES/BOQ) ---
-                else if (channel === 'db:get-regions') {
-                    result = db.prepare('SELECT * FROM regions ORDER BY name ASC').all();
-                }
+                // --- MASTER DATA ---
+                else if (channel === 'db:get-regions') result = db.prepare('SELECT * FROM regions ORDER BY name ASC').all();
                 else if (channel === 'db:create-region') {
                     const id = crypto.randomUUID();
                     db.prepare('INSERT INTO regions (id, name) VALUES (?, ?)').run(id, args[0]);
@@ -124,9 +110,7 @@ export function startWebServer(port, db) {
                     })();
                     result = { success: true };
                 }
-                else if (channel === 'db:get-resources') {
-                    result = db.prepare('SELECT * FROM resources ORDER BY code ASC').all().map(r => ({ ...r, rates: JSON.parse(r.rates || '{}') }));
-                }
+                else if (channel === 'db:get-resources') result = db.prepare('SELECT * FROM resources ORDER BY code ASC').all().map(r => ({ ...r, rates: JSON.parse(r.rates || '{}') }));
                 else if (channel === 'db:create-resource') {
                     const d = args[0];
                     db.prepare('INSERT INTO resources (id, code, description, unit, rates) VALUES (?, ?, ?, ?, ?)').run(d.id || crypto.randomUUID(), d.code, d.description, d.unit, '{}');
@@ -141,9 +125,7 @@ export function startWebServer(port, db) {
                     db.prepare('DELETE FROM resources WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
-                else if (channel === 'db:get-master-boqs') {
-                    result = db.prepare('SELECT * FROM master_boq').all().map(b => ({ ...b, components: JSON.parse(b.components || '[]') }));
-                }
+                else if (channel === 'db:get-master-boqs') result = db.prepare('SELECT * FROM master_boq').all().map(b => ({ ...b, components: JSON.parse(b.components || '[]') }));
                 else if (channel === 'db:save-master-boq') {
                     const [payload, id, isNew] = args;
                     const compStr = JSON.stringify(payload.components);
@@ -161,20 +143,16 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- PROJECTS & WORKSPACE (FULLY UPDATED) ---
-                else if (channel === 'db:get-projects') {
-                    result = db.prepare('SELECT * FROM projects').all();
-                }
-                else if (channel === 'db:get-project') {
-                    result = db.prepare('SELECT * FROM projects WHERE id = ?').get(args[0]);
-                }
+                // --- PROJECTS & WORKSPACE (SANITIZED) ---
+                else if (channel === 'db:get-projects') result = db.prepare('SELECT * FROM projects').all();
+                else if (channel === 'db:get-project') result = db.prepare('SELECT * FROM projects WHERE id = ?').get(args[0]);
                 else if (channel === 'db:add-project') {
-                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    const { cols, placeholders, values } = mapInsert(db, 'projects', args[0]);
                     db.prepare(`INSERT INTO projects (${cols}) VALUES (${placeholders})`).run(...values);
                     result = { success: true };
                 }
                 else if (channel === 'db:update-project') {
-                    const { fields, values } = mapUpdate(args[1]);
+                    const { fields, values } = mapUpdate(db, 'projects', args[1]);
                     db.prepare(`UPDATE projects SET ${fields} WHERE id = ?`).run(...values, args[0]);
                     result = { success: true };
                 }
@@ -195,17 +173,15 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- PROJECT BOQS ---
-                else if (channel === 'db:get-project-boqs') {
-                    result = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(args[0]);
-                }
+                // --- PROJECT BOQ (SANITIZED) ---
+                else if (channel === 'db:get-project-boqs') result = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(args[0]);
                 else if (channel === 'db:add-project-boq') {
-                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    const { cols, placeholders, values } = mapInsert(db, 'project_boq', args[0]);
                     db.prepare(`INSERT INTO project_boq (id, ${cols}) VALUES (?, ${placeholders})`).run(crypto.randomUUID(), ...values);
                     result = { success: true };
                 }
                 else if (channel === 'db:update-project-boq') {
-                    const { fields, values } = mapUpdate(args[1]);
+                    const { fields, values } = mapUpdate(db, 'project_boq', args[1]);
                     db.prepare(`UPDATE project_boq SET ${fields} WHERE id = ?`).run(...values, args[0]);
                     result = { success: true };
                 }
@@ -221,12 +197,10 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- SITE GALLERY & DOCUMENTS ---
-                else if (channel === 'db:get-project-documents') {
-                    result = db.prepare('SELECT * FROM project_documents WHERE projectId = ? ORDER BY addedAt DESC').all(args[0]);
-                }
+                // --- DOCUMENTS (SANITIZED) ---
+                else if (channel === 'db:get-project-documents') result = db.prepare('SELECT * FROM project_documents WHERE projectId = ? ORDER BY addedAt DESC').all(args[0]);
                 else if (channel === 'db:save-project-document') {
-                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    const { cols, placeholders, values } = mapInsert(db, 'project_documents', args[0]);
                     db.prepare(`INSERT OR REPLACE INTO project_documents (${cols}) VALUES (${placeholders})`).run(...values);
                     result = { success: true };
                 }
@@ -235,68 +209,90 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- DIRECTORY & LOGS ---
+                // --- DIRECTORY (SANITIZED) ---
                 else if (channel === 'db:get-org-staff') result = db.prepare('SELECT * FROM org_staff').all();
-                else if (channel === 'db:get-crm-contacts') result = db.prepare('SELECT * FROM crm_contacts').all();
-                else if (channel === 'db:get-work-logs') result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC').all();
-
-                // --- COMMLINK (MESSAGING) ---
-                else if (channel === 'db:get-messages') {
-                    result = args[0] ? db.prepare('SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC').all(args[0]) : db.prepare('SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC').all();
+                else if (channel === 'db:save-org-staff') {
+                    const d = args[0];
+                    const level = d.accessLevel ? parseInt(d.accessLevel, 10) : 1;
+                    db.prepare(`INSERT OR REPLACE INTO org_staff (id, name, designation, department, status, email, phone, createdAt, username, password, role, accessLevel) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+                        d.id, d.name || '', d.designation || '', d.department || 'Operations', d.status || 'Active', d.email || '', d.phone || '', d.createdAt || Date.now(), d.username || null, d.password || null, d.role || 'Staff', level
+                    );
+                    result = { success: true };
                 }
+                else if (channel === 'db:delete-org-staff') {
+                    db.prepare('DELETE FROM org_staff WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:get-crm-contacts') result = db.prepare('SELECT * FROM crm_contacts').all();
+                else if (channel === 'db:save-crm-contact') {
+                    const { cols, placeholders, values } = mapInsert(db, 'crm_contacts', args[0]);
+                    db.prepare(`INSERT OR REPLACE INTO crm_contacts (${cols}) VALUES (${placeholders})`).run(...values);
+                    result = { success: true };
+                }
+                else if (channel === 'db:delete-crm-contact') {
+                    db.prepare('DELETE FROM crm_contacts WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+
+                // --- LOGS & KANBAN (SANITIZED) ---
+                else if (channel === 'db:get-work-logs') result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();
+                else if (channel === 'db:save-work-log') {
+                    const { cols, placeholders, values } = mapInsert(db, 'staff_work_logs', args[0]);
+                    db.prepare(`INSERT OR REPLACE INTO staff_work_logs (${cols}) VALUES (${placeholders})`).run(...values);
+                    result = { success: true };
+                }
+                else if (channel === 'db:update-work-log') {
+                    const { fields, values } = mapUpdate(db, 'staff_work_logs', args[1]);
+                    db.prepare(`UPDATE staff_work_logs SET ${fields} WHERE id = ?`).run(...values, args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:delete-work-log') {
+                    db.prepare('DELETE FROM staff_work_logs WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:get-kanban-tasks') result = [];
+
+                // --- MESSAGING & COMMLINK ---
+                else if (channel === 'db:get-messages') result = args[0] ? db.prepare('SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC').all(args[0]) : db.prepare('SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC').all();
                 else if (channel === 'db:save-message') {
                     const d = args[0];
                     db.prepare(`INSERT INTO messages (id, projectId, senderId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.projectId || null, d.senderId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
-                // DELETE HANDLER
                 else if (channel === 'db:delete-message') {
                     db.prepare('DELETE FROM messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
-                // UNIFIED FILE UPLOADER FOR WEB SESSIONS
-                else if (channel === 'os:upload-file-web') {
-                    const [fileName, base64Data, projectId] = args;
-                    const base64String = base64Data.split(';base64,').pop();
-                    const buffer = Buffer.from(base64String, 'base64');
-
-                    // Save to a universal uploads directory on the Host
-                    const uploadDir = path.join(os.homedir(), '.openprix', 'uploads');
-                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-                    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
-                    const filePath = path.join(uploadDir, safeName);
-
-                    fs.writeFileSync(filePath, buffer);
-                    result = { success: true, path: filePath };
-                }
-
-                // --- DIRECT MESSAGES ---
-                else if (channel === 'db:get-private-messages') {
-                    result = db.prepare(`SELECT * FROM private_messages WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?) ORDER BY createdAt ASC`).all(args[0], args[1], args[1], args[0]);
-                }
+                else if (channel === 'db:get-private-messages') result = db.prepare(`SELECT * FROM private_messages WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?) ORDER BY createdAt ASC`).all(args[0], args[1], args[1], args[0]);
                 else if (channel === 'db:save-private-message') {
                     const d = args[0];
                     db.prepare(`INSERT INTO private_messages (id, senderId, receiverId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.senderId, d.receiverId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
-                // 🔥 ADDED DELETE HANDLER
                 else if (channel === 'db:delete-private-message') {
                     db.prepare('DELETE FROM private_messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
-
-                // 🔥 ADDED NOTIFICATION ENGINE FOR NETWORK USERS
                 else if (channel === 'db:check-notifications') {
                     const userId = args[0];
                     const lastChecked = args[1] || 0;
-
                     const globalUnread = db.prepare(`SELECT COUNT(*) as count FROM messages WHERE projectId IS NULL AND senderId != ? AND createdAt > ?`).get(userId, lastChecked);
                     const dmUnread = db.prepare(`SELECT COUNT(*) as count FROM private_messages WHERE receiverId = ? AND createdAt > ?`).get(userId, lastChecked);
-
                     result = (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
                 }
 
+                // --- UPLOADS ---
+                else if (channel === 'os:upload-file-web') {
+                    const [fileName, base64Data] = args;
+                    const base64String = base64Data.split(';base64,').pop();
+                    const buffer = Buffer.from(base64String, 'base64');
+                    const uploadDir = path.join(os.homedir(), '.openprix', 'uploads');
+                    if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
+                    const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
+                    const filePath = path.join(uploadDir, safeName);
+                    fs.writeFileSync(filePath, buffer);
+                    result = { success: true, path: filePath };
+                }
                 else { return res.status(404).json({ error: 'Unknown Channel: ' + channel }); }
 
                 res.json({ success: true, data: result });

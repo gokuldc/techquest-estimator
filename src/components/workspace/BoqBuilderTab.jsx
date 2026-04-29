@@ -72,7 +72,7 @@ export default function BoqBuilderTab({
 
     return (
         <Paper sx={{ p: { xs: 2, sm: 3 }, borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)' }}>
-            
+
             {/* Mode Toggles */}
             <Box sx={{ display: "flex", flexDirection: { xs: 'column', sm: 'row' }, gap: 2, mb: 3 }}>
                 <Button variant={addMode === "master" ? "contained" : "outlined"} onClick={() => setAddMode("master")} sx={{ borderRadius: 2, fontFamily: "'JetBrains Mono', monospace", letterSpacing: '0.5px', fontSize: '12px' }}>
@@ -86,18 +86,16 @@ export default function BoqBuilderTab({
             <Box sx={{ p: { xs: 2, sm: 3 }, bgcolor: 'rgba(0,0,0,0.2)', borderRadius: 2, border: '1px solid', borderColor: 'divider', mb: 3 }}>
                 {addMode === "master" ? (
                     <Box display="flex" flexDirection="column" gap={2}>
-                        {/* 🔥 FIXED: Mobile Stack for Search Fields */}
                         <Box display="flex" gap={2} flexDirection={{ xs: 'column', md: 'row' }}>
                             <TextField fullWidth size="small" placeholder="Search Code..." value={searchCode} onChange={e => setSearchCode(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                             <TextField fullWidth size="small" placeholder="Search Description..." value={searchDesc} onChange={e => setSearchDesc(e.target.value)} InputProps={{ startAdornment: <InputAdornment position="start"><SearchIcon fontSize="small" /></InputAdornment>, sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                         </Box>
-                        
+
                         <TextField select fullWidth size="small" label="SELECT_ITEM" value={addBoqId} onChange={e => setAddBoqId(e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}>
                             <MenuItem value="">-- CHOOSE_MASTER_BOQ --</MenuItem>
                             {filteredMasterBoqs.map(b => <MenuItem key={b.id} value={b.id} sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', whiteSpace: 'normal' }}>{b.itemCode ? `[${b.itemCode}] ` : ''}{b.description}</MenuItem>)}
                         </TextField>
 
-                        {/* 🔥 FIXED: Mobile Stack for Qty/Phase/Submit */}
                         <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                             <TextField fullWidth size="small" type="text" label="QTY OR FORMULA" value={addBoqQty} onChange={e => setAddBoqQty(e.target.value)} placeholder="e.g. 50 or =#1*10" InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} />
                             <Autocomplete
@@ -114,31 +112,42 @@ export default function BoqBuilderTab({
                     </Box>
                 ) : (
                     <Box display="flex" flexDirection="column" gap={2}>
-                        {/* FIXED: Custom Mode Responsive Stacking */}
-                        {/* 🔥 FIXED: Proportional Flex Ratios for Code and Description */}
-<Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
-    <TextField 
-        fullWidth 
-        size="small" 
-        label="CODE" 
-        value={customCode} 
-        onChange={e => setCustomCode(e.target.value)} 
-        sx={{ flex: { xs: 1, sm: 1 } }} 
-        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-    />
-    <TextField 
-        fullWidth 
-        size="small" 
-        label="DESCRIPTION" 
-        value={customDesc} 
-        onChange={e => setCustomDesc(e.target.value)} 
-        sx={{ flex: { xs: 1, sm: 3 } }} 
-        InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} 
-        InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }} 
-    />
-</Box>
-                        
+                        {/* Row 1: Code and Description */}
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
+                            <TextField
+                                fullWidth size="small" label="CODE" value={customCode} onChange={e => setCustomCode(e.target.value)}
+                                sx={{ flex: { xs: 1, sm: 1 } }}
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            />
+                            <TextField
+                                fullWidth size="small" label="DESCRIPTION" value={customDesc} onChange={e => setCustomDesc(e.target.value)}
+                                sx={{ flex: { xs: 1, sm: 3 } }}
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            />
+                        </Box>
+
+                        {/* 🔥 FIXED: Row 2: Unit, Rate, and Qty added back into UI */}
+                        <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
+                            <TextField
+                                fullWidth size="small" label="UNIT" value={customUnit} onChange={e => setCustomUnit(e.target.value)}
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            />
+                            <TextField
+                                fullWidth size="small" type="number" label="RATE" value={customRate} onChange={e => setCustomRate(e.target.value)}
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            />
+                            <TextField
+                                fullWidth size="small" type="number" label="QTY" value={customQty} onChange={e => setCustomQty(e.target.value)}
+                                InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }}
+                                InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
+                            />
+                        </Box>
+
+                        {/* Row 3: Phase and Submit */}
                         <Box display="flex" gap={2} flexDirection={{ xs: 'column', sm: 'row' }}>
                             <Autocomplete
                                 freeSolo
@@ -162,7 +171,6 @@ export default function BoqBuilderTab({
                 </Button>
             </Alert>
 
-            {/* 🔥 FIXED: Added overflowX and minWidth for scrollable data table on mobile */}
             <TableContainer sx={{ border: '1px solid', borderColor: 'divider', borderRadius: 2, overflowX: 'auto' }}>
                 <Table size="small" sx={{ minWidth: 900 }}>
                     <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
@@ -232,16 +240,12 @@ export default function BoqBuilderTab({
                                                     ) : null}
                                                 </TableCell>
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>{item.displayUnit}</TableCell>
-
-                                                {/* 🔥 DEFENSIVE RENDER: Number() protects against NaN crashing formatCurrency */}
                                                 <TableCell color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
                                                     {formatCurrency(Number(item.rate) || 0)}
                                                 </TableCell>
-
                                                 <TableCell sx={{ fontWeight: 'bold', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
                                                     {formatCurrency(Number(item.amount) || 0)}
                                                 </TableCell>
-
                                                 <TableCell align="center">
                                                     <Box display="flex" gap={1} justifyContent="center">
                                                         <IconButton color="warning" onClick={() => openEditDialog(item)} size="small"><EditIcon fontSize="small" /></IconButton>
@@ -258,12 +262,9 @@ export default function BoqBuilderTab({
                         )}
                         <TableRow sx={{ bgcolor: 'rgba(0,0,0,0.2)' }}>
                             <TableCell colSpan={7} align="right" sx={{ fontWeight: 'bold', fontSize: '1rem', fontFamily: "'JetBrains Mono', monospace" }}>TOTAL_ESTIMATE:</TableCell>
-
-                            {/* 🔥 DEFENSIVE RENDER */}
                             <TableCell sx={{ fontWeight: 'bold', fontSize: '1.1rem', color: 'success.main', fontFamily: "'JetBrains Mono', monospace" }}>
                                 {formatCurrency(Number(totalAmount) || 0)}
                             </TableCell>
-
                             <TableCell></TableCell>
                         </TableRow>
                     </TableBody>

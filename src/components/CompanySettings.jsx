@@ -1,9 +1,11 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     Box, TextField, Button, Typography, Avatar, IconButton,
-    MenuItem, Divider, Paper, Grid, Tooltip, List, ListItem, 
+    MenuItem, Divider, Paper, Grid, Tooltip, List, ListItem,
     ListItemButton, ListItemIcon, ListItemText, alpha, useTheme
 } from '@mui/material';
+
+// Icons
 import BusinessIcon from '@mui/icons-material/Business';
 import CloudUploadIcon from '@mui/icons-material/CloudUpload';
 import DeleteIcon from '@mui/icons-material/Delete';
@@ -12,6 +14,7 @@ import PublicIcon from '@mui/icons-material/Public';
 import MenuIcon from '@mui/icons-material/Menu';
 import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import SaveIcon from '@mui/icons-material/Save';
+import AccountTreeIcon from '@mui/icons-material/AccountTree'; // Added for Org Tab
 
 import { useSettings } from '../context/SettingsContext';
 
@@ -29,13 +32,17 @@ export default function CompanySettings() {
     const [info, setInfo] = useState({
         name: "", address: "", email: "", phone: "", taxId: "", logo: "",
         currencySymbol: "₹", currencyLocale: "en-IN", unitSystem: "Metric",
-        scaffoldRoot: "", 
-        scaffoldPathTemplate: "./{TYPE}/{CODE}_{NAME}", 
-        templateFolders: ["01_Drawings", "02_Permits", "03_Site_Photos", "04_Invoices", "05_Communications"]
+        scaffoldRoot: "",
+        scaffoldPathTemplate: "./{TYPE}/{CODE}_{NAME}",
+        templateFolders: ["01_Drawings", "02_Permits", "03_Site_Photos", "04_Invoices", "05_Communications"],
+        departments: ["Operations", "Design", "Finance", "Management", "Site Logistics"] // 🔥 Added Defaults
     });
 
     const [newFolderName, setNewFolderName] = useState("");
     const [selectedParent, setSelectedParent] = useState("");
+
+    // 🔥 New State for Departments
+    const [newDeptName, setNewDeptName] = useState("");
 
     useEffect(() => {
         window.api.db.getSettings('company_info').then(data => {
@@ -43,10 +50,14 @@ export default function CompanySettings() {
                 let parsedFolders = data.templateFolders || ["01_Drawings", "02_Permits", "03_Site_Photos", "04_Invoices", "05_Communications"];
                 if (typeof parsedFolders === 'string') parsedFolders = parsedFolders.split(',').map(s => s.trim());
 
-                setInfo(prev => ({ 
-                    ...prev, 
+                let parsedDepts = data.departments || ["Operations", "Design", "Finance", "Management", "Site Logistics"];
+                if (typeof parsedDepts === 'string') parsedDepts = parsedDepts.split(',').map(s => s.trim());
+
+                setInfo(prev => ({
+                    ...prev,
                     ...data,
                     templateFolders: parsedFolders,
+                    departments: parsedDepts, // 🔥 Bind dynamic departments
                     currencySymbol: data.currencySymbol || "₹",
                     currencyLocale: data.currencyLocale || "en-IN",
                     unitSystem: data.unitSystem || "Metric",
@@ -58,7 +69,7 @@ export default function CompanySettings() {
 
     const handlePickRoot = async () => {
         if (window.api?.os?.pickDirectory) {
-            const path = await window.api.os.pickDirectory(); 
+            const path = await window.api.os.pickDirectory();
             if (path) setInfo({ ...info, scaffoldRoot: path });
         } else {
             alert("This feature requires the Desktop Host application.");
@@ -74,7 +85,7 @@ export default function CompanySettings() {
 
     const handleAddFolder = () => {
         if (!newFolderName.trim()) return;
-        const cleanName = newFolderName.trim().replace(/[\/\\]/g, ''); 
+        const cleanName = newFolderName.trim().replace(/[\/\\]/g, '');
         const fullPath = selectedParent ? `${selectedParent}/${cleanName}` : cleanName;
         if (!info.templateFolders.includes(fullPath)) {
             setInfo({ ...info, templateFolders: [...info.templateFolders, fullPath].sort() });
@@ -90,6 +101,21 @@ export default function CompanySettings() {
         }
     };
 
+    // 🔥 Department Handlers
+    const handleAddDept = () => {
+        if (!newDeptName.trim()) return;
+        const cleanName = newDeptName.trim();
+        if (!info.departments.includes(cleanName)) {
+            setInfo({ ...info, departments: [...info.departments, cleanName].sort() });
+        }
+        setNewDeptName("");
+    };
+
+    const handleRemoveDept = (deptToRemove) => {
+        const updated = info.departments.filter(d => d !== deptToRemove);
+        setInfo({ ...info, departments: updated });
+    };
+
     const handleSave = async () => {
         await window.api.db.saveSettings('company_info', info);
         await refreshSettings();
@@ -98,17 +124,18 @@ export default function CompanySettings() {
 
     const NAV_ITEMS = [
         { id: "profile", label: "COMPANY PROFILE", icon: <BusinessIcon />, color: '#3b82f6' },
+        { id: "organization", label: "ORGANIZATION DEPARTMENTS", icon: <AccountTreeIcon />, color: '#8b5cf6' }, // 🔥 Added Tab
         { id: "regional", label: "REGIONAL STANDARDS", icon: <PublicIcon />, color: '#10b981' },
         { id: "automation", label: "FILE AUTOMATION", icon: <FolderSpecialIcon />, color: '#f59e0b' },
     ];
 
     return (
         <Box sx={{ display: 'flex', height: '100%', width: '100%', overflow: 'hidden' }}>
-            
+
             {/* SIDEBAR */}
-            <Paper 
+            <Paper
                 elevation={0}
-                sx={{ 
+                sx={{
                     width: sidebarOpen ? SIDEBAR_OPEN_WIDTH : { xs: 0, md: SIDEBAR_CLOSED_WIDTH },
                     flexShrink: 0,
                     bgcolor: 'rgba(13, 31, 60, 0.5)',
@@ -123,14 +150,14 @@ export default function CompanySettings() {
                 }}
             >
                 <Box sx={{ p: 1, display: 'flex', justifyContent: sidebarOpen ? 'flex-end' : 'center', alignItems: 'center', height: 60 }}>
-                    <IconButton onClick={() => setSidebarOpen(!sidebarOpen)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' }}}>
+                    <IconButton onClick={() => setSidebarOpen(!sidebarOpen)} sx={{ color: 'text.secondary', '&:hover': { color: 'primary.main' } }}>
                         {sidebarOpen ? <MenuOpenIcon /> : <MenuIcon />}
                     </IconButton>
                 </Box>
-                
-                <Box sx={{ 
+
+                <Box sx={{
                     flexGrow: 1, overflowY: 'auto', overflowX: 'hidden', pb: 2,
-                    scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' } 
+                    scrollbarWidth: 'none', '&::-webkit-scrollbar': { display: 'none' }
                 }}>
                     <List sx={{ px: 1 }}>
                         <Typography variant="caption" sx={{ px: sidebarOpen ? 2 : 0, pt: 1, pb: 1, display: 'block', fontFamily: "'JetBrains Mono', monospace", fontWeight: 'bold', color: 'text.secondary', textAlign: sidebarOpen ? 'left' : 'center', opacity: sidebarOpen ? 0.6 : 0 }}>
@@ -140,22 +167,22 @@ export default function CompanySettings() {
                         {NAV_ITEMS.map((item) => (
                             <Tooltip key={item.id} title={!sidebarOpen ? item.label : ""} placement="right" disableInteractive>
                                 <ListItem disablePadding sx={{ mb: 0.5 }}>
-                                    <ListItemButton 
-                                        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 900) setSidebarOpen(false); }} 
+                                    <ListItemButton
+                                        onClick={() => { setActiveTab(item.id); if (window.innerWidth < 900) setSidebarOpen(false); }}
                                         selected={activeTab === item.id}
-                                        sx={{ 
+                                        sx={{
                                             borderRadius: 1.5, minHeight: 40, justifyContent: sidebarOpen ? 'initial' : 'center', px: 2.5,
                                             '&.Mui-selected': { bgcolor: alpha(item.color, 0.15) },
-                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' } 
+                                            '&:hover': { bgcolor: 'rgba(255,255,255,0.05)' }
                                         }}
                                     >
                                         <ListItemIcon sx={{ minWidth: 0, mr: sidebarOpen ? 2 : 'auto', justifyContent: 'center', color: activeTab === item.id ? item.color : 'text.secondary' }}>
                                             {item.icon}
                                         </ListItemIcon>
-                                        <ListItemText 
-                                            primary={item.label} 
+                                        <ListItemText
+                                            primary={item.label}
                                             sx={{ opacity: sidebarOpen ? 1 : 0, transition: 'opacity 0.2s', m: 0 }}
-                                            primaryTypographyProps={{ sx: { fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: activeTab === item.id ? 'bold' : 'normal', color: activeTab === item.id ? item.color : 'text.primary', whiteSpace: 'nowrap' } }} 
+                                            primaryTypographyProps={{ sx: { fontFamily: "'Inter', sans-serif", fontSize: '13px', fontWeight: activeTab === item.id ? 'bold' : 'normal', color: activeTab === item.id ? item.color : 'text.primary', whiteSpace: 'nowrap' } }}
                                         />
                                     </ListItemButton>
                                 </ListItem>
@@ -166,9 +193,8 @@ export default function CompanySettings() {
             </Paper>
 
             {/* MAIN CONTENT AREA */}
-            {/* 🔥 Removed constraints: Now uses width: '100%' and max-width is cleared */}
             <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 4 } }}>
-                
+
                 {/* DYNAMIC HEADER */}
                 <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 4, pb: 3, borderBottom: '1px solid', borderColor: 'divider' }}>
                     <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
@@ -185,7 +211,6 @@ export default function CompanySettings() {
                     </Button>
                 </Box>
 
-                {/* 🔥 TAB CONTENT WRAPPER: Now width 100% */}
                 <Box sx={{ width: '100%', flexGrow: 1 }}>
                     {activeTab === "profile" && (
                         <Grid container spacing={3}>
@@ -209,6 +234,39 @@ export default function CompanySettings() {
                         </Grid>
                     )}
 
+                    {/* 🔥 NEW ORGANIZATION TAB */}
+                    {activeTab === "organization" && (
+                        <Grid container spacing={3}>
+                            <Grid item xs={12}>
+                                <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'block' }}>DEPARTMENT CONFIGURATION</Typography>
+                                <Grid container spacing={2}>
+                                    <Grid item xs={12} md={8}>
+                                        <TextField fullWidth size="small" label="New Department Name" value={newDeptName} onChange={e => setNewDeptName(e.target.value)} />
+                                    </Grid>
+                                    <Grid item xs={12} md={4}>
+                                        <Button fullWidth variant="outlined" onClick={handleAddDept} sx={{ fontFamily: "'JetBrains Mono', monospace", height: '40px' }}>ADD_DEPARTMENT</Button>
+                                    </Grid>
+                                </Grid>
+                            </Grid>
+
+                            <Grid item xs={12}>
+                                <Paper sx={{ p: 2, bgcolor: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.1)', maxHeight: 500, overflowY: 'auto' }}>
+                                    {info.departments.map(dept => (
+                                        <Box key={dept} display="flex" alignItems="center" justifyContent="space-between" sx={{ mb: 0.5, p: 0.8, borderLeft: '2px solid rgba(255,255,255,0.1)', bgcolor: 'rgba(255,255,255,0.02)', borderRadius: 1 }}>
+                                            <Typography variant="body2" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' }}>
+                                                ❖ {dept}
+                                            </Typography>
+                                            <IconButton size="small" color="error" onClick={() => handleRemoveDept(dept)}><DeleteIcon sx={{ fontSize: '16px' }} /></IconButton>
+                                        </Box>
+                                    ))}
+                                    {info.departments.length === 0 && (
+                                        <Typography variant="caption" color="text.secondary" align="center" display="block" sx={{ py: 3, fontStyle: 'italic' }}>No custom departments configured.</Typography>
+                                    )}
+                                </Paper>
+                            </Grid>
+                        </Grid>
+                    )}
+
                     {activeTab === "regional" && (
                         <Grid container spacing={3}>
                             <Grid item xs={12}><Typography variant="caption" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>CURRENCY & MEASUREMENTS</Typography></Grid>
@@ -224,7 +282,7 @@ export default function CompanySettings() {
                                 <Paper sx={{ p: 2, bgcolor: alpha(theme.palette.primary.main, 0.05), border: '1px solid', borderColor: alpha(theme.palette.primary.main, 0.2), borderRadius: 2 }}>
                                     <Typography variant="caption" color="primary.main" fontWeight="bold" sx={{ display: 'block', mb: 1, fontFamily: "'JetBrains Mono', monospace" }}>HOST_SCAFFOLD_ROOT</Typography>
                                     <Box display="flex" gap={1}>
-                                        <TextField fullWidth size="small" value={info.scaffoldRoot} disabled InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}} />
+                                        <TextField fullWidth size="small" value={info.scaffoldRoot} disabled InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' } }} />
                                         <Button variant="contained" size="small" onClick={handlePickRoot} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>BROWSE</Button>
                                     </Box>
                                 </Paper>
@@ -235,7 +293,7 @@ export default function CompanySettings() {
                             </Grid>
 
                             <Grid item xs={12}><Divider sx={{ opacity: 0.1 }} /></Grid>
-                            
+
                             <Grid item xs={12}>
                                 <Typography variant="caption" color="text.secondary" sx={{ fontFamily: "'JetBrains Mono', monospace", mb: 2, display: 'block' }}>PROJECT FOLDER TEMPLATE BUILDER</Typography>
                                 <Grid container spacing={2}>
