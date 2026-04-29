@@ -130,7 +130,6 @@ export default function Directory() {
 
     const canCreateEntry = tab === 'crm' ? hasClearance(3) : hasClearance(5);
 
-    // 🔥 Security Check: Is the currently logged-in user trying to edit someone else's credentials?
     const isEditingOtherUser = !!editId && formData.id !== currentUser?.id;
 
     const NAV_ITEMS = useMemo(() => {
@@ -225,7 +224,8 @@ export default function Directory() {
                 <Box onClick={() => setSidebarOpen(false)} sx={{ display: { xs: 'block', md: 'none' }, position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, bgcolor: 'rgba(0,0,0,0.5)', zIndex: 1000 }} />
             )}
 
-            <Box sx={{ flexGrow: 1, minWidth: 0, display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 3 } }}>
+            {/* 🔥 FIXED: Removed flex layout properties so the container behaves as a normal scrolling block. */}
+            <Box sx={{ flexGrow: 1, height: '100%', overflowY: 'auto', overflowX: 'hidden', p: { xs: 2, md: 3 }, pb: { xs: 12, md: 3 } }}>
 
                 <Box sx={{
                     display: 'flex',
@@ -259,7 +259,8 @@ export default function Directory() {
                     <Grid item xs={12} sm={6} md={3}><MetricCard title="ACTIVE_CLIENTS" value={stats.clients} icon={<GroupsIcon />} color="success" /></Grid>
                 </Grid>
 
-                <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', overflowX: 'auto' }}>
+                {/* 🔥 FIXED: Removed flexGrow completely. It will now render exactly at its natural height without squishing or disappearing. */}
+                <TableContainer component={Paper} sx={{ borderRadius: 2, border: '1px solid', borderColor: 'divider', bgcolor: 'rgba(13, 31, 60, 0.5)', overflowX: 'auto', mb: { xs: 2, md: 0 } }}>
                     <Table size="small">
                         <TableHead sx={{ bgcolor: 'rgba(0,0,0,0.3)' }}>
                             <TableRow>
@@ -356,14 +357,13 @@ export default function Directory() {
                                         </Divider>
                                     </Grid>
 
-                                    {/* 🔥 SECURITY PATCH: Usernames are permanent, Passwords are masked & locked */}
                                     <Grid item xs={12} md={4}>
                                         <TextField
                                             fullWidth
                                             label="USERNAME"
                                             value={formData.username || ""}
                                             onChange={e => setFormData({ ...formData, username: e.target.value })}
-                                            disabled={!!editId} // Locks after creation
+                                            disabled={!!editId}
                                             helperText={!!editId ? "Usernames cannot be changed." : ""}
                                             InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
                                             InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
@@ -376,7 +376,7 @@ export default function Directory() {
                                             label="PIN / PASSWORD"
                                             value={formData.password || ""}
                                             onChange={e => setFormData({ ...formData, password: e.target.value })}
-                                            disabled={isEditingOtherUser} // Locks for admins viewing other profiles
+                                            disabled={isEditingOtherUser}
                                             helperText={isEditingOtherUser ? "Only the owner can edit this." : ""}
                                             InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace" } }}
                                             InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '13px' } }}
