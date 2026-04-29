@@ -45,8 +45,9 @@ export function startWebServer(port, db) {
         // 🔥 FILE STREAMING ROUTE
         app.get('/api/download', (req, res) => {
             try {
+                // Ensure the path is absolute and properly decoded
                 const filePath = path.resolve(decodeURIComponent(req.query.path));
-                
+
                 if (!filePath || !fs.existsSync(filePath)) {
                     return res.status(404).send("File not found on Host computer.");
                 }
@@ -57,15 +58,20 @@ export function startWebServer(port, db) {
                 }
 
                 const fileName = path.basename(filePath);
+
+                // Force the browser to download the file instead of trying to render it
                 res.setHeader('Content-Disposition', `attachment; filename="${encodeURIComponent(fileName)}"`);
                 res.setHeader('Content-Length', stat.size);
                 res.setHeader('Content-Type', 'application/octet-stream');
 
+                // Pipe the file directly to the network request
                 const readStream = fs.createReadStream(filePath);
+
                 readStream.on('error', (err) => {
                     console.error("Read Stream Error:", err);
                     if (!res.headersSent) res.status(500).send("Error reading file.");
                 });
+
                 readStream.pipe(res);
 
             } catch (err) {
@@ -74,7 +80,6 @@ export function startWebServer(port, db) {
             }
         });
 
-        // 🔥 MAIN DATABASE RPC BRIDGE
         app.post('/api/rpc', (req, res) => {
             const { channel, args } = req.body;
             try {
@@ -156,15 +161,65 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- PROJECTS & WORKSPACE ---
-                else if (channel === 'db:get-projects') result = db.prepare('SELECT * FROM projects').all();
-                else if (channel === 'db:get-project') result = db.prepare('SELECT * FROM projects WHERE id = ?').get(args[0]);
+                // --- PROJECTS & WORKSPACE (FULLY UPDATED) ---
+                else if (channel === 'db:get-projects') {
+                    result = db.prepare('SELECT * FROM projects').all();
+                }
+                else if (channel === 'db:get-project') {
+                    result = db.prepare('SELECT * FROM projects WHERE id = ?').get(args[0]);
+                }
+                else if (channel === 'db:add-project') {
+                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    db.prepare(`INSERT INTO projects (${cols}) VALUES (${placeholders})`).run(...values);
+                    result = { success: true };
+                }
                 else if (channel === 'db:update-project') {
                     const { fields, values } = mapUpdate(args[1]);
                     db.prepare(`UPDATE projects SET ${fields} WHERE id = ?`).run(...values, args[0]);
                     result = { success: true };
                 }
-                else if (channel === 'db:get-project-boqs') result = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(args[0]);
+                else if (channel === 'db:delete-project') {
+                    db.transaction(() => {
+                        db.prepare('DELETE FROM projects WHERE id = ?').run(args[0]);
+                        db.prepare('DELETE FROM project_boq WHERE projectId = ?').run(args[0]);
+                        db.prepare('DELETE FROM project_documents WHERE projectId = ?').run(args[0]);
+                    })();
+                    result = { success: true };
+                }
+                else if (channel === 'db:purge-projects') {
+                    db.transaction(() => {
+                        db.prepare('DELETE FROM projects').run();
+                        db.prepare('DELETE FROM project_boq').run();
+                        db.prepare('DELETE FROM project_documents').run();
+                    })();
+                    result = { success: true };
+                }
+
+                // --- PROJECT BOQS ---
+                else if (channel === 'db:get-project-boqs') {
+                    result = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(args[0]);
+                }
+                else if (channel === 'db:add-project-boq') {
+                    const { cols, placeholders, values } = mapInsert(args[0]);
+                    db.prepare(`INSERT INTO project_boq (id, ${cols}) VALUES (?, ${placeholders})`).run(crypto.randomUUID(), ...values);
+                    result = { success: true };
+                }
+                else if (channel === 'db:update-project-boq') {
+                    const { fields, values } = mapUpdate(args[1]);
+                    db.prepare(`UPDATE project_boq SET ${fields} WHERE id = ?`).run(...values, args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:delete-project-boq') {
+                    db.prepare('DELETE FROM project_boq WHERE id = ?').run(args[0]);
+                    result = { success: true };
+                }
+                else if (channel === 'db:bulk-put-project-boqs') {
+                    db.transaction(() => {
+                        const stmt = db.prepare(`UPDATE project_boq SET lockedRate = ? WHERE id = ?`);
+                        for (const item of args[0]) { stmt.run(item.lockedRate, item.id); }
+                    })();
+                    result = { success: true };
+                }
 
                 // --- SITE GALLERY & DOCUMENTS ---
                 else if (channel === 'db:get-project-documents') {
@@ -180,28 +235,10 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- DIRECTORY ---
+                // --- DIRECTORY & LOGS ---
                 else if (channel === 'db:get-org-staff') result = db.prepare('SELECT * FROM org_staff').all();
                 else if (channel === 'db:get-crm-contacts') result = db.prepare('SELECT * FROM crm_contacts').all();
-
-                // 🔥 STAFF WORK LOGS (CRUD ENABLED FOR NETWORK) 🔥
-                else if (channel === 'db:get-work-logs') {
-                    result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();
-                }
-                else if (channel === 'db:save-work-log') {
-                    const { cols, placeholders, values } = mapInsert(args[0]);
-                    db.prepare(`INSERT OR REPLACE INTO staff_work_logs (${cols}) VALUES (${placeholders})`).run(...values);
-                    result = { success: true };
-                }
-                else if (channel === 'db:update-work-log') {
-                    const { fields, values } = mapUpdate(args[1]);
-                    db.prepare(`UPDATE staff_work_logs SET ${fields} WHERE id = ?`).run(...values, args[0]);
-                    result = { success: true };
-                }
-                else if (channel === 'db:delete-work-log') {
-                    db.prepare('DELETE FROM staff_work_logs WHERE id = ?').run(args[0]);
-                    result = { success: true };
-                }
+                else if (channel === 'db:get-work-logs') result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC').all();
 
                 // --- COMMLINK (MESSAGING) ---
                 else if (channel === 'db:get-messages') {
@@ -212,23 +249,24 @@ export function startWebServer(port, db) {
                     db.prepare(`INSERT INTO messages (id, projectId, senderId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.projectId || null, d.senderId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
+                // DELETE HANDLER
                 else if (channel === 'db:delete-message') {
                     db.prepare('DELETE FROM messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
-
-                // --- UNIFIED FILE UPLOADER FOR WEB SESSIONS ---
+                // UNIFIED FILE UPLOADER FOR WEB SESSIONS
                 else if (channel === 'os:upload-file-web') {
                     const [fileName, base64Data, projectId] = args;
                     const base64String = base64Data.split(';base64,').pop();
                     const buffer = Buffer.from(base64String, 'base64');
-                    
+
+                    // Save to a universal uploads directory on the Host
                     const uploadDir = path.join(os.homedir(), '.openprix', 'uploads');
                     if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-                    
+
                     const safeName = `${Date.now()}_${fileName.replace(/[^a-zA-Z0-9.\-_]/g, '')}`;
                     const filePath = path.join(uploadDir, safeName);
-                    
+
                     fs.writeFileSync(filePath, buffer);
                     result = { success: true, path: filePath };
                 }
@@ -242,17 +280,20 @@ export function startWebServer(port, db) {
                     db.prepare(`INSERT INTO private_messages (id, senderId, receiverId, content, replyToId, createdAt) VALUES (?, ?, ?, ?, ?, ?)`).run(d.id, d.senderId, d.receiverId, d.content, d.replyToId || null, d.createdAt);
                     result = { success: true };
                 }
+                // 🔥 ADDED DELETE HANDLER
                 else if (channel === 'db:delete-private-message') {
                     db.prepare('DELETE FROM private_messages WHERE id = ?').run(args[0]);
                     result = { success: true };
                 }
 
-                // --- NOTIFICATION ENGINE ---
+                // 🔥 ADDED NOTIFICATION ENGINE FOR NETWORK USERS
                 else if (channel === 'db:check-notifications') {
                     const userId = args[0];
                     const lastChecked = args[1] || 0;
+
                     const globalUnread = db.prepare(`SELECT COUNT(*) as count FROM messages WHERE projectId IS NULL AND senderId != ? AND createdAt > ?`).get(userId, lastChecked);
                     const dmUnread = db.prepare(`SELECT COUNT(*) as count FROM private_messages WHERE receiverId = ? AND createdAt > ?`).get(userId, lastChecked);
+
                     result = (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
                 }
 
