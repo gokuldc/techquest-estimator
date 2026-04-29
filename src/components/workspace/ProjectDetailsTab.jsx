@@ -13,7 +13,7 @@ import AccessTimeIcon from '@mui/icons-material/AccessTime';
 import CreateNewFolderIcon from '@mui/icons-material/CreateNewFolder';
 import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LinkOffIcon from '@mui/icons-material/LinkOff'; 
-import LinkIcon from '@mui/icons-material/Link'; // 🔥 IMPORT LINK ICON
+import LinkIcon from '@mui/icons-material/Link';
 import {
     LineChart, Line, BarChart, Bar, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer, AreaChart, Area
@@ -29,11 +29,11 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
     const { formatCurrency, settings } = useSettings();
     const { hasClearance } = useAuth();
 
-    // --- ASSIGNMENT ENGINE STATE ---
     const [selectedNewMember, setSelectedNewMember] = useState("");
     const assignedIds = JSON.parse(project?.assignedStaff || '[]');
     const availableStaff = (orgStaff || []).filter(staff => !assignedIds.includes(staff.id));
 
+    // 🔥 FIXED: Reverted back to sequential field/value arguments
     const handleAddMember = () => {
         if (!selectedNewMember) return;
         const newAssigned = [...assignedIds, selectedNewMember];
@@ -41,12 +41,12 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         setSelectedNewMember("");
     };
 
+    // 🔥 FIXED: Reverted back to sequential field/value arguments
     const handleRemoveStaff = (idToRemove) => {
         const newAssigned = assignedIds.filter(id => id !== idToRemove);
         updateProject('assignedStaff', JSON.stringify(newAssigned));
     };
 
-    // --- KPI DATA AGGREGATION ---
     const totalBilled = Array.isArray(project?.raBills) ? project.raBills.reduce((sum, bill) => sum + Number(bill.subTotal || 0), 0) : 0;
     const activeTasks = Array.isArray(project?.ganttTasks) ? project.ganttTasks.filter(t => t.status !== 'Completed').length : 0;
     const totalGrns = Array.isArray(project?.grns) ? project.grns.length : 0;
@@ -121,6 +121,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         });
     }, [project, totalAmount]);
 
+    // 🔥 FIXED: Reverted to the stable multi-argument format expected by ProjectWorkspace
     const handleChange = (field, value) => updateProject(field, value);
 
     const formatYAxis = (val) => {
@@ -130,7 +131,6 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         return `${settings.currencySymbol}${val}`;
     };
 
-    // 🔥 DYNAMIC PATH GENERATOR
     const getExpectedSubPath = () => {
         let template = settings.scaffoldPathTemplate || "./{TYPE}/{STATUS}/{NAME}";
         template = template.replace(/^[.\/\\]+/, ''); 
@@ -162,8 +162,9 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
             });
 
             if (res.success) {
+                // 🔥 FIXED: Sent sequentially to match ProjectWorkspace requirements
                 await updateProject('isScaffolded', 1);
-                await updateProject('isManuallyLinked', 0); // Mark as naturally scaffolded
+                await updateProject('isManuallyLinked', 0);
                 await updateProject('scaffoldPath', res.path); 
                 alert(res.exists ? "Linked to existing directory successfully!" : "Workspace scaffolded successfully!");
             } else {
@@ -174,14 +175,14 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         }
     };
 
-    // 🔥 NEW: LINK EXISTING FOLDER LOGIC
     const handleLinkExisting = async () => {
         if (!window.api?.os?.pickDirectory) return alert("File system access is only supported on the Desktop Host App.");
         
         const path = await window.api.os.pickDirectory();
         if (path) {
+            // 🔥 FIXED: Sent sequentially
             await updateProject('isScaffolded', 1);
-            await updateProject('isManuallyLinked', 1); // 👈 Safely flag this to prevent auto-renames
+            await updateProject('isManuallyLinked', 1);
             await updateProject('scaffoldPath', path);
             alert("Successfully linked to the existing folder!");
         }
@@ -189,6 +190,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
 
     const handleUnlinkScaffold = async () => {
         if (window.confirm("Unlink this workspace from its host folder?\n\nYour actual files will NOT be deleted, but OpenPrix will disconnect from the folder until you scaffold/link it again.")) {
+            // 🔥 FIXED: Sent sequentially
             await updateProject('isScaffolded', 0);
             await updateProject('isManuallyLinked', 0);
             await updateProject('scaffoldPath', null);
@@ -196,7 +198,6 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
     };
 
     const handleMetadataBlur = async () => {
-        // 🔥 SAFETY CHECK: Do not auto-rename if the user manually linked a custom folder
         if (!project?.isScaffolded || !project?.scaffoldPath || !settings.scaffoldRoot || project?.isManuallyLinked) return;
         if (!window.api?.os?.renameProjectFolder) return;
 
@@ -209,9 +210,13 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         });
 
         if (res.success) {
+            // 🔥 FIXED: Sequential argument format
             await updateProject('scaffoldPath', res.newPath);
         }
     };
+
+    const clientList = (crmContacts || []).filter(c => c.type === 'Client');
+    const contractorList = (crmContacts || []).filter(c => c.type === 'Subcontractor' || c.type === 'Supplier');
 
     return (
         <Box display="flex" flexDirection="column" gap={4}>
@@ -353,8 +358,24 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     </Grid>
 
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
+                        <TextField select fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                            <MenuItem value="" sx={{ fontStyle: 'italic', fontFamily: "'JetBrains Mono', monospace" }}>-- No Client Assigned --</MenuItem>
+                            {clientList.map(c => (
+                                <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>
+                            ))}
+                        </TextField>
                     </Grid>
+
+                    {/* 🔥 FIXED: Maps directly to the existing "pmc" column */}
+                    <Grid item xs={12} md={6}>
+                        <TextField select fullWidth label="PRIMARY CONTRACTOR" value={project?.pmc || ''} onChange={(e) => handleChange('pmc', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                            <MenuItem value="" sx={{ fontStyle: 'italic', fontFamily: "'JetBrains Mono', monospace" }}>-- Open / Self-Executed --</MenuItem>
+                            {contractorList.map(c => (
+                                <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>
+                            ))}
+                        </TextField>
+                    </Grid>
+
                     <Grid item xs={12} md={6}>
                         <TextField fullWidth label="LOCATION / SITE" value={project?.location || ''} onChange={(e) => handleChange('location', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
@@ -365,6 +386,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.name}</MenuItem>)}
                         </TextField>
                     </Grid>
+                    
                     <Grid item xs={12} md={6}>
                         <TextField fullWidth select label="PROJECT STATUS" value={project?.status || ''} onChange={(e) => handleChange('status', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
                             {['Draft', 'Planning', 'Active', 'On Hold', 'Completed'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s}</MenuItem>)}
@@ -433,7 +455,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.1)" />
                                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
                                         <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} width={60} />
-                                        <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
+                                        <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
                                         <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                         <Area type="monotone" dataKey="CumulativeActual" name="Actual Progress" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorActual)" />
                                         <Line type="monotone" dataKey="CumulativePlanned" name="Baseline" stroke="#f59e0b" strokeWidth={2} strokeDasharray="5 5" dot={false} />
@@ -456,7 +478,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                         <Pie data={costByPhaseData} cx="50%" cy="50%" innerRadius={70} outerRadius={110} paddingAngle={2} dataKey="value" stroke="none">
                                             {costByPhaseData.map((entry, index) => <Cell key={`cell-${index}`} fill={PIE_COLORS[index % PIE_COLORS.length]} />)}
                                         </Pie>
-                                        <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
+                                        <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} formatter={(val) => formatCurrency(val)} />
                                         <Legend layout="horizontal" verticalAlign="bottom" wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px' }} />
                                     </PieChart>
                                 </ResponsiveContainer>
@@ -477,7 +499,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                                         <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                                         <XAxis dataKey="name" stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} />
                                         <YAxis stroke="rgba(255,255,255,0.5)" tick={{ fontSize: 10, fontFamily: "'JetBrains Mono', monospace" }} tickFormatter={formatYAxis} width={60} />
-                                        <Tooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} formatter={(val) => formatCurrency(val)} />
+                                        <RechartsTooltip contentStyle={{ backgroundColor: 'rgba(13,31,60,0.9)', borderColor: '#3b82f6', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} cursor={{ fill: 'rgba(255,255,255,0.05)' }} formatter={(val) => formatCurrency(val)} />
                                         <Legend wrapperStyle={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' }} />
                                         <Bar dataKey="MonthlyBilled" name="Actual Revenue (Billed)" fill="#3b82f6" radius={[4, 4, 0, 0]} maxBarSize={60} />
                                     </BarChart>
