@@ -6,15 +6,29 @@
   "author": "Gokul DC",
   "type": "module",
   "main": "electron/main.js",
+  "bin": "tui.js",
   "scripts": {
     "dev": "vite",
-    "postinstall": "electron-rebuild -f -w better-sqlite3",
     "build": "vite build",
+    "build:server": "npm run build && pkg . --targets node18-win-x64,node18-linux-x64,node18-macos-x64 --out-path release/server",
+    "build:client": "npm run build && electron-builder",
+    "build:all": "npm run build:server && npm run build:client",
     "preview": "vite preview",
     "electron:start": "electron . --disable-gpu --disable-gpu-compositing",
     "dev:electron": "cross-env NODE_ENV=development concurrently -k \"npm run dev\" \"wait-on http://127.0.0.1:5173 && npm run electron:start\"",
     "build:electron": "npm run build && electron-builder",
     "serve": "node server.js"
+  },
+  "pkg": {
+    "assets": [
+      "dist/**/*",
+      "public/**/*",
+      "node_modules/better-sqlite3/**/*",
+      "node_modules/systray2/bin/**/*"
+    ],
+    "options": [
+      "experimental-sea-config"
+    ]
   },
   "build": {
     "appId": "com.openprix.estimator",
@@ -42,18 +56,22 @@
     "@emotion/styled": "^11.14.0",
     "@mui/icons-material": "^6.4.1",
     "@mui/material": "^6.4.1",
-    "better-sqlite3": "^12.8.0",
+    "better-sqlite3": "^11.8.1",
+    "blessed": "^0.1.81",
+    "blessed-contrib": "^4.11.0",
     "cors": "^2.8.6",
     "dexie": "^4.0.11",
     "dexie-react-hooks": "^1.1.7",
     "exceljs": "^4.4.0",
     "express": "^5.2.1",
     "file-saver": "^2.0.5",
+    "joi": "^17.13.3",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "recharts": "^3.8.1",
+    "systray2": "^2.1.4",
     "xlsx": "^0.18.5"
   },
   "devDependencies": {
@@ -63,6 +81,7 @@
     "cross-env": "^7.0.3",
     "electron": "^34.2.0",
     "electron-builder": "^25.1.8",
+    "pkg": "^5.8.1",
     "vite": "^6.4.1",
     "wait-on": "^8.0.2"
   }

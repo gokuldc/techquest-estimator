@@ -1,13 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import os from 'os';
 import crypto from 'crypto';
 import fs from 'fs';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// 🔥 PKG-SAFE PATH RESOLUTION 🔥
+const isPackaged = typeof process.pkg !== 'undefined';
+const baseDir = isPackaged ? path.dirname(process.execPath) : process.cwd();
 
 let serverInstance = null;
 
@@ -299,9 +299,23 @@ export function startWebServer(port, db) {
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         });
 
-        const distPath = path.join(__dirname, '../dist');
+        // 🔥 PKG-SAFE STATIC FILE SERVING 🔥
+        // Look for the 'dist' folder directly inside the directory where the .exe is launched
+        const distPath = path.join(baseDir, 'dist');
+        
+        if (!fs.existsSync(distPath)) {
+            console.log(`[WARNING] No 'dist' folder found at ${distPath}. Web UI will not load.`);
+        }
+
         app.use(express.static(distPath));
-        app.use((req, res) => res.sendFile(path.join(distPath, 'index.html')));
+        app.use((req, res) => {
+            const indexPath = path.join(distPath, 'index.html');
+            if (fs.existsSync(indexPath)) {
+                res.sendFile(indexPath);
+            } else {
+                res.status(404).send("OpenPrix Web UI not found. Ensure 'dist' folder is present next to the server executable.");
+            }
+        });
 
         return new Promise((resolve) => {
             serverInstance = app.listen(port, '0.0.0.0', () => {

@@ -2,126 +2,89 @@ import { app, BrowserWindow, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import fs from 'fs';
-import { initDatabase } from './db.js';
-import { registerMasterDataIpc } from './ipc/masterData.js';
-import { registerProjectsIpc } from './ipc/projects.js';
-import { registerSyncAndBackupIpc } from './ipc/syncAndBackup.js';
-import { registerSettingsIpc } from './ipc/settings.js';
-import { initTray } from './traySync.js';
-import { startWebServer, stopWebServer, getLocalIp } from './webServer.js';
-
-app.disableHardwareAcceleration();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const isDev = process.env.NODE_ENV === 'development';
 
 let mainWindow;
-let db;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280, height: 800, minWidth: 900, minHeight: 600,
-        title: "//OPENPRIX", autoHideMenuBar: true,
+        width: 1280, height: 800,
+        title: "//OPENPRIX_WORKSTATION",
         webPreferences: {
-            nodeIntegration: false,
-            contextIsolation: true,
-            sandbox: false,
             preload: path.join(__dirname, 'preload.cjs')
         }
     });
 
+    // The React app handles the SERVER_URL via sessionStorage 
+    // It will default to 127.0.0.1 if not set.
     if (isDev) {
         mainWindow.loadURL('http://127.0.0.1:5173');
-        mainWindow.webContents.openDevTools();
     } else {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
-
-    // 🔥 THE FIX: Intercept the "X" button so the window hides instead of dying!
-    mainWindow.on('close', (event) => {
-        if (!app.isQuiting) {
-            event.preventDefault();
-            mainWindow.hide();
-        }
-    });
 }
 
-// --- NATIVE OS HANDLERS ---
-function registerOsHandlers() {
-    // 1. Trigger the System File Picker
+function registerHardwareBridge() {
     ipcMain.handle('os:pick-file', async () => {
-        const result = await dialog.showOpenDialog(mainWindow, {
-            title: 'Select Construction Document',
-            properties: ['openFile'],
-            filters: [
-                { name: 'Drawings & Docs', extensions: ['pdf', 'dwg', 'dxf', 'jpg', 'png', 'xlsx', 'docx'] },
-                { name: 'All Files', extensions: ['*'] }
-            ]
-        });
-
-        if (result.canceled) return null;
-        return result.filePaths[0]; // Returns absolute path
+        const result = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
+        return result.canceled ? null : result.filePaths[0];
     });
 
-    // 2. Launch file in default System Viewer (CAD, PDF reader, etc.)
     ipcMain.handle('os:open-file', async (event, filePath) => {
-        if (!filePath) return { success: false, error: 'No path provided' };
+        if (!filePath) return { success: false };
         const error = await shell.openPath(filePath);
-        if (error) return { success: false, error };
-        return { success: true };
+        return error ? { success: false, error } : { success: true };
     });
 
-    // 3. Convert Local File to Base64 (Fixes the Logo Upload Error)
     ipcMain.handle('os:get-base64', async (event, filePath) => {
         try {
             const buffer = fs.readFileSync(filePath);
             const ext = path.extname(filePath).toLowerCase().replace('.', '');
-
-            // Map extension to MIME type
             let mimeType = `image/${ext}`;
             if (ext === 'svg') mimeType = 'image/svg+xml';
             if (ext === 'jpg') mimeType = 'image/jpeg';
-
             return `data:${mimeType};base64,${buffer.toString('base64')}`;
-        } catch (error) {
-            console.error("Base64 Conversion Error:", error);
-            return null;
-        }
+        } catch (error) { return null; }
+    });
+
+    ipcMain.handle('os:pick-directory', async () => {
+        const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
+        return result.canceled ? null : result.filePaths[0];
+    });
+
+    ipcMain.handle('os:scaffold-project', async (e, { root, subPath, folders }) => {
+        try {
+            const fullPath = path.join(root, subPath);
+            if (!fs.existsSync(fullPath)) {
+                fs.mkdirSync(fullPath, { recursive: true });
+                const folderList = folders ? folders.split(',').map(f => f.trim()) : [];
+                for (const f of folderList) { if (f) fs.mkdirSync(path.join(fullPath, f), { recursive: true }); }
+                return { success: true, path: fullPath, exists: false };
+            }
+            return { success: true, path: fullPath, exists: true };
+        } catch (err) { return { success: false, error: err.message }; }
+    });
+
+    ipcMain.handle('os:rename-project-folder', async (e, { root, oldPath, newSubPath }) => {
+        try {
+            const newPath = path.join(root, newSubPath);
+            if (oldPath !== newPath && fs.existsSync(oldPath)) {
+                fs.mkdirSync(path.dirname(newPath), { recursive: true });
+                fs.renameSync(oldPath, newPath);
+                return { success: true, newPath: newPath };
+            }
+            return { success: false, error: "Path unchanged." };
+        } catch (err) { return { success: false, error: err.message }; }
     });
 }
 
 app.whenReady().then(() => {
-    // 1. Boot up the SQLite database
-    db = initDatabase();
-
-    // 2. Create the Electron Window
+    registerHardwareBridge();
     createWindow();
-
-    // 3. Register our modularized IPC channels
-    registerMasterDataIpc(db, mainWindow);
-    registerProjectsIpc(db);
-    registerSyncAndBackupIpc(db, mainWindow);
-    registerSettingsIpc(db);
-
-    // 4. Register Native OS Utilities
-    registerOsHandlers();
-
-    // 5. INITIALIZE THE TRAY MODULE & BACKGROUND SYNC ENGINE
-    initTray(mainWindow, db);
 });
 
-// 🔥 PREVENT APP FROM DYING WHEN THE WINDOW IS CLOSED
-app.on('window-all-closed', (e) => {
-    // By preventing the default action, the app keeps running in the background!
-    e.preventDefault();
-});
-
-app.on('activate', () => {
-    if (mainWindow === null) {
-        createWindow();
-        initTray(mainWindow, db);
-    } else {
-        mainWindow.show();
-    }
-});
+app.on('window-all-closed', () => app.quit());
+app.on('activate', () => { if (mainWindow === null) createWindow(); });
