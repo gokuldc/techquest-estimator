@@ -4,10 +4,12 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
+import Database from 'better-sqlite3'; // 🔥 Added for Database Backup Parsing
 
-// 🔥 PKG-SAFE PATH RESOLUTION 🔥
-const isPackaged = typeof process.pkg !== 'undefined';
-const baseDir = isPackaged ? path.dirname(process.execPath) : process.cwd();
+// 🔥 CLEAN ESM PATHS 🔥
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 let serverInstance = null;
 
@@ -21,7 +23,6 @@ export function getLocalIp() {
     return '127.0.0.1';
 }
 
-// 🔥 THE GLOBAL SANITIZERS 🔥
 const mapInsert = (db, tableName, data) => {
     const validCols = db.prepare(`PRAGMA table_info(${tableName})`).all().map(c => c.name);
     const cleanData = {};
@@ -49,7 +50,7 @@ export function startWebServer(port, db) {
     try {
         const app = express();
         app.use(cors());
-        app.use(express.json({ limit: '50mb' }));
+        app.use(express.json({ limit: '100mb' })); // Expanded limit to allow large SQLite uploads
 
         app.get('/api/download', (req, res) => {
             try {
@@ -74,6 +75,7 @@ export function startWebServer(port, db) {
             try {
                 let result;
 
+                // --- AUTH & SETTINGS ---
                 if (channel === 'db:verify-login') {
                     const [un, pw] = args;
                     const user = db.prepare(`SELECT * FROM org_staff WHERE LOWER(username) = LOWER(?) AND password = ? AND status = 'Active'`).get(un, pw);
@@ -143,7 +145,7 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- PROJECTS & WORKSPACE (SANITIZED) ---
+                // --- PROJECTS & WORKSPACE ---
                 else if (channel === 'db:get-projects') result = db.prepare('SELECT * FROM projects').all();
                 else if (channel === 'db:get-project') result = db.prepare('SELECT * FROM projects WHERE id = ?').get(args[0]);
                 else if (channel === 'db:add-project') {
@@ -173,7 +175,7 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- PROJECT BOQ (SANITIZED) ---
+                // --- PROJECT BOQ ---
                 else if (channel === 'db:get-project-boqs') result = db.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(args[0]);
                 else if (channel === 'db:add-project-boq') {
                     const { cols, placeholders, values } = mapInsert(db, 'project_boq', args[0]);
@@ -197,7 +199,7 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- DOCUMENTS (SANITIZED) ---
+                // --- DOCUMENTS ---
                 else if (channel === 'db:get-project-documents') result = db.prepare('SELECT * FROM project_documents WHERE projectId = ? ORDER BY addedAt DESC').all(args[0]);
                 else if (channel === 'db:save-project-document') {
                     const { cols, placeholders, values } = mapInsert(db, 'project_documents', args[0]);
@@ -209,7 +211,7 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- DIRECTORY (SANITIZED) ---
+                // --- DIRECTORY ---
                 else if (channel === 'db:get-org-staff') result = db.prepare('SELECT * FROM org_staff').all();
                 else if (channel === 'db:save-org-staff') {
                     const d = args[0];
@@ -234,7 +236,7 @@ export function startWebServer(port, db) {
                     result = { success: true };
                 }
 
-                // --- LOGS & KANBAN (SANITIZED) ---
+                // --- LOGS & KANBAN ---
                 else if (channel === 'db:get-work-logs') result = db.prepare('SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC').all();
                 else if (channel === 'db:save-work-log') {
                     const { cols, placeholders, values } = mapInsert(db, 'staff_work_logs', args[0]);
@@ -252,7 +254,7 @@ export function startWebServer(port, db) {
                 }
                 else if (channel === 'db:get-kanban-tasks') result = [];
 
-                // --- MESSAGING & COMMLINK ---
+                // --- MESSAGING ---
                 else if (channel === 'db:get-messages') result = args[0] ? db.prepare('SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC').all(args[0]) : db.prepare('SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC').all();
                 else if (channel === 'db:save-message') {
                     const d = args[0];
@@ -281,7 +283,7 @@ export function startWebServer(port, db) {
                     result = (globalUnread ? globalUnread.count : 0) + (dmUnread ? dmUnread.count : 0);
                 }
 
-                // --- UPLOADS ---
+                // --- OS: UPLOADS ---
                 else if (channel === 'os:upload-file-web') {
                     const [fileName, base64Data] = args;
                     const base64String = base64Data.split(';base64,').pop();
@@ -293,15 +295,114 @@ export function startWebServer(port, db) {
                     fs.writeFileSync(filePath, buffer);
                     result = { success: true, path: filePath };
                 }
+
+                // 🔥 NATIVE OS FALLBACKS FOR WEB 🔥
+                else if (channel === 'os:scaffold-project') {
+                    const { root, subPath, folders } = args[0];
+                    const fullPath = path.join(root, subPath);
+                    if (!fs.existsSync(fullPath)) {
+                        fs.mkdirSync(fullPath, { recursive: true });
+                        const folderList = folders ? folders.split(',').map(f => f.trim()) : [];
+                        for (const f of folderList) { if (f) fs.mkdirSync(path.join(fullPath, f), { recursive: true }); }
+                        result = { success: true, path: fullPath, exists: false };
+                    } else {
+                        result = { success: true, path: fullPath, exists: true };
+                    }
+                }
+                else if (channel === 'os:rename-project-folder') {
+                    const { root, oldPath, newSubPath } = args[0];
+                    const newPath = path.join(root, newSubPath);
+                    if (oldPath !== newPath && fs.existsSync(oldPath)) {
+                        fs.mkdirSync(path.dirname(newPath), { recursive: true });
+                        fs.renameSync(oldPath, newPath);
+                        result = { success: true, newPath: newPath };
+                    } else {
+                        result = { success: false, error: "Path unchanged." };
+                    }
+                }
+
+                // 🔥 DATABASE BACKUP & RESTORE FOR WEB 🔥
+                else if (channel === 'db:purge-database') {
+                    db.transaction(() => {
+                        db.prepare('DELETE FROM regions').run();
+                        db.prepare('DELETE FROM resources').run();
+                        db.prepare('DELETE FROM master_boq').run();
+                    })();
+                    result = { success: true };
+                }
+                else if (channel === 'db:backup-database' || channel === 'db:export-all-projects-sqlite' || channel === 'db:export-project-sqlite') {
+                    const dbPath = path.join(os.homedir(), '.openprix', 'database', 'openprix_v2.sqlite');
+                    const buffer = fs.readFileSync(dbPath);
+                    result = { 
+                        success: true, 
+                        fileData: buffer.toString('base64'), 
+                        fileName: channel.includes('project') ? `OpenPrix_Projects_${Date.now()}.sqlite` : `OpenPrix_Master_Backup_${Date.now()}.sqlite` 
+                    };
+                }
+                else if (channel === 'db:restore-database' || channel === 'db:import-projects-sqlite' || channel === 'db:execute-project-sync') {
+                    // Extract arguments based on the dynamic channel signature
+                    let mode = args[1] || args[0]; 
+                    let base64Data = channel === 'db:restore-database' ? args[1] : (channel === 'db:execute-project-sync' ? args[1] : args[0]);
+                    if (channel === 'db:restore-database') { mode = args[0]; base64Data = args[1]; }
+                    if (channel === 'db:import-projects-sqlite') { base64Data = args[0]; mode = args[1]; }
+                    if (channel === 'db:execute-project-sync') { base64Data = args[1]; mode = args[2]; } 
+                    
+                    try {
+                        const tempPath = path.join(os.homedir(), '.openprix', 'database', `temp_upload_${Date.now()}.sqlite`);
+                        fs.writeFileSync(tempPath, Buffer.from(base64Data, 'base64'));
+                        
+                        // Parse the uploaded DB temporarily
+                        const tempDb = new Database(tempPath);
+                        
+                        db.transaction(() => {
+                            if (channel === 'db:restore-database') {
+                                if (mode === 'replace') {
+                                    db.prepare('DELETE FROM regions').run();
+                                    db.prepare('DELETE FROM resources').run();
+                                    db.prepare('DELETE FROM master_boq').run();
+                                }
+                                tempDb.prepare('SELECT * FROM regions').all().forEach(r => db.prepare('INSERT OR IGNORE INTO regions (id, name) VALUES (?, ?)').run(r.id, r.name));
+                                
+                                const resInsert = db.prepare('INSERT OR REPLACE INTO resources (id, code, description, unit, rates, rateHistory) VALUES (?, ?, ?, ?, ?, ?)');
+                                const resIgnore = db.prepare('INSERT OR IGNORE INTO resources (id, code, description, unit, rates, rateHistory) VALUES (?, ?, ?, ?, ?, ?)');
+                                tempDb.prepare('SELECT * FROM resources').all().forEach(r => mode === 'append' ? resIgnore.run(r.id, r.code, r.description, r.unit, r.rates, r.rateHistory) : resInsert.run(r.id, r.code, r.description, r.unit, r.rates, r.rateHistory));
+
+                                const boqInsert = db.prepare('INSERT OR REPLACE INTO master_boq (id, itemCode, description, unit, overhead, profit, components) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                                const boqIgnore = db.prepare('INSERT OR IGNORE INTO master_boq (id, itemCode, description, unit, overhead, profit, components) VALUES (?, ?, ?, ?, ?, ?, ?)');
+                                tempDb.prepare('SELECT * FROM master_boq').all().forEach(b => mode === 'append' ? boqIgnore.run(b.id, b.itemCode, b.description, b.unit, b.overhead, b.profit, b.components) : boqInsert.run(b.id, b.itemCode, b.description, b.unit, b.overhead, b.profit, b.components));
+                            } 
+                            else {
+                                // Project Appending/Merging Logic
+                                const projInsert = db.prepare(`INSERT OR REPLACE INTO projects (id, name, code, clientName, status, region, projectLead, siteSupervisor, pmc, architect, structuralEngineer, isPriceLocked, dailyLogs, actualResources, ganttTasks, subcontractors, phaseAssignments, createdAt, raBills, purchaseOrders, materialRequests, grns, type, location, isScaffolded, scaffoldPath, isManuallyLinked, dailySchedules, resourceTrackingMode, assignedStaff) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                const projIgnore = db.prepare(`INSERT OR IGNORE INTO projects (id, name, code, clientName, status, region, projectLead, siteSupervisor, pmc, architect, structuralEngineer, isPriceLocked, dailyLogs, actualResources, ganttTasks, subcontractors, phaseAssignments, createdAt, raBills, purchaseOrders, materialRequests, grns, type, location, isScaffolded, scaffoldPath, isManuallyLinked, dailySchedules, resourceTrackingMode, assignedStaff) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`);
+                                
+                                const projectsToImport = channel === 'db:execute-project-sync' ? tempDb.prepare('SELECT * FROM projects WHERE id = ?').all(args[0]) : tempDb.prepare('SELECT * FROM projects').all();
+                                
+                                projectsToImport.forEach(p => {
+                                    if (mode === 'append') projIgnore.run(p.id, p.name, p.code, p.clientName, p.status, p.region, p.projectLead, p.siteSupervisor, p.pmc, p.architect, p.structuralEngineer, p.isPriceLocked, p.dailyLogs, p.actualResources, p.ganttTasks, p.subcontractors, p.phaseAssignments, p.createdAt, p.raBills, p.purchaseOrders, p.materialRequests, p.grns, p.type, p.location, p.isScaffolded, p.scaffoldPath, p.isManuallyLinked, p.dailySchedules, p.resourceTrackingMode, p.assignedStaff);
+                                    else projInsert.run(p.id, p.name, p.code, p.clientName, p.status, p.region, p.projectLead, p.siteSupervisor, p.pmc, p.architect, p.structuralEngineer, p.isPriceLocked, p.dailyLogs, p.actualResources, p.ganttTasks, p.subcontractors, p.phaseAssignments, p.createdAt, p.raBills, p.purchaseOrders, p.materialRequests, p.grns, p.type, p.location, p.isScaffolded, p.scaffoldPath, p.isManuallyLinked, p.dailySchedules, p.resourceTrackingMode, p.assignedStaff);
+                                    
+                                    const boqInsert = db.prepare('INSERT OR REPLACE INTO project_boq (id, projectId, masterBoqId, slNo, isCustom, itemCode, description, unit, rate, formulaStr, qty, measurements, phase, lockedRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)');
+                                    tempDb.prepare('SELECT * FROM project_boq WHERE projectId = ?').all(p.id).forEach(b => boqInsert.run(b.id, b.projectId, b.masterBoqId, b.slNo, b.isCustom, b.itemCode, b.description, b.unit, b.rate, b.formulaStr, b.qty, b.measurements, b.phase, b.lockedRate));
+                                });
+                            }
+                        })();
+                        
+                        tempDb.close();
+                        fs.unlinkSync(tempPath);
+                        result = { success: true };
+                    } catch (e) {
+                        result = { success: false, error: e.message };
+                    }
+                }
                 else { return res.status(404).json({ error: 'Unknown Channel: ' + channel }); }
 
                 res.json({ success: true, data: result });
             } catch (err) { res.status(500).json({ success: false, error: err.message }); }
         });
 
-        // 🔥 PKG-SAFE STATIC FILE SERVING 🔥
-        // Look for the 'dist' folder directly inside the directory where the .exe is launched
-        const distPath = path.join(baseDir, 'dist');
+        // 🔥 NATIVE STATIC FILE SERVING 🔥
+        const distPath = path.join(__dirname, '../dist');
         
         if (!fs.existsSync(distPath)) {
             console.log(`[WARNING] No 'dist' folder found at ${distPath}. Web UI will not load.`);
@@ -313,7 +414,7 @@ export function startWebServer(port, db) {
             if (fs.existsSync(indexPath)) {
                 res.sendFile(indexPath);
             } else {
-                res.status(404).send("OpenPrix Web UI not found. Ensure 'dist' folder is present next to the server executable.");
+                res.status(404).send("OpenPrix Web UI not found. Ensure 'npm run build' has been executed.");
             }
         });
 

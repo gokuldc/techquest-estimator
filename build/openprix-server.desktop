@@ -1,0 +1,8 @@
+[Desktop Entry]
+Name=OpenPrix Master Server
+Comment=Launch the OpenPrix Headless Master Server
+Exec=/opt/OPENPRIX/Server_Runtime/start-server.sh
+Terminal=true
+Type=Application
+Icon=/opt/OPENPRIX/Server_Runtime/public/icon.png
+Categories=Office;Engineering;

@@ -10,7 +10,7 @@ if (!window.crypto.randomUUID) {
 }
 
 if (!window.api) {
-    console.log("🌐 Web Browser Detected: Consolidating Network API Bridge...");
+    console.log("🌐 Web Browser Detected: Initializing Full-Stack Network RPC Bridge...");
 
     const fetchRpc = async (channel, ...args) => {
         try {
@@ -24,13 +24,36 @@ if (!window.api) {
             return json.data;
         } catch (error) {
             console.error(`Network RPC Error [${channel}]:`, error);
-            return null;
+            return { success: false, error: error.message };
         }
     };
 
-    const desktopOnly = () => {
-        alert("This feature (File System / Native Dialogs) is only available on the Desktop App.");
-        return { success: false, error: "Desktop only", canceled: true };
+    // --- WEB FILE SYSTEM POLYFILLS ---
+    const webPickFile = (accept = "*") => {
+        return new Promise((resolve) => {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = accept;
+            input.onchange = e => {
+                const file = e.target.files[0];
+                if (!file) return resolve(null);
+                const reader = new FileReader();
+                reader.onload = evt => resolve({ name: file.name, base64: evt.target.result.split(',')[1] });
+                reader.readAsDataURL(file);
+            };
+            input.click();
+        });
+    };
+
+    const webSaveFile = (base64Data, fileName) => {
+        const byteStr = atob(base64Data);
+        const bytes = new Uint8Array(byteStr.length);
+        for (let i = 0; i < byteStr.length; i++) bytes[i] = byteStr.charCodeAt(i);
+        const blob = new Blob([bytes], { type: "application/octet-stream" });
+        const link = document.createElement('a');
+        link.href = window.URL.createObjectURL(blob);
+        link.download = fileName;
+        link.click();
     };
 
     window.api = {
@@ -78,7 +101,6 @@ if (!window.api) {
             saveOrgStaff: (data) => fetchRpc('db:save-org-staff', data),
             deleteOrgStaff: (id) => fetchRpc('db:delete-org-staff', id),
             
-            // 🔥 WORK LOGS SYNCED FOR BROWSER 🔥
             getWorkLogs: () => fetchRpc('db:get-work-logs'),
             saveWorkLog: (data) => fetchRpc('db:save-work-log', data),
             updateWorkLog: (id, data) => fetchRpc('db:update-work-log', id, data),
@@ -96,34 +118,81 @@ if (!window.api) {
             checkNotifications: (id, lc) => fetchRpc('db:check-notifications', id, lc),
             getKanbanTasks: () => fetchRpc('db:get-kanban-tasks'),
 
-            // --- DESKTOP ONLY ---
-            importExcel: desktopOnly,
-            exportAllProjectsSqlite: desktopOnly,
-            exportProjectSqlite: desktopOnly,
-            importProjectsSqlite: desktopOnly,
-            selectSyncFile: desktopOnly,
-            selectArchiveFile: desktopOnly,
-            executeProjectSync: desktopOnly,
-            backupDatabase: desktopOnly,
-            restoreDatabase: desktopOnly,
-            purgeDatabase: desktopOnly
-        },
-        server: {
-            start: desktopOnly,
-            stop: desktopOnly,
-            getIp: async () => '127.0.0.1'
+            // 🔥 UNLOCKED DESKTOP OPERATIONS FOR WEB CLIENTS 🔥
+            
+            // 1. Database Backups
+            backupDatabase: async () => {
+                const res = await fetchRpc('db:backup-database');
+                if (res && res.fileData) { webSaveFile(res.fileData, res.fileName); return { success: true }; }
+                return { success: false, error: res?.error || "Backup failed." };
+            },
+            restoreDatabase: async (mode) => {
+                const file = await webPickFile(".sqlite,.db");
+                if (!file) return { success: false, canceled: true };
+                return await fetchRpc('db:restore-database', mode, file.base64);
+            },
+            purgeDatabase: () => fetchRpc('db:purge-database'),
+
+            // 2. Project Archives
+            exportAllProjectsSqlite: async () => {
+                const res = await fetchRpc('db:export-all-projects-sqlite');
+                if (res && res.fileData) { webSaveFile(res.fileData, res.fileName); return { success: true }; }
+                return { success: false, error: "Export failed." };
+            },
+            selectArchiveFile: async () => {
+                const file = await webPickFile(".sqlite,.db");
+                if (!file) return { success: false, canceled: true };
+                return { success: true, filePath: file.base64, projects: [] }; // Pass base64 downstream
+            },
+            importProjectsSqlite: (base64Str, mode) => fetchRpc('db:import-projects-sqlite', base64Str, mode),
+
+            // 3. Project Syncing
+            exportProjectSqlite: async (id, options) => {
+                const res = await fetchRpc('db:export-project-sqlite', id, options);
+                if (res && res.fileData) { webSaveFile(res.fileData, res.fileName); return { success: true }; }
+                return { success: false, error: "Sync export failed." };
+            },
+            selectSyncFile: async () => {
+                const file = await webPickFile(".sqlite,.db");
+                if (!file) return { success: false, canceled: true };
+                return { success: true, filePath: file.base64 };
+            },
+            executeProjectSync: (targetId, base64Str, mode) => fetchRpc('db:execute-project-sync', targetId, base64Str, mode)
         },
         os: {
-            pickFile: desktopOnly,
-            pickDirectory: desktopOnly,
-            scaffoldProject: desktopOnly,
-            renameProjectFolder: desktopOnly,
+            pickFile: () => webPickFile(),
+            
+            // Browsers cannot open host directories, so we ask the user for the absolute string path
+            pickDirectory: async () => {
+                const path = prompt("Host Server Path Mapping:\nBecause you are on a remote web browser, please type the absolute path ON THE HOST SERVER where projects should be scaffolded (e.g., C:/OpenPrix/Projects or /var/www/openprix):");
+                return path || null;
+            },
+            
+            scaffoldProject: (data) => fetchRpc('os:scaffold-project', data),
+            renameProjectFolder: (data) => fetchRpc('os:rename-project-folder', data),
             uploadFileWeb: (fileName, base64Data, projectId) => fetchRpc('os:upload-file-web', fileName, base64Data, projectId),
+            
             openFile: (filePath) => {
                 const downloadUrl = `/api/download?path=${encodeURIComponent(filePath)}`;
                 window.open(downloadUrl, '_blank');
             },
-            getBase64: desktopOnly
+            
+            getBase64: async (filePath) => {
+                try {
+                    const res = await fetch(`/api/download?path=${encodeURIComponent(filePath)}`);
+                    const blob = await res.blob();
+                    return new Promise((resolve) => {
+                        const reader = new FileReader();
+                        reader.onload = () => resolve(reader.result);
+                        reader.readAsDataURL(blob);
+                    });
+                } catch { return null; }
+            }
+        },
+        server: {
+            start: () => alert("You cannot start the Host Server remotely from a Web Client."),
+            stop: () => alert("You cannot stop the Host Server remotely from a Web Client."),
+            getIp: async () => window.location.hostname
         }
     };
 }

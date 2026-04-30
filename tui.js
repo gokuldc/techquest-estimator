@@ -1,227 +1,261 @@
 import blessed from 'blessed';
 import contrib from 'blessed-contrib';
-import SysTrayModule from 'systray2';
+import { spawn } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { fileURLToPath } from 'url';
 import { initDatabase } from './electron/db.js';
-import { startWebServer, stopWebServer, getLocalIp } from './electron/webServer.js';
 
+const __filename = fileURLToPath(import.meta.url);
+const baseDir = path.dirname(__filename);
+const statusFile = path.join(baseDir, '.daemon_status.json');
 
-const isPackaged = typeof process.pkg !== 'undefined';
+// Get the correct Node executable for portability
+const isWin = process.platform === 'win32';
+const nodeBin = fs.existsSync(path.join(baseDir, isWin ? 'node.exe' : 'node')) 
+    ? path.join(baseDir, isWin ? 'node.exe' : 'node') 
+    : 'node';
 
-// process.cwd() works perfectly for local dev, and process.execPath handles the compiled .exe
-const baseDir = isPackaged 
-    ? path.dirname(process.execPath) 
-    : process.cwd();
-
-// --- GLOBAL STATE ---
-let db = null;
 let currentPort = 3000;
-let isServerRunning = false;
-let tray = null;
-let globalProjects = [];
+let refreshInterval;
+let db = null;
+let currentPage = null;
 
-// --- TUI SCREEN SETUP ---
+// --- 1. SCREEN SETUP ---
 const screen = blessed.screen({
     smartCSR: true,
-    title: '// OPENPRIX SERVER NEXUS',
+    title: '// OPENPRIX COMMAND CENTER',
     fullUnicode: true,
     cursor: { artificial: true, shape: 'block', blink: true }
 });
 
-const grid = new contrib.grid({ rows: 12, cols: 12, screen: screen });
+// --- 2. NAVIGATION BAR ---
+const menuBar = blessed.listbar({
+   parent: screen,
+    top: 0, left: 0, right: 0, height: 3,
+    mouse: true, 
+    keys: true, 
+    autoCommandKeys: true, // 🔥 Let the library do the work!
+    border: 'line', 
+    vi: true,
+    style: {
+        item: { fg: 'white', hover: { bg: 'blue' } },
+        selected: { fg: 'black', bg: 'cyan', bold: true }
+    },
+    commands: {
+        // We just write the name. Blessed will automatically turn this into "1: DASHBOARD"
+        'DASHBOARD': { keys: ['1'], callback: () => switchPage('dashboard') },
+        'DATABASE': { keys: ['2'], callback: () => switchPage('database') },
+        'LOGS': { keys: ['3'], callback: () => switchPage('logs') },
+        'QUIT': { keys: ['q'], callback: () => shutdownConsole() }
+    }
+});
 
-// --- WIDGETS ---
-const projectTable = grid.set(0, 0, 7, 8, contrib.table, {
+// --- 3. PAGE CONTAINERS ---
+// We create boxes to act as pages. They take up the screen below the menu bar.
+const pages = {
+    dashboard: blessed.box({ parent: screen, top: 3, bottom: 0, width: '100%', hidden: false }),
+    database: blessed.box({ parent: screen, top: 3, bottom: 0, width: '100%', hidden: true }),
+    logs: blessed.box({ parent: screen, top: 3, bottom: 0, width: '100%', hidden: true })
+};
+
+// --- PAGE 1: DASHBOARD WIDGETS ---
+const dashGrid = new contrib.grid({ rows: 12, cols: 12, screen: pages.dashboard });
+
+const serverStats = dashGrid.set(0, 0, 8, 8, contrib.markdown, {
+    label: ' DAEMON_STATUS ', border: { type: 'line', fg: 'magenta' }, tags: true,
+});
+
+const controlPanel = dashGrid.set(0, 8, 8, 4, contrib.markdown, {
+    label: ' CONSOLE_COMMANDS ', border: { type: 'line', fg: 'yellow' }
+});
+
+const quickLog = dashGrid.set(8, 0, 4, 12, contrib.log, {
+    fg: 'green', label: ' RECENT_ACTIVITY ', border: { type: 'line', fg: 'cyan' }, tags: true
+});
+
+// --- PAGE 2: DATABASE WIDGETS ---
+const dbGrid = new contrib.grid({ rows: 12, cols: 12, screen: pages.database });
+
+const projectTable = dbGrid.set(0, 0, 12, 9, contrib.table, {
     keys: true, fg: 'white', selectedFg: 'white', selectedBg: 'blue', interactive: true,
     label: ' ACTIVE_PROJECT_MATRIX ', width: '100%', height: '100%',
-    border: { type: 'line', fg: 'cyan' }, columnSpacing: 2, columnWidth: [14, 25, 12, 18]
+    border: { type: 'line', fg: 'cyan' }, tags: true, columnSpacing: 2, columnWidth: [14, 25, 12, 18]
 });
 
-const serverStats = grid.set(0, 8, 4, 4, contrib.markdown, {
-    label: ' NETWORK_STATUS ', border: { type: 'line', fg: 'magenta' }, style: { fg: 'green' }
+const entityMetrics = dbGrid.set(0, 9, 7, 3, contrib.markdown, {
+    label: ' DATABASE_RECORDS ', border: { type: 'line', fg: 'magenta' }, tags: true,
 });
 
-const controlPanel = grid.set(4, 8, 3, 4, contrib.markdown, {
-    label: ' SERVER_CONTROLS ', border: { type: 'line', fg: 'yellow' }, style: { fg: 'yellow' }
+const storageHealth = dbGrid.set(7, 9, 5, 3, contrib.markdown, {
+    label: ' ENGINE_HEALTH ', border: { type: 'line', fg: 'yellow' }, tags: true,
 });
 
-const systemLog = grid.set(7, 0, 5, 12, contrib.log, {
-    fg: 'green', selectedFg: 'green', label: ' SYSTEM_OPERATIONS_LOG ', border: { type: 'line', fg: 'cyan' }
+// --- PAGE 3: LOGS WIDGETS ---
+const logsGrid = new contrib.grid({ rows: 12, cols: 12, screen: pages.logs });
+
+const fullLog = logsGrid.set(0, 0, 12, 12, contrib.log, {
+    fg: 'green', label: ' FULL_SYSTEM_LOGS ', border: { type: 'line', fg: 'cyan' }, tags: true,
+    scrollable: true, keys: true, vi: true
 });
 
-// --- HELPER: LOGGING ---
-function log(msg, color = 'cyan') {
-    const time = new Date().toLocaleTimeString();
-    systemLog.log(`{${color}-fg}[${time}] ${msg}{/${color}-fg}`);
+// --- HELPER FUNCTIONS ---
+function switchPage(pageName) {
+    if (currentPage === pageName) return; 
+    currentPage = pageName;
+
+    Object.values(pages).forEach(p => p.hide());
+    pages[pageName].show();
+    
+    menuBar.selectTab(Object.keys(pages).indexOf(pageName));
     screen.render();
 }
 
-// --- NETWORK CONTROLS ---
-async function startServer() {
-    if (isServerRunning) return log("Server is already running.", "yellow");
-    
-    try {
-        // 🔥 Ensure DB is initialized in the correct directory
-        if (!db) db = initDatabase(); 
-        
-        log(`Attempting to boot server on port ${currentPort}...`, "cyan");
-        
-        const res = await startWebServer(currentPort, db);
-        if (res.success) {
-            isServerRunning = true;
-            log(`Server ONLINE -> ${res.url}`, "green");
-            updateDashboards();
-            updateTrayMenu();
-        } else {
-            log(`FATAL: ${res.error}`, "red");
-        }
-    } catch (err) {
-        log(`Server Boot Failed: ${err.message}`, "red");
-    }
+function log(msg, color = 'cyan') {
+    const time = new Date().toLocaleTimeString();
+    const formatted = `{${color}-fg}[${time}] ${msg}{/${color}-fg}`;
+    quickLog.log(formatted);
+    fullLog.log(formatted);
+    screen.render();
 }
 
-async function stopServer() {
-    if (!isServerRunning) return log("Server is not running.", "yellow");
-    log(`Shutting down server...`, "yellow");
-    await stopWebServer();
-    isServerRunning = false;
-    log(`Server OFFLINE.`, "red");
-    updateDashboards();
-    updateTrayMenu();
+// --- DAEMON MANAGEMENT ---
+function getDaemonStatus() {
+    if (fs.existsSync(statusFile)) {
+        try { return JSON.parse(fs.readFileSync(statusFile, 'utf8')); } 
+        catch (e) { return null; }
+    }
+    return null;
 }
 
-// --- SYSTEM TRAY MANAGER ---
-async function initSystemTray() {
-    // 🔥 Resolve Icon Path relative to the EXE location
-    const possibleIconPaths = [
-        path.join(baseDir, 'public/icon.ico'),
-        path.join(baseDir, 'icon.ico')
-    ];
+function startDaemon() {
+    const status = getDaemonStatus();
+    if (status && status.status === 'online') return log("Daemon is already running.", "yellow");
 
-    const iconPath = possibleIconPaths.find(p => fs.existsSync(p));
-    let iconData = "";
-    if (iconPath) {
-        iconData = fs.readFileSync(iconPath, { encoding: 'base64' });
-    }
+    log(`Spawning invisible Daemon on port ${currentPort}...`, "cyan");
+    const daemon = spawn(nodeBin, ['daemon.js', currentPort.toString()], {
+        detached: true, stdio: 'ignore' 
+    });
+    daemon.unref(); 
+    log("Daemon successfully detached to background.", "green");
+}
 
+function stopDaemon() {
+    const status = getDaemonStatus();
+    if (!status || !status.pid) return log("No running daemon found.", "yellow");
+
+    log(`Sending termination signal to Daemon (PID: ${status.pid})...`, "yellow");
     try {
-        tray = new SysTrayModule.default({
-            menu: {
-                icon: iconData,
-                title: "OpenPrix Nexus",
-                tooltip: "OpenPrix Server Console",
-                items: [
-                    { title: "Status: Booting...", enabled: false },
-                    { title: "---", enabled: false },
-                    { title: "Stop Server", enabled: true },
-                    { title: "Start Server", enabled: true },
-                    { title: "---", enabled: false },
-                    { title: "Exit Terminal", enabled: true }
-                ]
-            },
-            debug: false,
-            copyDir: false, 
-        });
-
-        tray.onClick(action => {
-            if (action.item.title === "Stop Server") stopServer();
-            if (action.item.title === "Start Server") startServer();
-            if (action.item.title === "Exit Terminal") shutdownSystem();
-        });
-
-        tray.start()
-            .then(() => log("System Tray Handshake Successful.", "green"))
-            .catch(() => {
-                log("Tray failed to start (Permission/Binary error). TUI-only mode.", "yellow");
-                tray = null;
-            });
-        
+        process.kill(status.pid, 'SIGINT'); 
+        log("Daemon terminated.", "red");
+        if (fs.existsSync(statusFile)) fs.unlinkSync(statusFile);
     } catch (e) {
-        log("Tray initialization error.", "yellow");
-        tray = null;
-    }
-}
-
-function updateTrayMenu() {
-    if (!tray || typeof tray.sendAction !== 'function') return;
-
-    const ip = getLocalIp();
-    const url = `http://${ip}:${currentPort}`;
-    
-    try {
-        tray.sendAction({
-            type: 'update-menu',
-            menu: {
-                items: [
-                    { title: `Status: ${isServerRunning ? 'ONLINE' : 'OFFLINE'}`, enabled: false },
-                    { title: isServerRunning ? url : "---", enabled: false },
-                    { title: "---", enabled: false },
-                    { title: "Stop Server", enabled: isServerRunning },
-                    { title: "Start Server", enabled: !isServerRunning },
-                    { title: "---", enabled: false },
-                    { title: "Exit Terminal", enabled: true }
-                ]
-            }
-        });
-    } catch (err) {
-        tray = null;
+        log(`Failed to kill process: ${e.message}`, "red");
+        if (fs.existsSync(statusFile)) fs.unlinkSync(statusFile);
     }
 }
 
 // --- UI UPDATERS ---
 function updateDashboards() {
-    const ip = getLocalIp();
-    serverStats.setMarkdown(`
-**STATUS:** ${isServerRunning ? '{green-fg}ONLINE{/green-fg}' : '{red-fg}OFFLINE{/red-fg}'}
-**PORT:** ${currentPort}
-**HOST IP:** ${ip}
+    const status = getDaemonStatus();
 
-**URL:** ${isServerRunning ? `http://${ip}:${currentPort}` : 'N/A'}
-    `);
+    // 1. Update Dashboard
+    if (status) {
+        serverStats.setMarkdown(`
+# 🌐 SYSTEM ONLINE
+**Status:** {green-fg}${status.status.toUpperCase()}{/green-fg},
+**Port:** ${status.port}
+**URL:** ${status.url || 'Booting...'}
+**Process ID:** ${status.pid}
+
+*You can safely close this console window. The server will keep running.*
+        `);
+    } else {
+        serverStats.setMarkdown(`
+# 🛑 SYSTEM OFFLINE
+**Target Port:** ${currentPort}
+
+*No background process detected. Press 'S' to ignite Daemon.*
+        `);
+    }
 
     controlPanel.setMarkdown(`
-**[ S ]** - Start Server
-**[ X ]** - Stop Server
-**[ P ]** - Change Port
-**[ Q ]** - Quit System
+### Global Shortcuts
+**[ S ]** - Start Background Daemon
+**[ X ]** - Kill Background Daemon
+**[ P ]** - Change Target Port
+**[ 1-3 ]** - Switch Pages
     `);
 
-    if (isServerRunning && db) {
-        try {
-            globalProjects = db.prepare('SELECT code, name, status, clientName FROM projects').all();
-            const tableData = globalProjects.map(p => [
-                (p.code || 'NO-CODE').substring(0, 14), 
-                (p.name || 'Untitled').substring(0, 25), 
-                (p.status || 'Draft').substring(0, 12), 
-                (p.clientName || 'N/A').substring(0, 18)
-            ]);
-            projectTable.setData({ headers: ['CODE', 'PROJECT NAME', 'STATUS', 'CLIENT'], data: tableData });
-        } catch(e) { 
-            log("DB Read Error", "red"); 
-        }
-    } else {
-        projectTable.setData({ headers: ['CODE', 'PROJECT NAME', 'STATUS', 'CLIENT'], data: [] });
+    // 2. Update Database Page (Only if DB is accessible)
+    try {
+       if (!db) db = initDatabase();
+        
+        // Fetch Projects
+        const projects = db.prepare('SELECT code, name, status, clientName FROM projects').all();
+        const tableData = projects.map(p => [
+            (p.code || 'NO-CODE').substring(0, 14), 
+            (p.name || 'Untitled').substring(0, 25), 
+            (p.status || 'Draft').substring(0, 12), 
+            (p.clientName || 'N/A').substring(0, 18)
+        ]);
+        projectTable.setData({ headers: ['CODE', 'PROJECT NAME', 'STATUS', 'CLIENT'], data: tableData });
+
+        // 🔥 CALCULATE EXACT METRICS
+        const activeProjects = projects.filter(p => p.status && p.status.toLowerCase() === 'active').length;
+        
+        // Fetch Staff Stats
+        const staffCount = db.prepare('SELECT COUNT(*) as c FROM org_staff').get().c || 0;
+        const crmCount = db.prepare('SELECT COUNT(*) as c FROM crm_contacts').get().c || 0;
+        
+        // Update the Records Panel
+        entityMetrics.setMarkdown(`
+**Global Projects:** ${projects.length}
+ ├ Active: {green-fg}${activeProjects}{/green-fg}
+ └ Other: ${projects.length - activeProjects}
+
+**Identities:** ${staffCount + crmCount}
+ ├ Internal Staff: {cyan-fg}${staffCount}{/cyan-fg}
+ └ CRM Contacts: {magenta-fg}${crmCount}{/magenta-fg}
+        `);
+
+        // Fetch System Memory & Health
+        const mem = process.memoryUsage();
+        const memMb = Math.round(mem.rss / 1024 / 1024);
+        
+        // Update the Health Panel
+        storageHealth.setMarkdown(`
+**Memory:** ${memMb} MB
+**Daemon:** ${status ? '{green-fg}LINKED{/green-fg}' : '{red-fg}OFFLINE{/red-fg}'}
+**TUI Mode:** Read-Only
+        `);
+
+    } catch (err) {
+        // Suppress DB read errors if the DB file is temporarily locked by the Daemon
     }
-    
+
     screen.render();
 }
 
-// --- KEYBINDINGS ---
-screen.key(['s', 'S'], () => startServer());
-screen.key(['x', 'X'], () => stopServer());
+// --- GLOBAL KEYBINDINGS ---
+screen.key(['s', 'S'], () => startDaemon());
+screen.key(['x', 'X'], () => stopDaemon());
 
 screen.key(['p', 'P'], () => {
-    if (isServerRunning) return log("Must stop server before changing ports.", "yellow");
+    const status = getDaemonStatus();
+    if (status && status.status === 'online') {
+        return log("Must kill daemon before changing ports.", "yellow");
+    }
+
     const prompt = blessed.prompt({
-        parent: screen, border: 'line', height: 'shrink', width: 'half', top: 'center', left: 'center', label: ' {blue-fg}Change Port{/blue-fg} ', tags: true, keys: true, vi: true
+        parent: screen, border: 'line', height: 'shrink', width: 'half', top: 'center', left: 'center', label: ' {blue-fg}Change Port{/blue-fg} ', tags: true
     });
     prompt.input('Enter new port (1024-65535):', currentPort.toString(), (err, value) => {
         if (value) {
             const p = parseInt(value, 10);
             if (p >= 1024 && p <= 65535) { 
                 currentPort = p; 
-                log(`Port changed to ${currentPort}`, "green"); 
+                log(`Target port changed to ${currentPort}`, "green"); 
                 updateDashboards(); 
             } else { 
                 log("Invalid port number.", "red"); 
@@ -230,17 +264,15 @@ screen.key(['p', 'P'], () => {
     });
 });
 
-async function shutdownSystem() {
-    log("Terminating session...", "yellow");
-    if (isServerRunning) await stopServer();
-    if (tray) tray.kill();
-    setTimeout(() => process.exit(0), 500);
+function shutdownConsole() {
+    clearInterval(refreshInterval);
+    process.exit(0);
 }
 
-screen.key(['escape', 'q', 'C-c'], () => shutdownSystem());
-
 // --- BOOT SEQUENCE ---
-log("Booting OpenPrix Server Nexus...");
-initSystemTray();
+log("Booting OpenPrix Control Console...");
+switchPage('dashboard'); // Init UI on Page 1
 updateDashboards();
-startServer();
+
+// Heartbeat
+refreshInterval = setInterval(updateDashboards, 1500);
