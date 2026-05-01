@@ -11,23 +11,31 @@ let mainWindow;
 
 function createWindow() {
     mainWindow = new BrowserWindow({
-        width: 1280, height: 800,
-        title: "//OPENPRIX_WORKSTATION",
+        width: 1280, height: 800, minWidth: 900, minHeight: 600,
+        title: "//OPENPRIX_CLIENT", autoHideMenuBar: true,
         webPreferences: {
+            nodeIntegration: false,
+            contextIsolation: true,
+            sandbox: false,
             preload: path.join(__dirname, 'preload.cjs')
         }
     });
 
-    // The React app handles the SERVER_URL via sessionStorage 
-    // It will default to 127.0.0.1 if not set.
     if (isDev) {
         mainWindow.loadURL('http://127.0.0.1:5173');
     } else {
         mainWindow.loadFile(path.join(__dirname, '../dist/index.html'));
     }
+
+    mainWindow.on('close', (event) => {
+        if (!app.isQuiting) {
+            event.preventDefault();
+            mainWindow.hide();
+        }
+    });
 }
 
-function registerHardwareBridge() {
+function registerOsHandlers() {
     ipcMain.handle('os:pick-file', async () => {
         const result = await dialog.showOpenDialog(mainWindow, { properties: ['openFile'] });
         return result.canceled ? null : result.filePaths[0];
@@ -54,37 +62,12 @@ function registerHardwareBridge() {
         const result = await dialog.showOpenDialog({ properties: ['openDirectory'] });
         return result.canceled ? null : result.filePaths[0];
     });
-
-    ipcMain.handle('os:scaffold-project', async (e, { root, subPath, folders }) => {
-        try {
-            const fullPath = path.join(root, subPath);
-            if (!fs.existsSync(fullPath)) {
-                fs.mkdirSync(fullPath, { recursive: true });
-                const folderList = folders ? folders.split(',').map(f => f.trim()) : [];
-                for (const f of folderList) { if (f) fs.mkdirSync(path.join(fullPath, f), { recursive: true }); }
-                return { success: true, path: fullPath, exists: false };
-            }
-            return { success: true, path: fullPath, exists: true };
-        } catch (err) { return { success: false, error: err.message }; }
-    });
-
-    ipcMain.handle('os:rename-project-folder', async (e, { root, oldPath, newSubPath }) => {
-        try {
-            const newPath = path.join(root, newSubPath);
-            if (oldPath !== newPath && fs.existsSync(oldPath)) {
-                fs.mkdirSync(path.dirname(newPath), { recursive: true });
-                fs.renameSync(oldPath, newPath);
-                return { success: true, newPath: newPath };
-            }
-            return { success: false, error: "Path unchanged." };
-        } catch (err) { return { success: false, error: err.message }; }
-    });
 }
 
 app.whenReady().then(() => {
-    registerHardwareBridge();
+    registerOsHandlers();
     createWindow();
 });
 
-app.on('window-all-closed', () => app.quit());
-app.on('activate', () => { if (mainWindow === null) createWindow(); });
+app.on('window-all-closed', (e) => { e.preventDefault(); });
+app.on('activate', () => { if (mainWindow === null) createWindow(); else mainWindow.show(); });

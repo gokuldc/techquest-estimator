@@ -27,3 +27,7 @@ dist-electron
 *.njsproj
 *.sln
 *.sw?
+# Rust build artifacts
+core/target/
+#database
+database.sqlite

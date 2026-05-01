@@ -93,12 +93,21 @@ export default function Directory() {
             ...formData,
             id: editId || crypto.randomUUID(),
             createdAt: formData.createdAt || Date.now(),
-            accessLevel: parseInt(formData.accessLevel, 10) || 1
         };
 
         if (tab === 'crm') {
+            // 🔥 CLEANUP: Ensure no internal staff columns leak into the CRM payload
+            delete payload.accessLevel;
+            delete payload.username;
+            delete payload.password;
+            delete payload.role;
+            delete payload.department;
+            delete payload.designation;
+            
             await window.api.db.saveCrmContact(payload);
         } else {
+            // Set staff-specific fields
+            payload.accessLevel = parseInt(formData.accessLevel, 10) || 1;
             if (payload.username) {
                 payload.username = payload.username.trim().toLowerCase().replace(/\s+/g, '');
             }
