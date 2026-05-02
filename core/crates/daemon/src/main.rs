@@ -1,49 +1,193 @@
 use axum::{
-    body::Body, extract::{Query, State}, http::{header, Method, StatusCode}, response::IntoResponse, routing::{get, post}, Json, Router
+    Router,
+    http::Method,
+    routing::{delete, get, post, put},
 };
-use shared::{AppSetting, CrmContact, DaemonStatus, MasterBoq, Message, PrivateMessage, Project, ProjectBoq, ProjectDocument, Region, Resource, Staff, WorkLog};
-use sqlx::{sqlite::SqlitePoolOptions, QueryBuilder, Sqlite, SqlitePool};
-use std::{fs, net::SocketAddr, process, path::Path};
-use tower_http::cors::{Any, CorsLayer};
-use serde::Deserialize;
-use serde_json::Value;
+use shared::DaemonStatus;
+use sqlx::{
+    SqlitePool,
+    sqlite::{SqliteConnectOptions, SqlitePoolOptions},
+};
+use std::str::FromStr;
+use std::{fs, net::SocketAddr, process};
+use tower_http::cors::CorsLayer;
 
-#[derive(Deserialize)]
-pub struct RpcPayload {
-    pub channel: String,
-    pub args: Vec<Value>, 
-}
+mod routes;
 
-#[derive(Deserialize)]
-pub struct DownloadQuery {
-    pub path: String,
+// 🚀 NEW: The Database Initialization Function
+async fn init_db(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
+    let schema = "
+        CREATE TABLE IF NOT EXISTS app_settings (key TEXT PRIMARY KEY, value TEXT);
+        
+        CREATE TABLE IF NOT EXISTS projects (id TEXT PRIMARY KEY, name TEXT, code TEXT, clientName TEXT, status TEXT, region TEXT, projectLead TEXT, siteSupervisor TEXT, pmc TEXT, architect TEXT, structuralEngineer TEXT, isPriceLocked INTEGER, dailyLogs TEXT, actualResources TEXT, ganttTasks TEXT, subcontractors TEXT, phaseAssignments TEXT, createdAt INTEGER, raBills TEXT, purchaseOrders TEXT, materialRequests TEXT, grns TEXT, type TEXT, location TEXT, isScaffolded INTEGER, scaffoldPath TEXT, isManuallyLinked INTEGER, dailySchedules TEXT, resourceTrackingMode TEXT, assignedStaff TEXT);
+        
+        CREATE TABLE IF NOT EXISTS project_boq (id TEXT PRIMARY KEY, projectId TEXT, masterBoqId TEXT, slNo INTEGER, isCustom INTEGER, itemCode TEXT, description TEXT, unit TEXT, rate REAL, formulaStr TEXT, qty REAL, measurements TEXT, phase TEXT, lockedRate REAL);
+        
+        CREATE TABLE IF NOT EXISTS master_boq (id TEXT PRIMARY KEY, itemCode TEXT, description TEXT, unit TEXT, overhead REAL, profit REAL, components TEXT);
+        
+        CREATE TABLE IF NOT EXISTS resources (id TEXT PRIMARY KEY, code TEXT, description TEXT, unit TEXT, rates TEXT, rateHistory TEXT);
+        
+        CREATE TABLE IF NOT EXISTS regions (id TEXT PRIMARY KEY, name TEXT);
+        
+        CREATE TABLE IF NOT EXISTS crm_contacts (id TEXT PRIMARY KEY, name TEXT, company TEXT, type TEXT, status TEXT, email TEXT, phone TEXT, createdAt INTEGER);
+        
+        CREATE TABLE IF NOT EXISTS org_staff (id TEXT PRIMARY KEY, name TEXT, designation TEXT, department TEXT, status TEXT, email TEXT, phone TEXT, createdAt INTEGER, username TEXT, password TEXT, role TEXT, accessLevel INTEGER);
+        
+        CREATE TABLE IF NOT EXISTS staff_work_logs (id TEXT PRIMARY KEY, date TEXT, staffId TEXT, slNo INTEGER, projectId TEXT, details TEXT, remarks TEXT, status TEXT, createdAt INTEGER);
+        
+        CREATE TABLE IF NOT EXISTS messages (id TEXT PRIMARY KEY, projectId TEXT, senderId TEXT, content TEXT, replyToId TEXT, createdAt INTEGER);
+        
+        CREATE TABLE IF NOT EXISTS private_messages (id TEXT PRIMARY KEY, senderId TEXT, receiverId TEXT, content TEXT, replyToId TEXT, createdAt INTEGER);
+        
+        CREATE TABLE IF NOT EXISTS project_documents (id TEXT PRIMARY KEY, projectId TEXT, name TEXT, category TEXT, filePath TEXT, fileType TEXT, addedAt INTEGER);
+    ";
+
+    sqlx::query(schema).execute(pool).await?;
+    Ok(())
 }
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let port = 3000;
-    let db_url = "sqlite://../database.sqlite"; 
+    let db_url = "sqlite://../database.sqlite";
 
     println!("Booting OpenPrix Rust Daemon...");
+    let connect_options = SqliteConnectOptions::from_str(db_url)?.create_if_missing(true);
+    let pool = SqlitePoolOptions::new()
+        .max_connections(5)
+        .connect_with(connect_options)
+        .await?;
 
-    let pool = SqlitePoolOptions::new().max_connections(5).connect(db_url).await?;
-    
-    // 🔥 HIGH PERFORMANCE SQLITE PRAGMAS
-    sqlx::query("PRAGMA journal_mode = WAL;").execute(&pool).await?;
-    sqlx::query("PRAGMA synchronous = NORMAL;").execute(&pool).await?;
+    sqlx::query("PRAGMA journal_mode = WAL;")
+        .execute(&pool)
+        .await?;
+    sqlx::query("PRAGMA synchronous = NORMAL;")
+        .execute(&pool)
+        .await?;
+
+    // 🚀 NEW: Run the initialization script
+    init_db(&pool).await?;
+    println!("Database verified and initialized.");
 
     let cors = CorsLayer::new()
-        .allow_origin(Any) 
+        .allow_origin([
+            "http://localhost:5173".parse().unwrap(),
+            "http://127.0.0.1:5173".parse().unwrap(),
+        ])
         .allow_methods([Method::GET, Method::POST, Method::PUT, Method::DELETE])
-        .allow_headers(Any);
+        .allow_headers(tower_http::cors::Any);
 
     let app = Router::new()
-        .route("/", get(|| async { "OpenPrix Daemon is Online and Routing!" })) 
-        .route("/api/projects", get(get_projects))
-        .route("/api/download", get(download_file))
-        .route("/api/rpc", post(handle_rpc)) 
+        .route("/", get(|| async { "OpenPrix API is Online!" }))
+        .route("/api/auth/login", post(routes::auth::login))
+        .route(
+            "/api/settings/{key}",
+            get(routes::settings::get_settings).post(routes::settings::save_settings),
+        )
+        .route(
+            "/api/projects",
+            get(routes::projects::get_projects).post(routes::projects::add_project),
+        )
+        .route(
+            "/api/projects/purge",
+            post(routes::projects::purge_projects),
+        )
+        .route(
+            "/api/projects/{id}",
+            get(routes::projects::get_project)
+                .put(routes::projects::update_project)
+                .delete(routes::projects::delete_project),
+        )
+        .route(
+            "/api/projects/{id}/documents",
+            get(routes::projects::get_project_docs),
+        )
+        .route("/api/documents", post(routes::projects::save_project_doc))
+        .route(
+            "/api/documents/{id}",
+            delete(routes::projects::delete_project_doc),
+        )
+        .route(
+            "/api/projects/{id}/boqs",
+            get(routes::boqs::get_project_boqs),
+        )
+        .route("/api/boqs", post(routes::boqs::add_project_boq))
+        .route(
+            "/api/boqs/{id}",
+            put(routes::boqs::update_project_boq).delete(routes::boqs::delete_project_boq),
+        )
+        .route("/api/boqs/bulk", put(routes::boqs::bulk_put_project_boqs))
+        .route(
+            "/api/master-boqs",
+            get(routes::boqs::get_master_boqs).post(routes::boqs::save_master_boq),
+        )
+        .route(
+            "/api/master-boqs/{id}",
+            delete(routes::boqs::delete_master_boq),
+        )
+        .route(
+            "/api/messages",
+            get(routes::messages::get_messages).post(routes::messages::save_message),
+        )
+        .route(
+            "/api/messages/{id}",
+            delete(routes::messages::delete_message),
+        )
+        .route(
+            "/api/private-messages/{u1}/{u2}",
+            get(routes::messages::get_private_messages),
+        )
+        .route(
+            "/api/private-messages",
+            post(routes::messages::save_private_message),
+        )
+        .route(
+            "/api/private-messages/{id}",
+            delete(routes::messages::delete_private_message),
+        )
+        .route(
+            "/api/staff",
+            get(routes::staff::get_staff).post(routes::staff::save_staff),
+        )
+        .route("/api/staff/{id}", delete(routes::staff::delete_staff))
+        .route(
+            "/api/crm",
+            get(routes::crm::get_crm).post(routes::crm::save_crm),
+        )
+        .route("/api/crm/{id}", delete(routes::crm::delete_crm))
+        .route(
+            "/api/worklogs",
+            get(routes::staff::get_worklogs).post(routes::staff::save_worklog),
+        )
+        .route(
+            "/api/worklogs/{id}",
+            put(routes::staff::update_worklog).delete(routes::staff::delete_worklog),
+        )
+        .route(
+            "/api/resources",
+            get(routes::resources::get_resources).post(routes::resources::save_resource),
+        )
+        .route(
+            "/api/resources/{id}",
+            put(routes::resources::update_resource).delete(routes::resources::delete_resource),
+        )
+        .route(
+            "/api/regions",
+            get(routes::resources::get_regions).post(routes::resources::save_region),
+        )
+        .route(
+            "/api/regions/{id}",
+            delete(routes::resources::delete_region),
+        )
+        .route("/api/os/download", get(routes::os::download_file))
+        .route("/api/os/upload", post(routes::os::upload_file))
+        .route(
+            "/api/notifications/check",
+            get(routes::messages::check_notifications),
+        )
+        .route("/api/kanban", get(routes::messages::get_kanban_tasks))
         .layer(cors)
-        .with_state(pool); 
+        .with_state(pool);
 
     let status = DaemonStatus {
         status: "online".to_string(),
@@ -51,405 +195,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         url: Some(format!("http://127.0.0.1:{}", port)),
         pid: process::id(),
     };
-    
     fs::write("../.daemon_status.json", serde_json::to_string(&status)?)?;
 
-    let addr = SocketAddr::from(([127, 0, 0, 1], port));
+    let addr = SocketAddr::from(([0, 0, 0, 0], port));
     println!("Daemon running on {}", addr);
-    
-    let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::serve(listener, app).await?;
-
+    axum::serve(tokio::net::TcpListener::bind(addr).await?, app).await?;
     Ok(())
-}
-
-// --- FILE DOWNLOADER ---
-async fn download_file(Query(params): Query<DownloadQuery>) -> impl IntoResponse {
-    let file_path = Path::new(&params.path);
-    
-    match tokio::fs::read(file_path).await {
-        Ok(contents) => {
-            let filename = file_path.file_name().and_then(|n| n.to_str()).unwrap_or("file");
-            let content_disposition = format!("attachment; filename=\"{}\"", filename);
-            
-            (
-                StatusCode::OK,
-                [(header::CONTENT_TYPE, "application/octet-stream"), (header::CONTENT_DISPOSITION, &content_disposition)],
-                Body::from(contents)
-            ).into_response()
-        },
-        Err(_) => (StatusCode::NOT_FOUND, "File not found").into_response()
-    }
-}
-
-async fn get_projects(State(pool): State<SqlitePool>) -> Result<Json<Vec<Project>>, String> {
-    let projects = sqlx::query_as::<_, Project>("SELECT * FROM projects").fetch_all(&pool).await.map_err(|e| e.to_string())?;
-    Ok(Json(projects))
-}
-
-// --- THE GRAND RPC BRIDGE ---
-async fn handle_rpc(State(pool): State<SqlitePool>, Json(payload): Json<RpcPayload>) -> Json<Value> {
-    let channel = payload.channel.as_str();
-    if channel != "db:check-notifications" { println!("RPC Call Received: {}", channel); }
-
-    let result: Result<Value, String> = match channel {
-        
-        // ==========================================
-        // 1. AUTH & SETTINGS
-        // ==========================================
-        "db:verify-login" => {
-            let un = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let pw = payload.args.get(1).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, Staff>("SELECT * FROM org_staff WHERE LOWER(username) = LOWER(?) AND password = ? AND status = 'Active'")
-                .bind(un).bind(pw).fetch_optional(&pool).await {
-                Ok(Some(u)) => Ok(serde_json::json!({ "success": true, "user": u })),
-                Ok(None) => Ok(serde_json::json!({ "success": false, "error": "Invalid Credentials" })),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-        "db:get-settings" => {
-            let key = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, AppSetting>("SELECT * FROM app_settings WHERE key = ?").bind(key).fetch_optional(&pool).await {
-                Ok(Some(row)) => Ok(serde_json::from_str::<Value>(&row.value).unwrap_or(Value::Null)),
-                Ok(None) => Ok(Value::Null),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-        "db:save-settings" => {
-            let key = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let val_str = payload.args.get(1).unwrap_or(&Value::Null).to_string(); 
-            match sqlx::query("INSERT OR REPLACE INTO app_settings (key, value) VALUES (?, ?)").bind(key).bind(val_str).execute(&pool).await {
-                Ok(_) => Ok(serde_json::json!({ "success": true })),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-
-        // ==========================================
-        // 2. DYNAMIC INSERTS & UPSERTS
-        // ==========================================
-        "db:add-project" | "db:add-project-boq" | "db:save-org-staff" | "db:save-crm-contact" | "db:save-work-log" | "db:save-project-document" | "db:save-message" | "db:save-private-message" => {
-            let data = payload.args.get(0).and_then(|v| v.as_object());
-            let table_name = match channel {
-                "db:add-project" => "projects",
-                "db:add-project-boq" => "project_boq",
-                "db:save-org-staff" => "org_staff",
-                "db:save-crm-contact" => "crm_contacts",
-                "db:save-work-log" => "staff_work_logs",
-                "db:save-project-document" => "project_documents",
-                "db:save-message" => "messages",
-                "db:save-private-message" => "private_messages",
-                _ => unreachable!(),
-            };
-
-            let is_insert_only = channel.starts_with("db:add");
-            let sql_cmd = if is_insert_only { "INSERT INTO" } else { "INSERT OR REPLACE INTO" };
-
-            if let Some(obj) = data {
-                let mut cols = Vec::new();
-                let mut vals = Vec::new();
-                
-                if channel == "db:add-project-boq" && !obj.contains_key("id") {
-                    cols.push("id");
-                    vals.push("?");
-                }
-
-                for (k, _) in obj { cols.push(k.as_str()); vals.push("?"); }
-                
-                let query_str = format!("{} {} ({}) VALUES ({})", sql_cmd, table_name, cols.join(", "), vals.join(", "));
-                let mut final_query = sqlx::query(&query_str);
-                
-                if channel == "db:add-project-boq" && !obj.contains_key("id") {
-                    final_query = final_query.bind(uuid::Uuid::new_v4().to_string());
-                }
-
-                for (_, v) in obj {
-                    final_query = match v {
-                        Value::String(s) => final_query.bind(s.clone()),
-                        Value::Number(n) => if let Some(i) = n.as_i64() { final_query.bind(i) } else { final_query.bind(n.as_f64().unwrap()) },
-                        Value::Bool(b) => final_query.bind(if *b { 1 } else { 0 }),
-                        Value::Null => final_query.bind(None::<String>), 
-                        _ => final_query.bind(v.to_string()), 
-                    };
-                }
-
-                match final_query.execute(&pool).await {
-                    Ok(_) => Ok(serde_json::json!({ "success": true })),
-                    Err(e) => Err(e.to_string()),
-                }
-            } else { Err("Invalid payload".to_string()) }
-        },
-
-        // ==========================================
-        // 3. DYNAMIC UPDATES
-        // ==========================================
-        "db:update-project" | "db:update-project-boq" | "db:update-work-log" => {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let data = payload.args.get(1).and_then(|v| v.as_object());
-            let table_name = match channel {
-                "db:update-project" => "projects",
-                "db:update-project-boq" => "project_boq",
-                "db:update-work-log" => "staff_work_logs",
-                _ => unreachable!(),
-            };
-            
-            if let Some(obj) = data {
-                let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new(format!("UPDATE {} SET ", table_name));
-                let mut first = true;
-                for (k, v) in obj {
-                    if k == "id" { continue; } 
-                    if !first { qb.push(", "); }
-                    qb.push(k).push(" = ");
-                    
-                    match v {
-                        Value::String(s) => { qb.push_bind(s.clone()); },
-                        Value::Number(n) => if let Some(i) = n.as_i64() { qb.push_bind(i); } else if let Some(f) = n.as_f64() { qb.push_bind(f); },
-                        Value::Bool(b) => { qb.push_bind(if *b { 1 } else { 0 }); },
-                        Value::Null => { qb.push("NULL"); },
-                        _ => { qb.push_bind(v.to_string()); } 
-                    }
-                    first = false;
-                }
-                qb.push(" WHERE id = ").push_bind(id);
-                
-                match qb.build().execute(&pool).await {
-                    Ok(_) => Ok(serde_json::json!({ "success": true })),
-                    Err(e) => Err(e.to_string()),
-                }
-            } else { Err("Invalid payload".to_string()) }
-        },
-
-        "db:update-resource" => {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let field = payload.args.get(1).and_then(|v| v.as_str()).unwrap_or("");
-            let val = payload.args.get(2).unwrap_or(&Value::Null);
-
-            let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE resources SET ");
-            qb.push(field).push(" = ");
-            match val {
-                Value::String(s) => { qb.push_bind(s.clone()); },
-                Value::Number(n) => if let Some(i) = n.as_i64() { qb.push_bind(i); } else if let Some(f) = n.as_f64() { qb.push_bind(f); },
-                Value::Bool(b) => { qb.push_bind(if *b { 1 } else { 0 }); },
-                Value::Null => { qb.push("NULL"); },
-                _ => { qb.push_bind(val.to_string()); }, 
-            };
-            qb.push(" WHERE id = ").push_bind(id);
-            
-            match qb.build().execute(&pool).await {
-                Ok(_) => Ok(serde_json::json!({ "success": true })),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-
-        // ==========================================
-        // 4. COMPLEX CUSTOM OPERATIONS
-        // ==========================================
-        "db:save-master-boq" => async {
-            let payload_obj = payload.args.get(0).and_then(|v| v.as_object()).ok_or("Invalid payload")?;
-            let id_val = payload.args.get(1).and_then(|v| v.as_str());
-            let is_new = payload.args.get(2).and_then(|v| v.as_bool()).unwrap_or(false);
-
-            let item_code = payload_obj.get("itemCode").and_then(|v| v.as_str()).unwrap_or("");
-            let desc = payload_obj.get("description").and_then(|v| v.as_str()).unwrap_or("");
-            let unit = payload_obj.get("unit").and_then(|v| v.as_str()).unwrap_or("");
-            let overhead = payload_obj.get("overhead").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let profit = payload_obj.get("profit").and_then(|v| v.as_f64()).unwrap_or(0.0);
-            let components = payload_obj.get("components").map(|v| v.to_string()).unwrap_or_else(|| "[]".to_string());
-
-            if let Some(id) = id_val {
-                if !is_new {
-                    let q = "UPDATE master_boq SET itemCode=?, description=?, unit=?, overhead=?, profit=?, components=? WHERE id=?";
-                    sqlx::query(q).bind(item_code).bind(desc).bind(unit).bind(overhead).bind(profit).bind(components).bind(id).execute(&pool).await.map_err(|e| e.to_string())?;
-                    return Ok::<Value, String>(serde_json::json!(id));
-                }
-            }
-            
-            let insert_id = if is_new { uuid::Uuid::new_v4().to_string() } else { id_val.unwrap_or(&uuid::Uuid::new_v4().to_string()).to_string() };
-            let q = "INSERT INTO master_boq (id, itemCode, description, unit, overhead, profit, components) VALUES (?, ?, ?, ?, ?, ?, ?)";
-            sqlx::query(q).bind(&insert_id).bind(item_code).bind(desc).bind(unit).bind(overhead).bind(profit).bind(components).execute(&pool).await.map_err(|e| e.to_string())?;
-            Ok::<Value, String>(serde_json::json!(insert_id))
-        }.await,
-
-        "db:bulk-put-project-boqs" => async {
-            let items = payload.args.get(0).and_then(|v| v.as_array()).ok_or("Invalid payload")?;
-            let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-            for item in items {
-                let id = item.get("id").and_then(|v| v.as_str()).unwrap_or("");
-                let locked_rate = item.get("lockedRate").and_then(|v| v.as_f64());
-                sqlx::query("UPDATE project_boq SET lockedRate = ? WHERE id = ?").bind(locked_rate).bind(id).execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            }
-            tx.commit().await.map_err(|e| e.to_string())?;
-            Ok::<Value, String>(serde_json::json!({ "success": true }))
-        }.await,
-
-        "db:create-region" => {
-            let name = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let id = uuid::Uuid::new_v4().to_string();
-            match sqlx::query("INSERT INTO regions (id, name) VALUES (?, ?)").bind(&id).bind(name).execute(&pool).await {
-                Ok(_) => Ok(serde_json::json!({ "success": true, "id": id })),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-
-        "db:create-resource" => {
-            let data = payload.args.get(0).and_then(|v| v.as_object());
-            if let Some(d) = data {
-                let id = d.get("id").and_then(|v| v.as_str()).map(|s| s.to_string()).unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-                let code = d.get("code").and_then(|v| v.as_str()).unwrap_or("");
-                let desc = d.get("description").and_then(|v| v.as_str()).unwrap_or("");
-                let unit = d.get("unit").and_then(|v| v.as_str()).unwrap_or("");
-                match sqlx::query("INSERT INTO resources (id, code, description, unit, rates) VALUES (?, ?, ?, ?, ?)").bind(id).bind(code).bind(desc).bind(unit).bind("{}").execute(&pool).await {
-                    Ok(_) => Ok(serde_json::json!({ "success": true })),
-                    Err(e) => Err(e.to_string()),
-                }
-            } else { Err("Invalid payload".into()) }
-        },
-
-        "os:upload-file-web" => {
-            let filename = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("file");
-            let b64 = payload.args.get(1).and_then(|v| v.as_str()).unwrap_or("");
-            let b64_clean = if let Some(idx) = b64.find(',') { &b64[idx+1..] } else { b64 };
-            
-            let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap_or_else(|_| ".".to_string());
-            let upload_dir = Path::new(&home).join(".openprix").join("uploads");
-            fs::create_dir_all(&upload_dir).unwrap_or_default();
-            
-            use std::time::{SystemTime, UNIX_EPOCH};
-            let ts = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_millis();
-            let safe_name = format!("{}_{}", ts, filename.replace(|c: char| !c.is_alphanumeric() && c != '.' && c != '-' && c != '_', ""));
-            let filepath = upload_dir.join(&safe_name);
-            
-            use base64::{Engine as _, engine::general_purpose};
-            match general_purpose::STANDARD.decode(b64_clean) {
-                Ok(bytes) => {
-                    fs::write(&filepath, bytes).unwrap_or_default();
-                    Ok(serde_json::json!({ "success": true, "path": filepath.to_string_lossy().to_string() }))
-                },
-                Err(_) => Err("Base64 decode failed".into())
-            }
-        },
-
-        // ==========================================
-        // 5. DELETES
-        // ==========================================
-        "db:delete-project" => async {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM projects WHERE id = ?").bind(id).execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM project_boq WHERE projectId = ?").bind(id).execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM project_documents WHERE projectId = ?").bind(id).execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            tx.commit().await.map_err(|e| e.to_string())?;
-            Ok::<Value, String>(serde_json::json!({ "success": true }))
-        }.await,
-        
-        "db:delete-region" => {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query("DELETE FROM regions WHERE id = ?").bind(id).execute(&pool).await {
-                Ok(_) => Ok(serde_json::json!({ "success": true })), Err(e) => Err(e.to_string()),
-            }
-        },
-        
-        "db:delete-org-staff" | "db:delete-crm-contact" | "db:delete-work-log" | "db:delete-project-document" | "db:delete-message" | "db:delete-private-message" | "db:delete-resource" | "db:delete-project-boq" | "db:delete-master-boq" => {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let table_name = match channel {
-                "db:delete-org-staff" => "org_staff",
-                "db:delete-crm-contact" => "crm_contacts",
-                "db:delete-work-log" => "staff_work_logs",
-                "db:delete-project-document" => "project_documents",
-                "db:delete-message" => "messages",
-                "db:delete-private-message" => "private_messages",
-                "db:delete-resource" => "resources",
-                "db:delete-project-boq" => "project_boq",
-                "db:delete-master-boq" => "master_boq",
-                _ => unreachable!(),
-            };
-            let query_str = format!("DELETE FROM {} WHERE id = ?", table_name);
-            match sqlx::query(&query_str).bind(id).execute(&pool).await { Ok(_) => Ok(serde_json::json!({ "success": true })), Err(e) => Err(e.to_string()), }
-        },
-        
-        "db:purge-projects" => async {
-            let mut tx = pool.begin().await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM projects").execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM project_boq").execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            sqlx::query("DELETE FROM project_documents").execute(&mut *tx).await.map_err(|e| e.to_string())?;
-            tx.commit().await.map_err(|e| e.to_string())?;
-            Ok::<Value, String>(serde_json::json!({ "success": true }))
-        }.await,
-
-        // ==========================================
-        // 6. READS
-        // ==========================================
-        "db:get-project" => {
-            let id = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, Project>("SELECT * FROM projects WHERE id = ?").bind(id).fetch_optional(&pool).await {
-                Ok(Some(row)) => Ok(serde_json::json!(row)),
-                Ok(None) => Ok(Value::Null),
-                Err(e) => Err(e.to_string()),
-            }
-        },
-        "db:get-project-documents" => {
-            let pid = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, ProjectDocument>("SELECT * FROM project_documents WHERE projectId = ? ORDER BY addedAt DESC").bind(pid).fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), }
-        },
-        "db:get-messages" => {
-            let pid = payload.args.get(0).and_then(|v| v.as_str());
-            let db_query = if let Some(p) = pid { sqlx::query_as::<_, Message>("SELECT * FROM messages WHERE projectId = ? ORDER BY createdAt ASC").bind(p).fetch_all(&pool).await } else { sqlx::query_as::<_, Message>("SELECT * FROM messages WHERE projectId IS NULL ORDER BY createdAt ASC").fetch_all(&pool).await };
-            match db_query { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), }
-        },
-        "db:get-private-messages" => {
-            let u1 = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            let u2 = payload.args.get(1).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, PrivateMessage>("SELECT * FROM private_messages WHERE (senderId = ? AND receiverId = ?) OR (senderId = ? AND receiverId = ?) ORDER BY createdAt ASC").bind(u1).bind(u2).bind(u2).bind(u1).fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), }
-        },
-        "db:get-project-boqs" => {
-            let pid = payload.args.get(0).and_then(|v| v.as_str()).unwrap_or("");
-            match sqlx::query_as::<_, ProjectBoq>("SELECT * FROM project_boq WHERE projectId = ?").bind(pid).fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), }
-        },
-        "db:get-projects" => { match sqlx::query_as::<_, Project>("SELECT * FROM projects").fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), } },
-        "db:get-org-staff" => { match sqlx::query_as::<_, Staff>("SELECT * FROM org_staff").fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), } },
-        "db:get-regions" => { match sqlx::query_as::<_, Region>("SELECT * FROM regions ORDER BY name ASC").fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), } },
-        "db:get-crm-contacts" => { match sqlx::query_as::<_, CrmContact>("SELECT * FROM crm_contacts").fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), } },
-        "db:get-work-logs" => { match sqlx::query_as::<_, WorkLog>("SELECT * FROM staff_work_logs ORDER BY date DESC, slNo DESC").fetch_all(&pool).await { Ok(data) => Ok(serde_json::json!(data)), Err(e) => Err(e.to_string()), } },
-        "db:get-resources" => {
-            match sqlx::query_as::<_, Resource>("SELECT * FROM resources ORDER BY code ASC").fetch_all(&pool).await {
-                Ok(rows) => {
-                    let mut formatted = Vec::new();
-                    for r in rows {
-                        let mut val = serde_json::to_value(&r).unwrap();
-                        val["rates"] = r.rates.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| serde_json::json!({}));
-                        val["rateHistory"] = r.rate_history.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| serde_json::json!([]));
-                        formatted.push(val);
-                    }
-                    Ok(serde_json::Value::Array(formatted))
-                },
-                Err(e) => Err(e.to_string()),
-            }
-        },
-        "db:get-master-boqs" => {
-            match sqlx::query_as::<_, MasterBoq>("SELECT * FROM master_boq").fetch_all(&pool).await {
-                Ok(rows) => {
-                    let mut formatted = Vec::new();
-                    for b in rows {
-                        let mut val = serde_json::to_value(&b).unwrap();
-                        val["components"] = b.components.and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_else(|| serde_json::json!([]));
-                        formatted.push(val);
-                    }
-                    Ok(serde_json::Value::Array(formatted))
-                },
-                Err(e) => Err(e.to_string()),
-            }
-        },
-
-        "db:check-notifications" => Ok(serde_json::json!(0)),
-        "db:get-kanban-tasks" => Ok(serde_json::json!([])),
-
-        _ => {
-            println!("⚠️ Unhandled RPC Channel: {}", channel);
-            Ok(serde_json::json!([])) 
-        }
-    }; 
-
-    match result {
-        Ok(data) => Json(serde_json::json!({ "success": true, "data": data })),
-        Err(err) => Json(serde_json::json!({ "success": false, "error": err })),
-    }
 }

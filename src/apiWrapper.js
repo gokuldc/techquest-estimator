@@ -8,18 +8,18 @@ export const setServerUrl = (url) => {
 
 export const getServerUrl = () => SERVER_URL;
 
-const webRpc = async (channel, ...args) => {
+// 🚀 THE PURE REST CLIENT (Replaces webRpc)
+const restCall = async (method, endpoint, data = null) => {
     try {
-        const response = await fetch(`${SERVER_URL}/api/rpc`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ channel, args })
-        });
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (data) options.body = JSON.stringify(data);
+
+        const response = await fetch(`${SERVER_URL}${endpoint}`, options);
         const result = await response.json();
         if (!result.success) throw new Error(result.error);
         return result.data;
-    } catch(err) {
-        console.error(`RPC Fail [${channel}]:`, err);
+    } catch (err) {
+        console.error(`REST Fail [${method} ${endpoint}]:`, err);
         throw err;
     }
 };
@@ -27,15 +27,17 @@ const webRpc = async (channel, ...args) => {
 const isElectron = window && window.api && window.api.os;
 
 export const api = {
-    // We map every database command natively to webRpc
-    getProjects: () => webRpc('db:get-projects'),
-    getOrgStaff: () => webRpc('db:get-org-staff'),
-    checkNotifications: (userId, lastChecked) => webRpc('db:check-notifications', userId, lastChecked),
-    
-    // BUT we keep OS commands routed through Electron
+    // 🚀 NEW REST ENDPOINTS
+    getProjects: () => restCall('GET', '/api/projects'),
+    getOrgStaff: () => restCall('GET', '/api/staff'),
+    checkNotifications: () => restCall('GET', '/api/notifications/check'),
+
+    // OS commands routed through Electron or HTTP fallback
     os: {
         pickFile: () => isElectron ? window.api.os.pickFile() : Promise.resolve(null),
-        openFile: (filePath) => isElectron ? window.api.os.openFile(filePath) : window.open(`${SERVER_URL}/api/download?path=${encodeURIComponent(filePath)}`, '_blank'),
-        uploadFileWeb: (name, b64, id) => webRpc('os:upload-file-web', name, b64, id)
+        // Pointing to the new secure /api/os/download endpoint
+        openFile: (filePath) => isElectron ? window.api.os.openFile(filePath) : window.open(`${SERVER_URL}/api/os/download?path=${encodeURIComponent(filePath)}`, '_blank'),
+        // Pointing to the new secure /api/os/upload endpoint
+        uploadFileWeb: (name, b64) => restCall('POST', '/api/os/upload', { filename: name, base64: b64 })
     }
 };

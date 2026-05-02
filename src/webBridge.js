@@ -9,34 +9,28 @@ if (!window.crypto.randomUUID) {
     };
 }
 
-// --- THE UNIVERSAL HTTP DATABASE BRIDGE ---
-const fetchRpc = async (channel, ...args) => {
+// 🚀 THE PURE REST CLIENT
+const restCall = async (method, endpoint, data = null) => {
     try {
         const targetUrl = sessionStorage.getItem('openprix_server_url') || 'http://127.0.0.1:3000';
-        
-        const res = await fetch(`${targetUrl}/api/rpc`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ channel, args })
-        });
+        const options = { method, headers: { 'Content-Type': 'application/json' } };
+        if (data) options.body = JSON.stringify(data);
+
+        const res = await fetch(`${targetUrl}${endpoint}`, options);
         const json = await res.json();
         if (!json.success) throw new Error(json.error);
         return json.data;
     } catch (error) {
-        console.error(`Network RPC Error [${channel}]:`, error);
+        console.error(`Network REST Error [${method} ${endpoint}]:`, error);
         return { success: false, error: error.message };
     }
 };
 
-// --- WEB FALLBACK FOR FILE PICKING ---
 const webPickFile = (accept = "*") => {
     return new Promise((resolve) => {
-        const input = document.createElement('input');
-        input.type = 'file';
-        input.accept = accept;
+        const input = document.createElement('input'); input.type = 'file'; input.accept = accept;
         input.onchange = e => {
-            const file = e.target.files[0];
-            if (!file) return resolve(null);
+            const file = e.target.files[0]; if (!file) return resolve(null);
             const reader = new FileReader();
             reader.onload = evt => resolve({ name: file.name, base64: evt.target.result.split(',')[1] });
             reader.readAsDataURL(file);
@@ -45,88 +39,88 @@ const webPickFile = (accept = "*") => {
     });
 };
 
-// --- OS NETWORK CALLS (Always sent to Rust via HTTP) ---
 const osNetworkCalls = {
-    scaffoldProject: (data) => fetchRpc('os:scaffold-project', data),
-    renameProjectFolder: (data) => fetchRpc('os:rename-project-folder', data),
-    uploadFileWeb: (fileName, base64Data, projectId) => fetchRpc('os:upload-file-web', fileName, base64Data, projectId),
+    scaffoldProject: () => console.log("Not implemented in REST yet"),
+    renameProjectFolder: () => console.log("Not implemented in REST yet"),
+    uploadFileWeb: (fileName, base64Data) => restCall('POST', '/api/os/upload', { filename: fileName, base64: base64Data }),
 };
 
-// --- OS NATIVE FALLBACKS (Used only if accessed via standard web browser) ---
 const webOsFallbacks = {
     pickFile: () => webPickFile(),
     pickDirectory: async () => prompt("Host Server Path Mapping:\nBecause you are on a remote web browser, please type the absolute path ON THE HOST SERVER where projects should be scaffolded (e.g., C:/OpenPrix/Projects):") || null,
     openFile: (filePath) => {
         const targetUrl = sessionStorage.getItem('openprix_server_url') || 'http://127.0.0.1:3000';
-        window.open(`${targetUrl}/api/download?path=${encodeURIComponent(filePath)}`, '_blank');
+        window.open(`${targetUrl}/api/os/download?path=${encodeURIComponent(filePath)}`, '_blank');
     },
     getBase64: async (filePath) => {
         try {
             const targetUrl = sessionStorage.getItem('openprix_server_url') || 'http://127.0.0.1:3000';
-            const res = await fetch(`${targetUrl}/api/download?path=${encodeURIComponent(filePath)}`);
+            const res = await fetch(`${targetUrl}/api/os/download?path=${encodeURIComponent(filePath)}`);
             const blob = await res.blob();
-            return new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = () => resolve(reader.result);
-                reader.readAsDataURL(blob);
-            });
+            return new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result); reader.readAsDataURL(blob); });
         } catch { return null; }
     }
 };
 
-// 🔥 BUILD THE GLOBAL API OBJECT 🔥
 window.api = {
     db: {
-        verifyEmployeeLogin: (un, pw) => fetchRpc('db:verify-login', un, pw),
-        getSettings: (key) => fetchRpc('db:get-settings', key),
-        saveSettings: (key, val) => fetchRpc('db:save-settings', key, val),
-        getRegions: () => fetchRpc('db:get-regions'),
-        createRegion: (name) => fetchRpc('db:create-region', name),
-        deleteRegion: (id, name) => fetchRpc('db:delete-region', id, name),
-        getResources: () => fetchRpc('db:get-resources'),
-        createResource: (data) => fetchRpc('db:create-resource', data),
-        updateResource: (id, f, v) => fetchRpc('db:update-resource', id, f, v),
-        deleteResource: (id) => fetchRpc('db:delete-resource', id),
-        getMasterBoqs: () => fetchRpc('db:get-master-boqs'),
-        saveMasterBoq: (p, id, n) => fetchRpc('db:save-master-boq', p, id, n),
-        deleteMasterBoq: (id) => fetchRpc('db:delete-master-boq', id),
-        getProjects: () => fetchRpc('db:get-projects'),
-        getProject: (id) => fetchRpc('db:get-project', id),
-        addProject: (data) => fetchRpc('db:add-project', data),
-        updateProject: (id, data) => fetchRpc('db:update-project', id, data),
-        deleteProject: (id) => fetchRpc('db:delete-project', id),
-        purgeProjects: () => fetchRpc('db:purge-projects'),
-        getProjectBoqs: (pid) => fetchRpc('db:get-project-boqs', pid),
-        addProjectBoq: (data) => fetchRpc('db:add-project-boq', data),
-        updateProjectBoq: (id, data) => fetchRpc('db:update-project-boq', id, data),
-        deleteProjectBoq: (id) => fetchRpc('db:delete-project-boq', id),
-        bulkPutProjectBoqs: (arr) => fetchRpc('db:bulk-put-project-boqs', arr),
-        getProjectDocuments: (pid) => fetchRpc('db:get-project-documents', pid),
-        saveProjectDocument: (data) => fetchRpc('db:save-project-document', data),
-        deleteProjectDocument: (id) => fetchRpc('db:delete-project-document', id),
-        getCrmContacts: () => fetchRpc('db:get-crm-contacts'),
-        saveCrmContact: (data) => fetchRpc('db:save-crm-contact', data),
-        deleteCrmContact: (id) => fetchRpc('db:delete-crm-contact', id),
-        getOrgStaff: () => fetchRpc('db:get-org-staff'),
-        saveOrgStaff: (data) => fetchRpc('db:save-org-staff', data),
-        deleteOrgStaff: (id) => fetchRpc('db:delete-org-staff', id),
-        getWorkLogs: () => fetchRpc('db:get-work-logs'),
-        saveWorkLog: (data) => fetchRpc('db:save-work-log', data),
-        updateWorkLog: (id, data) => fetchRpc('db:update-work-log', id, data),
-        deleteWorkLog: (id) => fetchRpc('db:delete-work-log', id),
-        getMessages: (pid) => fetchRpc('db:get-messages', pid),
-        saveMessage: (data) => fetchRpc('db:save-message', data),
-        deleteMessage: (id) => fetchRpc('db:delete-message', id), 
-        getPrivateMessages: (u1, u2) => fetchRpc('db:get-private-messages', u1, u2),
-        savePrivateMessage: (data) => fetchRpc('db:save-private-message', data),
-        deletePrivateMessage: (id) => fetchRpc('db:delete-private-message', id), 
-        checkNotifications: (id, lc) => fetchRpc('db:check-notifications', id, lc),
-        getKanbanTasks: () => fetchRpc('db:get-kanban-tasks'),
+        verifyEmployeeLogin: (un, pw) => restCall('POST', '/api/auth/login', { username: un, password: pw }),
+        getSettings: (key) => restCall('GET', `/api/settings/${key}`),
+        saveSettings: (key, val) => restCall('POST', `/api/settings/${key}`, { value: val }),
+
+        getRegions: () => restCall('GET', '/api/regions'),
+        createRegion: (name) => restCall('POST', '/api/regions', { name }),
+        deleteRegion: (id) => restCall('DELETE', `/api/regions/${id}`),
+
+        getResources: () => restCall('GET', '/api/resources'),
+        createResource: (data) => restCall('POST', '/api/resources', data),
+        updateResource: (id, f, v) => restCall('PUT', `/api/resources/${id}`, { [f]: v }),
+        deleteResource: (id) => restCall('DELETE', `/api/resources/${id}`),
+
+        getMasterBoqs: () => restCall('GET', '/api/master-boqs'),
+        saveMasterBoq: (p, id, n) => restCall('POST', '/api/master-boqs', { payload: p, id, isNew: n }),
+        deleteMasterBoq: (id) => restCall('DELETE', `/api/master-boqs/${id}`),
+
+        getProjects: () => restCall('GET', '/api/projects'),
+        getProject: (id) => restCall('GET', `/api/projects/${id}`),
+        addProject: (data) => restCall('POST', '/api/projects', data),
+        updateProject: (id, data) => restCall('PUT', `/api/projects/${id}`, data),
+        deleteProject: (id) => restCall('DELETE', `/api/projects/${id}`),
+        purgeProjects: () => restCall('POST', '/api/projects/purge'),
+
+        getProjectBoqs: (pid) => restCall('GET', `/api/projects/${pid}/boqs`),
+        addProjectBoq: (data) => restCall('POST', '/api/boqs', data),
+        updateProjectBoq: (id, data) => restCall('PUT', `/api/boqs/${id}`, data),
+        deleteProjectBoq: (id) => restCall('DELETE', `/api/boqs/${id}`),
+        bulkPutProjectBoqs: (arr) => restCall('PUT', '/api/boqs/bulk', { items: arr }),
+
+        getProjectDocuments: (pid) => restCall('GET', `/api/projects/${pid}/documents`),
+        saveProjectDocument: (data) => restCall('POST', '/api/documents', data),
+        deleteProjectDocument: (id) => restCall('DELETE', `/api/documents/${id}`),
+
+        getCrmContacts: () => restCall('GET', '/api/crm'),
+        saveCrmContact: (data) => restCall('POST', '/api/crm', data),
+        deleteCrmContact: (id) => restCall('DELETE', `/api/crm/${id}`),
+
+        getOrgStaff: () => restCall('GET', '/api/staff'),
+        saveOrgStaff: (data) => restCall('POST', '/api/staff', data),
+        deleteOrgStaff: (id) => restCall('DELETE', `/api/staff/${id}`),
+
+        getWorkLogs: () => restCall('GET', '/api/worklogs'),
+        saveWorkLog: (data) => restCall('POST', '/api/worklogs', data),
+        updateWorkLog: (id, data) => restCall('PUT', `/api/worklogs/${id}`, data),
+        deleteWorkLog: (id) => restCall('DELETE', `/api/worklogs/${id}`),
+
+        getMessages: (pid) => restCall('GET', pid ? `/api/messages?projectId=${pid}` : '/api/messages'),
+        saveMessage: (data) => restCall('POST', '/api/messages', data),
+        deleteMessage: (id) => restCall('DELETE', `/api/messages/${id}`),
+
+        getPrivateMessages: (u1, u2) => restCall('GET', `/api/private-messages/${u1}/${u2}`),
+        savePrivateMessage: (data) => restCall('POST', '/api/private-messages', data),
+        deletePrivateMessage: (id) => restCall('DELETE', `/api/private-messages/${id}`),
+
+        checkNotifications: (id, lc) => restCall('GET', `/api/notifications/check`),
+        getKanbanTasks: () => restCall('GET', '/api/kanban'),
     },
-    
-    // 🔥 MERGE: Native Electron functions (if they exist) + Network RPC OS Functions
-    os: {
-        ...(window.electronHost ? window.electronHost.os : webOsFallbacks),
-        ...osNetworkCalls
-    }
+    os: { ...(window.electronHost ? window.electronHost.os : webOsFallbacks), ...osNetworkCalls }
 };
