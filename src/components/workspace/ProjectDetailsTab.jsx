@@ -1,4 +1,5 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect, useCallback } from 'react';
+import { debounce } from 'lodash';
 import {
     Box, Typography, Paper, Grid, TextField, MenuItem, Button,
     Table, TableBody, TableCell, TableContainer, TableHead, TableRow, IconButton, LinearProgress, Tooltip
@@ -121,8 +122,24 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         });
     }, [project, totalAmount]);
 
+    const [localProject, setLocalProject] = useState(project || {});
+
+    useEffect(() => {
+        setLocalProject(project || {});
+    }, [project]);
+
+    const debouncedUpdateProject = useCallback(
+        debounce((field, value) => {
+            updateProject(field, value);
+        }, 500),
+        [updateProject]
+    );
+
     // 🔥 FIXED: Reverted to the stable multi-argument format expected by ProjectWorkspace
-    const handleChange = (field, value) => updateProject(field, value);
+    const handleChange = (field, value) => {
+        setLocalProject(prev => ({ ...prev, [field]: value }));
+        debouncedUpdateProject(field, value);
+    };
 
     const formatYAxis = (val) => {
         if (settings.currencyLocale === 'en-IN') return `${settings.currencySymbol}${(val / 100000).toFixed(1)}L`;
@@ -138,11 +155,11 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
         const safeStr = (str, fallback) => (str ? String(str).replace(/[<>:"|?*]/g, '').trim() : fallback);
 
         return template
-            .replace(/\{\{?TYPE\}\}?/ig, safeStr(project?.type, 'Uncategorized'))
-            .replace(/\{\{?STATUS\}\}?/ig, safeStr(project?.status, 'Active'))
-            .replace(/\{\{?CODE\}\}?/ig, safeStr(project?.code, 'NOCODE'))
-            .replace(/\{\{?NAME\}\}?/ig, safeStr(project?.name, 'Untitled Project'))
-            .replace(/\{\{?CLIENT\}\}?/ig, safeStr(project?.clientName, 'No Client'));
+            .replace(/\{\{?TYPE\}\}?/ig, safeStr(localProject?.type, 'Uncategorized'))
+            .replace(/\{\{?STATUS\}\}?/ig, safeStr(localProject?.status, 'Active'))
+            .replace(/\{\{?CODE\}\}?/ig, safeStr(localProject?.code, 'NOCODE'))
+            .replace(/\{\{?NAME\}\}?/ig, safeStr(localProject?.name, 'Untitled Project'))
+            .replace(/\{\{?CLIENT\}\}?/ig, safeStr(localProject?.clientName, 'No Client'));
     };
 
     const handleScaffold = async () => {
@@ -348,17 +365,17 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
 
                 <Grid container spacing={3}>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth label="PROJECT NAME" value={project?.name || ''} onChange={(e) => handleChange('name', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} disabled={!hasClearance(4)} />
+                        <TextField fullWidth label="PROJECT NAME" value={localProject?.name || ''} onChange={(e) => handleChange('name', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px', fontWeight: 'bold' } }} disabled={!hasClearance(4)} />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth label="PROJECT CODE" value={project?.code || ''} onChange={(e) => handleChange('code', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
+                        <TextField fullWidth label="PROJECT CODE" value={localProject?.code || ''} onChange={(e) => handleChange('code', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
                     <Grid item xs={12} md={4}>
-                        <TextField fullWidth label="PROJECT TYPE" value={project?.type || ''} placeholder="e.g. Residential, Hospital" onChange={(e) => handleChange('type', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
+                        <TextField fullWidth label="PROJECT TYPE" value={localProject?.type || ''} placeholder="e.g. Residential, Hospital" onChange={(e) => handleChange('type', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
 
                     <Grid item xs={12} md={6}>
-                        <TextField select fullWidth label="CLIENT NAME" value={project?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                        <TextField select fullWidth label="CLIENT NAME" value={localProject?.clientName || ''} onChange={(e) => handleChange('clientName', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
                             <MenuItem value="" sx={{ fontStyle: 'italic', fontFamily: "'JetBrains Mono', monospace" }}>-- No Client Assigned --</MenuItem>
                             {clientList.map(c => (
                                 <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>
@@ -368,7 +385,7 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
 
                     {/* 🔥 FIXED: Maps directly to the existing "pmc" column */}
                     <Grid item xs={12} md={6}>
-                        <TextField select fullWidth label="PRIMARY CONTRACTOR" value={project?.pmc || ''} onChange={(e) => handleChange('pmc', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                        <TextField select fullWidth label="PRIMARY CONTRACTOR" value={localProject?.pmc || ''} onChange={(e) => handleChange('pmc', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
                             <MenuItem value="" sx={{ fontStyle: 'italic', fontFamily: "'JetBrains Mono', monospace" }}>-- Open / Self-Executed --</MenuItem>
                             {contractorList.map(c => (
                                 <MenuItem key={c.id} value={c.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{c.name}</MenuItem>
@@ -377,18 +394,18 @@ export default function ProjectDetailsTab({ project, updateProject, regions, res
                     </Grid>
 
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth label="LOCATION / SITE" value={project?.location || ''} onChange={(e) => handleChange('location', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
+                        <TextField fullWidth label="LOCATION / SITE" value={localProject?.location || ''} onChange={(e) => handleChange('location', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)} />
                     </Grid>
 
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth select label="REGION / COST ZONE" value={project?.region || ''} onChange={(e) => handleChange('region', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                        <TextField fullWidth select label="REGION / COST ZONE" value={localProject?.region || ''} onChange={(e) => handleChange('region', e.target.value)} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
                             <MenuItem value="">-- Auto-Detect First Rate --</MenuItem>
                             {regions.map(r => <MenuItem key={r.id} value={r.name} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{r.name}</MenuItem>)}
                         </TextField>
                     </Grid>
                     
                     <Grid item xs={12} md={6}>
-                        <TextField fullWidth select label="PROJECT STATUS" value={project?.status || ''} onChange={(e) => handleChange('status', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
+                        <TextField fullWidth select label="PROJECT STATUS" value={localProject?.status || ''} onChange={(e) => handleChange('status', e.target.value)} onBlur={handleMetadataBlur} InputLabelProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '12px' } }} InputProps={{ sx: { fontFamily: "'JetBrains Mono', monospace", fontSize: '14px' } }} disabled={!hasClearance(4)}>
                             {['Draft', 'Planning', 'Active', 'On Hold', 'Completed'].map(s => <MenuItem key={s} value={s} sx={{ fontFamily: "'JetBrains Mono', monospace" }}>{s}</MenuItem>)}
                         </TextField>
                     </Grid>

@@ -16,6 +16,7 @@ import MenuOpenIcon from '@mui/icons-material/MenuOpen';
 import SaveIcon from '@mui/icons-material/Save';
 import AccountTreeIcon from '@mui/icons-material/AccountTree'; // Added for Org Tab
 
+import { debounce } from 'lodash';
 import { useSettings } from '../context/SettingsContext';
 
 export default function CompanySettings() {
@@ -44,6 +45,31 @@ export default function CompanySettings() {
     // 🔥 New State for Departments
     const [newDeptName, setNewDeptName] = useState("");
 
+    // --- DEBOUNCED AUTO-SAVE ---
+    const debouncedSave = React.useCallback(
+        debounce(async (payload) => {
+            await window.api.db.saveSettings('company_info', payload);
+            await refreshSettings();
+        }, 500),
+        []
+    );
+
+    const updateInfo = (field, value) => {
+        setInfo(prev => {
+            const updated = { ...prev, [field]: value };
+            debouncedSave(updated);
+            return updated;
+        });
+    };
+
+    const updateInfoList = (field, updatedList) => {
+        setInfo(prev => {
+            const updated = { ...prev, [field]: updatedList };
+            debouncedSave(updated);
+            return updated;
+        });
+    };
+
     useEffect(() => {
         window.api.db.getSettings('company_info').then(data => {
             if (data) {
@@ -70,7 +96,7 @@ export default function CompanySettings() {
     const handlePickRoot = async () => {
         if (window.api?.os?.pickDirectory) {
             const path = await window.api.os.pickDirectory();
-            if (path) setInfo({ ...info, scaffoldRoot: path });
+            if (path) updateInfo('scaffoldRoot', path);
         } else {
             alert("This feature requires the Desktop Host application.");
         }
@@ -80,7 +106,7 @@ export default function CompanySettings() {
         const path = await window.api.os.pickFile();
         if (!path) return;
         const base64Data = await window.api.os.getBase64(path);
-        if (base64Data) setInfo(prev => ({ ...prev, logo: base64Data }));
+        if (base64Data) updateInfo('logo', base64Data);
     };
 
     const handleAddFolder = () => {
@@ -88,14 +114,14 @@ export default function CompanySettings() {
         const cleanName = newFolderName.trim().replace(/[\/\\]/g, '');
         const fullPath = selectedParent ? `${selectedParent}/${cleanName}` : cleanName;
         if (!info.templateFolders.includes(fullPath)) {
-            setInfo({ ...info, templateFolders: [...info.templateFolders, fullPath].sort() });
+            updateInfoList('templateFolders', [...info.templateFolders, fullPath].sort());
         }
         setNewFolderName("");
     };
 
     const handleRemoveFolder = (pathToRemove) => {
         const updated = info.templateFolders.filter(f => f !== pathToRemove && !f.startsWith(`${pathToRemove}/`));
-        setInfo({ ...info, templateFolders: updated });
+        updateInfoList('templateFolders', updated);
         if (selectedParent === pathToRemove || selectedParent.startsWith(`${pathToRemove}/`)) {
             setSelectedParent("");
         }
@@ -106,20 +132,14 @@ export default function CompanySettings() {
         if (!newDeptName.trim()) return;
         const cleanName = newDeptName.trim();
         if (!info.departments.includes(cleanName)) {
-            setInfo({ ...info, departments: [...info.departments, cleanName].sort() });
+            updateInfoList('departments', [...info.departments, cleanName].sort());
         }
         setNewDeptName("");
     };
 
     const handleRemoveDept = (deptToRemove) => {
         const updated = info.departments.filter(d => d !== deptToRemove);
-        setInfo({ ...info, departments: updated });
-    };
-
-    const handleSave = async () => {
-        await window.api.db.saveSettings('company_info', info);
-        await refreshSettings();
-        alert("System settings synchronized successfully.");
+        updateInfoList('departments', updated);
     };
 
     const NAV_ITEMS = [
@@ -205,10 +225,6 @@ export default function CompanySettings() {
                             SETTINGS: <span style={{ color: theme.palette.primary.main }}>{activeTab.toUpperCase()}</span>
                         </Typography>
                     </Box>
-
-                    <Button variant="contained" color="primary" startIcon={<SaveIcon />} onClick={handleSave} sx={{ borderRadius: 50, fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', px: 4 }}>
-                        SAVE_CHANGES
-                    </Button>
                 </Box>
 
                 <Box sx={{ width: '100%', flexGrow: 1 }}>
@@ -223,14 +239,14 @@ export default function CompanySettings() {
                                         <Button variant="outlined" startIcon={<CloudUploadIcon />} onClick={handleLogoUpload} size="small" sx={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px' }}>UPLOAD LOGO</Button>
                                         <Typography variant="caption" display="block" color="text.secondary" sx={{ mt: 1, fontFamily: "'JetBrains Mono', monospace" }}>Required for PDF report branding.</Typography>
                                     </Box>
-                                    {info.logo && <IconButton color="error" onClick={() => setInfo({ ...info, logo: "" })}><DeleteIcon /></IconButton>}
+                                    {info.logo && <IconButton color="error" onClick={() => updateInfo('logo', "")}><DeleteIcon /></IconButton>}
                                 </Box>
                             </Grid>
-                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="COMPANY / FIRM NAME" value={info.name} onChange={e => setInfo({ ...info, name: e.target.value })} size="small" /></Grid>
-                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => setInfo({ ...info, taxId: e.target.value })} size="small" /></Grid>
-                            <Grid item xs={12} lg={8}><TextField fullWidth multiline rows={2} label="OFFICE ADDRESS" value={info.address} onChange={e => setInfo({ ...info, address: e.target.value })} size="small" /></Grid>
-                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="OFFICIAL EMAIL" value={info.email} onChange={e => setInfo({ ...info, email: e.target.value })} size="small" /></Grid>
-                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => setInfo({ ...info, phone: e.target.value })} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="COMPANY / FIRM NAME" value={info.name} onChange={e => updateInfo('name', e.target.value)} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="TAX ID / GSTIN" value={info.taxId} onChange={e => updateInfo('taxId', e.target.value)} size="small" /></Grid>
+                            <Grid item xs={12} lg={8}><TextField fullWidth multiline rows={2} label="OFFICE ADDRESS" value={info.address} onChange={e => updateInfo('address', e.target.value)} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="OFFICIAL EMAIL" value={info.email} onChange={e => updateInfo('email', e.target.value)} size="small" /></Grid>
+                            <Grid item xs={12} md={6} lg={4}><TextField fullWidth label="CONTACT NO." value={info.phone} onChange={e => updateInfo('phone', e.target.value)} size="small" /></Grid>
                         </Grid>
                     )}
 
@@ -270,9 +286,9 @@ export default function CompanySettings() {
                     {activeTab === "regional" && (
                         <Grid container spacing={3}>
                             <Grid item xs={12}><Typography variant="caption" color="primary.main" sx={{ fontFamily: "'JetBrains Mono', monospace", letterSpacing: '1px' }}>CURRENCY & MEASUREMENTS</Typography></Grid>
-                            <Grid item xs={12} md={4}><TextField select fullWidth label="CURRENCY SYMBOL" value={info.currencySymbol} onChange={e => setInfo({ ...info, currencySymbol: e.target.value })} size="small"><MenuItem value="₹">INR (₹)</MenuItem><MenuItem value="$">USD ($)</MenuItem><MenuItem value="€">EUR (€)</MenuItem><MenuItem value="AED">AED</MenuItem></TextField></Grid>
-                            <Grid item xs={12} md={4}><TextField select fullWidth label="NUMBER FORMAT" value={info.currencyLocale} onChange={e => setInfo({ ...info, currencyLocale: e.target.value })} size="small"><MenuItem value="en-IN">Indian (1,00,000.00)</MenuItem><MenuItem value="en-US">Western (100,000.00)</MenuItem></TextField></Grid>
-                            <Grid item xs={12} md={4}><TextField select fullWidth label="UNIT SYSTEM" value={info.unitSystem} onChange={e => setInfo({ ...info, unitSystem: e.target.value })} size="small"><MenuItem value="Metric">Metric (m, kg)</MenuItem><MenuItem value="Imperial">Imperial (ft, lb)</MenuItem></TextField></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="CURRENCY SYMBOL" value={info.currencySymbol} onChange={e => updateInfo('currencySymbol', e.target.value)} size="small"><MenuItem value="₹">INR (₹)</MenuItem><MenuItem value="$">USD ($)</MenuItem><MenuItem value="€">EUR (€)</MenuItem><MenuItem value="AED">AED</MenuItem></TextField></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="NUMBER FORMAT" value={info.currencyLocale} onChange={e => updateInfo('currencyLocale', e.target.value)} size="small"><MenuItem value="en-IN">Indian (1,00,000.00)</MenuItem><MenuItem value="en-US">Western (100,000.00)</MenuItem></TextField></Grid>
+                            <Grid item xs={12} md={4}><TextField select fullWidth label="UNIT SYSTEM" value={info.unitSystem} onChange={e => updateInfo('unitSystem', e.target.value)} size="small"><MenuItem value="Metric">Metric (m, kg)</MenuItem><MenuItem value="Imperial">Imperial (ft, lb)</MenuItem></TextField></Grid>
                         </Grid>
                     )}
 
@@ -289,7 +305,7 @@ export default function CompanySettings() {
                             </Grid>
 
                             <Grid item xs={12} md={6}>
-                                <TextField fullWidth label="SCAFFOLD PATH TEMPLATE" value={info.scaffoldPathTemplate} onChange={e => setInfo({ ...info, scaffoldPathTemplate: e.target.value })} helperText="Example: ./{type}/{status}/{code}_{name}/" size="small" />
+                                <TextField fullWidth label="SCAFFOLD PATH TEMPLATE" value={info.scaffoldPathTemplate} onChange={e => updateInfo('scaffoldPathTemplate', e.target.value)} helperText="Example: ./{type}/{status}/{code}_{name}/" size="small" />
                             </Grid>
 
                             <Grid item xs={12}><Divider sx={{ opacity: 0.1 }} /></Grid>

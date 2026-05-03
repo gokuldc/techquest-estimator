@@ -211,9 +211,17 @@ export default function ProjectWorkspace({ projectId, onBack }) {
     if (project === null) return <Box p={5} textAlign="center"><Typography variant="h6" sx={{ fontFamily: "'JetBrains Mono', monospace", color: 'error.main', mb: 2 }}>Error: Project Not Found</Typography><Button variant="outlined" onClick={onBack}>Return to Dashboard</Button></Box>;
 
     const updateProject = async (field, value) => {
+        // 1. Instantly update the React state (Optimistic UI)
+        setProject(prev => prev ? { ...prev, [field]: value } : prev);
+
+        // 2. Send network request in the background
         const valToSave = (typeof value === 'object' && value !== null) ? JSON.stringify(value) : value;
-        await window.api.db.updateProject(projectId, { [field]: valToSave });
-        loadData();
+        try {
+            await window.api.db.updateProject(projectId, { [field]: valToSave });
+        } catch (err) {
+            console.error("Network request failed, reverting UI:", err);
+            loadData(); // Revert back to server truth
+        }
     };
 
     const togglePriceLock = async () => {

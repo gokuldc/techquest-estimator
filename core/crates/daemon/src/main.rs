@@ -43,6 +43,41 @@ async fn init_db(pool: &SqlitePool) -> Result<(), Box<dyn std::error::Error>> {
     ";
 
     sqlx::query(schema).execute(pool).await?;
+
+    let count: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM org_staff")
+        .fetch_one(pool)
+        .await?;
+
+    if count.0 == 0 {
+        let admin_insert = "
+            INSERT INTO org_staff (id, name, designation, department, status, email, phone, createdAt, username, password, role, accessLevel)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ";
+        
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as i64;
+
+        sqlx::query(admin_insert)
+            .bind("admin_id")
+            .bind("Administrator")
+            .bind("System Admin")
+            .bind("Management")
+            .bind("Active")
+            .bind("admin@example.com")
+            .bind("")
+            .bind(now)
+            .bind("admin")
+            .bind("admin123")
+            .bind("Admin")
+            .bind(5)
+            .execute(pool)
+            .await?;
+        
+        println!("Default admin account created.");
+    }
+
     Ok(())
 }
 

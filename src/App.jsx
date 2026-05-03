@@ -65,7 +65,7 @@ function GlobalChatButton({ chatOpen, onOpen }) {
             } catch (err) { }
         };
         checkUnreadMessages();
-        const interval = setInterval(checkUnreadMessages, 3000);
+        const interval = setInterval(checkUnreadMessages, 15000); // Throttled to 15 seconds
         return () => clearInterval(interval);
     }, [currentUser, chatOpen]);
 
