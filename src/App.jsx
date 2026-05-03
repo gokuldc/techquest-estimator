@@ -148,6 +148,63 @@ export default function App() {
                     "*::-webkit-scrollbar-thumb": { background: mode === 'dark' ? "linear-gradient(180deg, #3b82f6, #22d3ee)" : "linear-gradient(180deg, #1e40af, #3b82f6)", borderRadius: "8px" },
                     "*::-webkit-scrollbar-thumb:hover": { background: mode === 'dark' ? "linear-gradient(180deg, #2563eb, #06b6d4)" : "linear-gradient(180deg, #1d4ed8, #2563eb)" }
                 }
+            },
+            MuiButton: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                        fontFamily: "'JetBrains Mono', monospace",
+                        textTransform: 'none',
+                        fontWeight: 600,
+                        padding: '8px 16px',
+                    },
+                    contained: {
+                        boxShadow: 'none',
+                        '&:hover': {
+                            boxShadow: '0px 4px 12px rgba(59, 130, 246, 0.4)',
+                        }
+                    }
+                }
+            },
+            MuiTextField: {
+                defaultProps: {
+                    variant: 'outlined',
+                    size: 'small',
+                }
+            },
+            MuiOutlinedInput: {
+                styleOverrides: {
+                    root: {
+                        borderRadius: 8,
+                        fontFamily: "'Inter', sans-serif",
+                    }
+                }
+            },
+            MuiPaper: {
+                styleOverrides: {
+                    root: {
+                        backgroundImage: 'none',
+                        borderRadius: 12,
+                    }
+                }
+            },
+            MuiDialog: {
+                styleOverrides: {
+                    paper: {
+                        backgroundColor: mode === 'dark' ? '#0d1f3c' : '#ffffff',
+                        border: `1px solid ${mode === 'dark' ? '#1e3a5f' : '#cbd5e1'}`,
+                        backgroundImage: 'none',
+                    }
+                }
+            },
+            MuiDialogTitle: {
+                styleOverrides: {
+                    root: {
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontWeight: 'bold',
+                        letterSpacing: '1px',
+                    }
+                }
             }
         }
     });
@@ -200,14 +257,17 @@ function AppContent({
     };
 
     const handleCreateProject = async () => {
-        const newId = generateSecureId();
         const newProject = {
-            id: newId, name: "New Project", code: "", clientName: "", region: "", status: "Draft",
+            name: "New Project", code: "", clientName: "", region: "", status: "Draft",
             assignedStaff: JSON.stringify([currentUser?.id]), createdAt: Date.now()
         };
-        await window.api.db.addProject(newProject);
-        setActiveProjectId(newId);
-        setCurrentView('workspace');
+        const createdId = await window.api.db.addProject(newProject);
+        if (createdId && createdId.success !== false) {
+            setActiveProjectId(createdId);
+            setCurrentView('workspace');
+        } else {
+            alert("Failed to create project: " + (createdId?.error || "Unknown error"));
+        }
     };
 
     const handleOpenProfile = () => {

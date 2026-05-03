@@ -74,7 +74,10 @@ export default function DocumentsTab({ projectId }) {
             
             const res = await window.api.os.uploadFileWeb(file.name, base64Data, projectId);
             
-            if (res && res.success) {
+            // restCall unwraps and returns data directly (the file path string) on success,
+            // or an object { success: false, error: '...' } on failure.
+            const uploadSucceeded = res && typeof res === 'string';
+            if (uploadSucceeded) {
                 const finalName = uploadContext.name || name || file.name.replace(/\.[^/.]+$/, "");
                 const finalCategory = uploadContext.category || category;
 
@@ -83,7 +86,7 @@ export default function DocumentsTab({ projectId }) {
                     projectId,
                     name: finalName,
                     category: finalCategory,
-                    filePath: res.path, 
+                    filePath: res,  // res IS the path string
                     fileType: extension,
                     addedAt: Date.now()
                 };

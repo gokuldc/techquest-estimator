@@ -6,7 +6,7 @@ use axum::{
 };
 use serde::Deserialize;
 use shared::{Project, ProjectDocument};
-use sqlx::{QueryBuilder, Sqlite, SqlitePool}; // 👈 Import the helper
+use sqlx::{QueryBuilder, Sqlite, SqlitePool};
 
 #[derive(Deserialize)]
 pub struct CreateProject {
@@ -21,17 +21,37 @@ pub struct CreateProject {
     pub location: Option<String>,
 }
 
+// 🔥 FULLY EXPANDED UPDATE STRUCT
 #[derive(Deserialize)]
 pub struct UpdateProject {
     pub name: Option<String>,
+    pub code: Option<String>,
+    #[serde(rename = "clientName")] pub client_name: Option<String>,
     pub status: Option<String>,
-    #[serde(rename = "clientName")]
-    pub client_name: Option<String>,
     pub region: Option<String>,
-    #[serde(rename = "dailyLogs")]
-    pub daily_logs: Option<String>,
-    #[serde(rename = "ganttTasks")]
-    pub gantt_tasks: Option<String>,
+    #[serde(rename = "projectLead")] pub project_lead: Option<String>,
+    #[serde(rename = "siteSupervisor")] pub site_supervisor: Option<String>,
+    pub pmc: Option<String>,
+    pub architect: Option<String>,
+    #[serde(rename = "structuralEngineer")] pub structural_engineer: Option<String>,
+    #[serde(rename = "isPriceLocked")] pub is_price_locked: Option<i64>,
+    #[serde(rename = "dailyLogs")] pub daily_logs: Option<String>,
+    #[serde(rename = "actualResources")] pub actual_resources: Option<String>,
+    #[serde(rename = "ganttTasks")] pub gantt_tasks: Option<String>,
+    pub subcontractors: Option<String>,
+    #[serde(rename = "phaseAssignments")] pub phase_assignments: Option<String>,
+    #[serde(rename = "raBills")] pub ra_bills: Option<String>,
+    #[serde(rename = "purchaseOrders")] pub purchase_orders: Option<String>,
+    #[serde(rename = "materialRequests")] pub material_requests: Option<String>,
+    pub grns: Option<String>,
+    #[serde(rename = "type")] pub project_type: Option<String>,
+    pub location: Option<String>,
+    #[serde(rename = "isScaffolded")] pub is_scaffolded: Option<i64>,
+    #[serde(rename = "scaffoldPath")] pub scaffold_path: Option<String>,
+    #[serde(rename = "isManuallyLinked")] pub is_manually_linked: Option<i64>,
+    #[serde(rename = "dailySchedules")] pub daily_schedules: Option<String>,
+    #[serde(rename = "resourceTrackingMode")] pub resource_tracking_mode: Option<String>,
+    #[serde(rename = "assignedStaff")] pub assigned_staff: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -128,45 +148,35 @@ pub async fn update_project(
     let mut qb: QueryBuilder<Sqlite> = QueryBuilder::new("UPDATE projects SET ");
     let mut has_fields = false;
 
-    if let Some(v) = payload.name {
-        qb.push("name = ").push_bind(v);
-        has_fields = true;
-    }
-    if let Some(v) = payload.status {
-        if has_fields {
-            qb.push(", ");
-        }
-        qb.push("status = ").push_bind(v);
-        has_fields = true;
-    }
-    if let Some(v) = payload.client_name {
-        if has_fields {
-            qb.push(", ");
-        }
-        qb.push("clientName = ").push_bind(v);
-        has_fields = true;
-    }
-    if let Some(v) = payload.region {
-        if has_fields {
-            qb.push(", ");
-        }
-        qb.push("region = ").push_bind(v);
-        has_fields = true;
-    }
-    if let Some(v) = payload.daily_logs {
-        if has_fields {
-            qb.push(", ");
-        }
-        qb.push("dailyLogs = ").push_bind(v);
-        has_fields = true;
-    }
-    if let Some(v) = payload.gantt_tasks {
-        if has_fields {
-            qb.push(", ");
-        }
-        qb.push("ganttTasks = ").push_bind(v);
-        has_fields = true;
-    }
+    // 🔥 FULLY EXPANDED QUERY BUILDER
+    if let Some(v) = payload.name { qb.push("name = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.code { if has_fields { qb.push(", "); } qb.push("code = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.client_name { if has_fields { qb.push(", "); } qb.push("clientName = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.status { if has_fields { qb.push(", "); } qb.push("status = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.region { if has_fields { qb.push(", "); } qb.push("region = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.project_lead { if has_fields { qb.push(", "); } qb.push("projectLead = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.site_supervisor { if has_fields { qb.push(", "); } qb.push("siteSupervisor = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.pmc { if has_fields { qb.push(", "); } qb.push("pmc = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.architect { if has_fields { qb.push(", "); } qb.push("architect = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.structural_engineer { if has_fields { qb.push(", "); } qb.push("structuralEngineer = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.is_price_locked { if has_fields { qb.push(", "); } qb.push("isPriceLocked = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.daily_logs { if has_fields { qb.push(", "); } qb.push("dailyLogs = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.actual_resources { if has_fields { qb.push(", "); } qb.push("actualResources = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.gantt_tasks { if has_fields { qb.push(", "); } qb.push("ganttTasks = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.subcontractors { if has_fields { qb.push(", "); } qb.push("subcontractors = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.phase_assignments { if has_fields { qb.push(", "); } qb.push("phaseAssignments = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.ra_bills { if has_fields { qb.push(", "); } qb.push("raBills = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.purchase_orders { if has_fields { qb.push(", "); } qb.push("purchaseOrders = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.material_requests { if has_fields { qb.push(", "); } qb.push("materialRequests = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.grns { if has_fields { qb.push(", "); } qb.push("grns = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.project_type { if has_fields { qb.push(", "); } qb.push("type = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.location { if has_fields { qb.push(", "); } qb.push("location = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.is_scaffolded { if has_fields { qb.push(", "); } qb.push("isScaffolded = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.scaffold_path { if has_fields { qb.push(", "); } qb.push("scaffoldPath = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.is_manually_linked { if has_fields { qb.push(", "); } qb.push("isManuallyLinked = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.daily_schedules { if has_fields { qb.push(", "); } qb.push("dailySchedules = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.resource_tracking_mode { if has_fields { qb.push(", "); } qb.push("resourceTrackingMode = ").push_bind(v); has_fields = true; }
+    if let Some(v) = payload.assigned_staff { if has_fields { qb.push(", "); } qb.push("assignedStaff = ").push_bind(v); has_fields = true; }
 
     if !has_fields {
         return Ok(Json(ApiResponse {

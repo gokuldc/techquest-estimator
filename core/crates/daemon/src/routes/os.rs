@@ -12,7 +12,10 @@ pub struct UploadPayload { pub filename: String, pub base64: String }
 pub async fn download_file(Query(params): Query<DownloadQuery>) -> impl IntoResponse {
     let home = std::env::var("USERPROFILE").or_else(|_| std::env::var("HOME")).unwrap_or_else(|_| ".".to_string());
     let base_dir = Path::new(&home).join(".openprix").join("uploads");
-    let requested_path = base_dir.join(&params.path);
+    
+    // Extract just the filename in case an old absolute path is passed
+    let file_name = Path::new(&params.path).file_name().and_then(|n| n.to_str()).unwrap_or(&params.path);
+    let requested_path = base_dir.join(file_name);
     
     let canonical_requested = match requested_path.canonicalize() { Ok(path) => path, Err(_) => return (StatusCode::NOT_FOUND, "File not found").into_response(), };
     let canonical_base = match base_dir.canonicalize() { Ok(path) => path, Err(_) => return (StatusCode::INTERNAL_SERVER_ERROR, "Base directory error").into_response(), };
@@ -21,8 +24,27 @@ pub async fn download_file(Query(params): Query<DownloadQuery>) -> impl IntoResp
 
     match tokio::fs::read(&canonical_requested).await {
         Ok(contents) => {
-            let filename = canonical_requested.file_name().and_then(|n| n.to_str()).unwrap_or("file");
-            (StatusCode::OK, [(header::CONTENT_TYPE, "application/octet-stream"), (header::CONTENT_DISPOSITION, &format!("attachment; filename=\"{}\"", filename))], Body::from(contents)).into_response()
+            // 🔥 FIX: Detect the file type so the browser knows how to render it
+            let ext = canonical_requested.extension().and_then(|e| e.to_str()).unwrap_or("").to_lowercase();
+            let mime_type = match ext.as_str() {
+                "png" => "image/png",
+                "jpg" | "jpeg" => "image/jpeg",
+                "svg" => "image/svg+xml",
+                "webp" => "image/webp",
+                "gif" => "image/gif",
+                "pdf" => "application/pdf",
+                _ => "application/octet-stream",
+            };
+            
+            // 🔥 FIX: Tell the browser to display images INLINE instead of downloading them
+            let disposition = if mime_type.starts_with("image") {
+                "inline".to_string()
+            } else {
+                let filename = canonical_requested.file_name().and_then(|n| n.to_str()).unwrap_or("file");
+                format!("attachment; filename=\"{}\"", filename)
+            };
+
+            (StatusCode::OK, [(header::CONTENT_TYPE, mime_type), (header::CONTENT_DISPOSITION, &disposition)], Body::from(contents)).into_response()
         },
         Err(_) => (StatusCode::INTERNAL_SERVER_ERROR, "Failed to read file").into_response()
     }
@@ -43,7 +65,8 @@ pub async fn upload_file(Json(payload): Json<UploadPayload>) -> Json<ApiResponse
     match general_purpose::STANDARD.decode(b64_clean) {
         Ok(bytes) => { 
             fs::write(&filepath, bytes).unwrap_or_default(); 
-            Json(ApiResponse { success: true, data: Some(filepath.to_string_lossy().to_string()), error: None }) 
+            // 🔥 THE FIX: Return ONLY the safe filename, not the absolute C:/ path
+            Json(ApiResponse { success: true, data: Some(safe_name), error: None }) 
         },
         Err(_) => Json(ApiResponse { success: false, data: None, error: Some("Base64 decode failed".into()) })
     }

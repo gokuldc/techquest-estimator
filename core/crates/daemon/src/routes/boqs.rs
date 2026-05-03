@@ -14,9 +14,9 @@ pub struct CreateProjectBoq {
     pub project_id: String,
     #[serde(rename = "masterBoqId")]
     pub master_boq_id: Option<String>,
-    #[serde(rename = "slNo")]
+    #[serde(rename = "slNo", deserialize_with = "number_to_i64", default)]
     pub sl_no: i64,
-    #[serde(rename = "isCustom")]
+    #[serde(rename = "isCustom", deserialize_with = "bool_or_int", default)]
     pub is_custom: i64,
     #[serde(rename = "itemCode")]
     pub item_code: Option<String>,
@@ -28,6 +28,30 @@ pub struct CreateProjectBoq {
     pub formula_str: Option<String>,
     pub measurements: Option<String>,
     pub phase: Option<String>,
+    #[serde(rename = "lockedRate")]
+    pub locked_rate: Option<f64>,
+}
+
+fn bool_or_int<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    use serde::Deserialize;
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum BoolOrInt { Bool(bool), Int(i64) }
+    match BoolOrInt::deserialize(d)? {
+        BoolOrInt::Bool(b) => Ok(if b { 1 } else { 0 }),
+        BoolOrInt::Int(n) => Ok(n),
+    }
+}
+
+fn number_to_i64<'de, D: serde::Deserializer<'de>>(d: D) -> Result<i64, D::Error> {
+    use serde::Deserialize;
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Num { Int(i64), Float(f64) }
+    match Num::deserialize(d)? {
+        Num::Int(n) => Ok(n),
+        Num::Float(f) => Ok(f as i64),
+    }
 }
 
 #[derive(Deserialize)]
@@ -77,7 +101,7 @@ pub async fn add_project_boq(
     Json(payload): Json<CreateProjectBoq>,
 ) -> Result<Json<ApiResponse<String>>, (StatusCode, Json<ApiResponse<()>>)> {
     let id = uuid::Uuid::new_v4().to_string();
-    let q = "INSERT INTO project_boq (id, projectId, masterBoqId, slNo, isCustom, itemCode, description, unit, rate, qty, formulaStr, measurements, phase) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+    let q = "INSERT INTO project_boq (id, projectId, masterBoqId, slNo, isCustom, itemCode, description, unit, rate, qty, formulaStr, measurements, phase, lockedRate) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
     api_response(
         sqlx::query(q)
             .bind(&id)
@@ -93,6 +117,7 @@ pub async fn add_project_boq(
             .bind(payload.formula_str)
             .bind(payload.measurements.unwrap_or_else(|| "[]".to_string()))
             .bind(payload.phase)
+            .bind(payload.locked_rate)
             .execute(&pool)
             .await
             .map(|_| id)
@@ -100,31 +125,49 @@ pub async fn add_project_boq(
     )
 }
 
+
 pub async fn update_project_boq(
     State(pool): State<SqlitePool>,
     Path(id): Path<String>,
-    Json(payload): Json<CreateProjectBoq>,
+    Json(payload): Json<std::collections::HashMap<String, serde_json::Value>>,
 ) -> Result<Json<ApiResponse<bool>>, (StatusCode, Json<ApiResponse<()>>)> {
-    let q = "UPDATE project_boq SET slNo=?, isCustom=?, itemCode=?, description=?, unit=?, rate=?, qty=?, formulaStr=?, measurements=?, phase=? WHERE id=?";
-    api_response(
-        sqlx::query(q)
-            .bind(payload.sl_no)
-            .bind(payload.is_custom)
-            .bind(payload.item_code)
-            .bind(payload.description)
-            .bind(payload.unit)
-            .bind(payload.rate)
-            .bind(payload.qty)
-            .bind(payload.formula_str)
-            .bind(payload.measurements)
-            .bind(payload.phase)
-            .bind(id)
-            .execute(&pool)
-            .await
-            .map(|_| true)
-            .map_err(|e| e.to_string())
-    )
+    // Allowed columns for safe partial update
+    let allowed = ["slNo", "isCustom", "itemCode", "description", "unit", "rate",
+                   "qty", "formulaStr", "measurements", "phase", "lockedRate",
+                   "masterBoqId", "projectId"];
+
+    let mut sets: Vec<String> = Vec::new();
+    let mut values: Vec<String> = Vec::new();
+
+    for (key, val) in &payload {
+        if !allowed.contains(&key.as_str()) { continue; }
+        sets.push(format!("{} = ?", key));
+        match val {
+            serde_json::Value::Null => values.push("__NULL__".to_string()),
+            serde_json::Value::Bool(b) => values.push(if *b { "1".to_string() } else { "0".to_string() }),
+            serde_json::Value::Number(n) => values.push(n.to_string()),
+            serde_json::Value::String(s) => values.push(s.clone()),
+            // Arrays/objects must be JSON-stringified client-side but handle gracefully
+            other => values.push(other.to_string()),
+        }
+    }
+
+    if sets.is_empty() {
+        return api_response(Ok(true));
+    }
+
+    let q = format!("UPDATE project_boq SET {} WHERE id = ?", sets.join(", "));
+    let mut query = sqlx::query(&q);
+    for val in &values {
+        if val == "__NULL__" {
+            query = query.bind(None::<String>);
+        } else {
+            query = query.bind(val.as_str());
+        }
+    }
+    api_response(query.bind(&id).execute(&pool).await.map(|_| true).map_err(|e| e.to_string()))
 }
+
 
 pub async fn delete_project_boq(
     State(pool): State<SqlitePool>,

@@ -136,8 +136,8 @@ export default function ChatModule({ projectId = null, orgStaff = [], onClose })
                 const base64Data = evt.target.result;
                 const res = await window.api.os.uploadFileWeb(file.name, base64Data, projectId);
                 
-                if (res && res.success) {
-                    sendSystemMessage(`📎 Attached: ${file.name}`, { type: 'file', path: res.path, name: file.name });
+                if (res && typeof res === 'string') {
+                    sendSystemMessage(`📎 Attached: ${file.name}`, { type: 'file', path: res, name: file.name });
                 } else {
                     alert("File upload failed: " + (res?.error || "Unknown error"));
                 }

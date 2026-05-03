@@ -49,10 +49,11 @@ export function AuthProvider({ children }) {
                 response = json.data; // Express wraps the data payload
             }
 
-            // Check if the response was successful
-            if (response && response.success) {
-                setCurrentUser(response.user);
-                localStorage.setItem('openprix_session', JSON.stringify(response.user));
+            // Check if the response was successful (webBridge returns the user payload directly, or {success: false, error} on fail)
+            if (response && !response.error && (response.id || response.user)) {
+                const userObj = response.user || response; // Handle both old IPC structure and new REST structure
+                setCurrentUser(userObj);
+                localStorage.setItem('openprix_session', JSON.stringify(userObj));
                 return true;
             } else {
                 console.warn("Login failed:", response?.error || "Unknown error");

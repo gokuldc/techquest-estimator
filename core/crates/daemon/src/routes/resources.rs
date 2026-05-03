@@ -46,7 +46,8 @@ pub async fn save_resource(State(pool): State<SqlitePool>, Json(payload): Json<S
 
 pub async fn update_resource(State(pool): State<SqlitePool>, Path(id): Path<String>, Json(payload): Json<UpdateResourceField>) -> Result<Json<ApiResponse<bool>>, (StatusCode, Json<ApiResponse<()>>)> {
     // Validates column names strictly for dynamic field updates
-    if payload.field != "rates" && payload.field != "rateHistory" { return Err((StatusCode::BAD_REQUEST, Json(ApiResponse { success: false, data: None, error: Some("Invalid field".into()) }))); }
+    let allowed_fields = ["code", "description", "unit", "rates", "rateHistory"];
+    if !allowed_fields.contains(&payload.field.as_str()) { return Err((StatusCode::BAD_REQUEST, Json(ApiResponse { success: false, data: None, error: Some("Invalid field".into()) }))); }
     let q = format!("UPDATE resources SET {} = ? WHERE id = ?", payload.field);
     api_response(sqlx::query(&q).bind(payload.value).bind(id).execute(&pool).await.map(|_| true).map_err(|e| e.to_string()))
 }

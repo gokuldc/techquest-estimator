@@ -11,13 +11,7 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
 
         let expr = str.substring(1).replace(/\b(ceil|floor|round|abs|max|min|pi|sqrt)\b/g, "Math.$1");
 
-        if (currentRowPartial) {
-            expr = expr.replace(/\b(no)\b/g, currentRowPartial.computedNo || 0);
-            expr = expr.replace(/\b(l)\b/g, currentRowPartial.computedL || 0);
-            expr = expr.replace(/\b(b)\b/g, currentRowPartial.computedB || 0);
-            expr = expr.replace(/\b(d|h)\b/g, currentRowPartial.computedD || 0);
-        }
-
+        // 🔥 FIX 1: Process the Cross-References (#) FIRST so the string isn't corrupted
         expr = expr.replace(/#(\d+)(?:\.(\d+))?(?:\.([a-z]+))?/g, (match, slNoStr, rowStr, prop) => {
             const slNo = parseInt(slNoStr, 10);
             const rowIndex = rowStr ? parseInt(rowStr, 10) - 1 : 0;
@@ -51,7 +45,19 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
             return 0;
         });
 
-        try { return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); } catch { return 0; }
+        // 🔥 FIX 2: Process the Current Row Partials (l, b, d, no) SECOND
+        if (currentRowPartial) {
+            expr = expr.replace(/\b(no)\b/g, currentRowPartial.computedNo || 0);
+            expr = expr.replace(/\b(l)\b/g, currentRowPartial.computedL || 0);
+            expr = expr.replace(/\b(b)\b/g, currentRowPartial.computedB || 0);
+            expr = expr.replace(/\b(d|h)\b/g, currentRowPartial.computedD || 0);
+        }
+
+        try { 
+            return /[^0-9+\-*/().\seE]/.test(expr) ? 0 : (isFinite(new Function(`return ${expr}`)()) ? new Function(`return ${expr}`)() : 0); 
+        } catch { 
+            return 0; 
+        }
     };
 
     const { renderedProjectBoq, totalAmount } = useMemo(() => {
@@ -74,7 +80,6 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                     if (project?.isPriceLocked && item.lockedRate !== null && item.lockedRate !== undefined) { 
                         rate = Number(item.lockedRate) || 0; 
                     } else { 
-                        // 🔥 THE FIX: Calculate live rate, but fallback to the database rate if it fails!
                         const calculatedRate = calculateMasterBoqRate(masterBoq, resources, masterBoqs, project?.region);
                         rate = Number(calculatedRate) || Number(item.rate) || 0; 
                     }
@@ -82,7 +87,6 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                     displayDesc = masterBoq.description || "";
                     displayUnit = masterBoq.unit || "";
                 } else {
-                    // Fallback if Master BOQ was deleted but item still exists in Project BOQ
                     rate = Number(item.rate) || 0;
                     displayCode = item.itemCode || "N/A";
                     displayDesc = item.description || "Master Item Missing";
@@ -146,7 +150,6 @@ export function useProjectCalculations(projectBoqItems, masterBoqs, resources, p
                     if (!res) return;
                     if (!map[res.id]) map[res.id] = { code: res.code, description: res.description, unit: res.unit, estimatedQty: 0 };
                     
-                    // Defensively calculate resource requirements
                     const compQty = Number(comp.qty) || 0;
                     map[res.id].estimatedQty += (compQty * (item.computedQty || 0));
                 }

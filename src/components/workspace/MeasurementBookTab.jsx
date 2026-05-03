@@ -28,14 +28,14 @@ export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpO
         };
         
         const updatedMeasurements = [...(item.measurements || []), newRow];
-        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: JSON.stringify(updatedMeasurements) });
         setMbInputs(prev => ({ ...prev, [item.id]: { details: "", no: "", l: "", b: "", d: "" } }));
         if (loadData) loadData(); 
     };
 
     const deleteMeasurementRow = async (item, measurementId) => {
         const updatedMeasurements = (item.measurements || []).filter(m => m.id !== measurementId);
-        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: JSON.stringify(updatedMeasurements) });
         if (loadData) loadData(); 
     };
 
@@ -44,7 +44,7 @@ export default function MeasurementBookTab({ renderedProjectBoq, setFormulaHelpO
             if (m.id === measurementId) return { ...m, [field]: value };
             return m;
         });
-        await window.api.db.updateProjectBoq(item.id, { measurements: updatedMeasurements });
+        await window.api.db.updateProjectBoq(item.id, { measurements: JSON.stringify(updatedMeasurements) });
         if (loadData) loadData(); 
     };
 

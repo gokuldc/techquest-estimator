@@ -74,7 +74,7 @@ window.api = {
 
         getResources: () => restCall('GET', '/api/resources'),
         createResource: (data) => restCall('POST', '/api/resources', data),
-        updateResource: (id, f, v) => restCall('PUT', `/api/resources/${id}`, { [f]: v }),
+        updateResource: (id, f, v) => restCall('PUT', `/api/resources/${id}`, { field: f, value: typeof v === 'object' ? JSON.stringify(v) : String(v) }),
         deleteResource: (id) => restCall('DELETE', `/api/resources/${id}`),
 
         getMasterBoqs: () => restCall('GET', '/api/master-boqs'),

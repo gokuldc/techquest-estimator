@@ -246,7 +246,7 @@ export default function DatabaseEditor({ onBack }) {
         if (!boqCode || !boqDesc) return alert("Please enter a Code and Description.");
         const validComponents = renderedRows.filter(r => r.itemId && r.computedQty !== 0).map(r => ({ itemType: r.itemType, itemId: r.itemId, qty: Number(r.computedQty), formulaStr: r.formulaStr || String(r.computedQty) }));
         if (validComponents.length === 0) return alert("Add at least one valid component.");
-        const payload = { itemCode: boqCode, description: boqDesc, unit: boqUnit, overhead: Number(boqOH), profit: Number(boqProfit), components: validComponents };
+        const payload = { itemCode: boqCode, description: boqDesc, unit: boqUnit, overhead: Number(boqOH), profit: Number(boqProfit), components: JSON.stringify(validComponents) };
         await window.api.db.saveMasterBoq(payload, editingBoqId, isSaveAsNew);
         alert(isSaveAsNew ? "Saved as a New Databook Item!" : "Databook Item Saved!");
         setEditingBoqId(null); setBoqCode(""); setBoqDesc(""); setBoqRows([]); loadData();

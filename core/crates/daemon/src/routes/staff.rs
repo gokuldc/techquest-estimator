@@ -12,9 +12,9 @@ use sqlx::SqlitePool;
 pub struct SaveStaff {
     pub id: Option<String>,
     pub name: String,
-    pub designation: String,
-    pub department: String,
-    pub status: String,
+    pub designation: Option<String>,
+    pub department: Option<String>,
+    pub status: Option<String>,
     pub email: Option<String>,
     pub phone: Option<String>,
     pub username: Option<String>,
